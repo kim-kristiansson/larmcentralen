@@ -29,9 +29,24 @@
         <span>Utrustning</span>
         <select value="@State.EquipmentId" @onchange="OnEquipmentChanged">
             <option value="">Alla</option>
-            @foreach (var eq in Kb.Index.EquipmentInArea(State.AreaId))
+            @foreach (var (type, units) in Kb.Index.EquipmentByType(State.AreaId))
             {
-                <option value="@eq.Id">@EquipmentLabel(eq)</option>
+                @if (type is null)
+                {
+                    @foreach (var eq in units)
+                    {
+                        <option value="@eq.Id">@EquipmentLabel(eq)</option>
+                    }
+                }
+                else
+                {
+                    <optgroup label="@type">
+                        @foreach (var eq in units)
+                        {
+                            <option value="@eq.Id">@EquipmentLabel(eq)</option>
+                        }
+                    </optgroup>
+                }
             }
         </select>
     </label>

@@ -156,7 +156,7 @@ public sealed class AlarmIndex
         => string.IsNullOrWhiteSpace(code) ? null : code.Trim().ToUpperInvariant();
 
     /// <summary>Lower case, accents removed (å → a), runs of whitespace collapsed to one space.</summary>
-    internal static string NormaliseText(string? text)
+    public static string NormaliseText(string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return "";
         var decomposed = text.Normalize(System.Text.NormalizationForm.FormD);
