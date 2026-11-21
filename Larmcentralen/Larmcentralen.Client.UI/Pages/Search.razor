@@ -50,6 +50,7 @@
             }
         </select>
     </label>
+    <CodeFilter Codes="_codes" OfferWithoutCode="_withoutCode" Value="@State.AlarmCode" ValueChanged="OnCodeChanged" />
     <label>
         <span>Allvarlighet</span>
         <select value="@State.Severity" @onchange="OnSeverityChanged">
@@ -128,7 +129,12 @@ else
     private IReadOnlyList<int> _recentIds = [];
     private IReadOnlyList<AlarmView> _recent = [];
 
-    private bool HasFilters => State.AreaId is not null || State.EquipmentId is not null || State.Severity is not null;
+    private bool HasFilters => State.AreaId is not null || State.EquipmentId is not null || State.Severity is not null
+                               || State.AlarmCode is not null;
+
+    /// <summary>The codes offered by the code filter: those on alarms in the chosen area or unit.</summary>
+    private IReadOnlyList<string> _codes = [];
+    private bool _withoutCode;
 
     protected override async Task OnInitializedAsync()
     {
@@ -137,6 +143,10 @@ else
 
     protected override void Load()
     {
+        _codes = Kb.Index.CodesIn(State.AreaId, State.EquipmentId, out _withoutCode);
+        // A code no alarm in the chosen area or unit has any more (another filter changed, or a sync) goes back to "Alla".
+        if (State.AlarmCode is { } code && (code == AlarmSearchQuery.WithoutCode ? !_withoutCode : !_codes.Contains(code, StringComparer.OrdinalIgnoreCase)))
+            State.AlarmCode = null;
         _result = Kb.Index.Search(State.ToQuery());
         _recent = Kb.Index.GetByIds(_recentIds);
     }
@@ -176,6 +186,13 @@ else
         Load();
     }
 
+    private void OnCodeChanged(string? code)
+    {
+        State.AlarmCode = code;
+        State.ResetPaging();
+        Load();
+    }
+
     private void OnSeverityChanged(ChangeEventArgs e)
     {
         var value = e.Value?.ToString();
@@ -189,6 +206,7 @@ else
         State.AreaId = null;
         State.EquipmentId = null;
         State.Severity = null;
+        State.AlarmCode = null;
         State.ResetPaging();
         Load();
         await _input.FocusAsync();

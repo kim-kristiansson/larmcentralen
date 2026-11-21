@@ -2,15 +2,30 @@ using Larmcentralen.Client.Core.Models;
 
 namespace Larmcentralen.Client.Core.Search;
 
+/// <summary>
+/// A search. <see cref="AlarmCode"/>: only alarms with that code (any case), or <see cref="WithoutCode"/> for alarms
+/// that have none; null for all.
+/// </summary>
 public record AlarmSearchQuery(
     string? Text,
     int? AreaId = null,
     int? EquipmentId = null,
     string? Severity = null,
     int Skip = 0,
-    int Take = AlarmSearchQuery.PageSize)
+    int Take = AlarmSearchQuery.PageSize,
+    string? AlarmCode = null)
 {
     public const int PageSize = 10;
+
+    /// <summary>The code filter value for "Utan larmkod". Never a real code: codes have no spaces.</summary>
+    public const string WithoutCode = "utan larmkod";
+
+    /// <summary>True when the alarm passes the code filter.</summary>
+    public bool MatchesCode(string? alarmCode)
+        => AlarmCode is null
+           || (AlarmCode == WithoutCode
+               ? string.IsNullOrWhiteSpace(alarmCode)
+               : string.Equals(alarmCode?.Trim(), AlarmCode.Trim(), StringComparison.OrdinalIgnoreCase));
 }
 
 public record AlarmSearchResult(IReadOnlyList<AlarmView> Items, int TotalCount)
@@ -233,13 +248,28 @@ public sealed class AlarmIndex
     /// Empty text with no filter returns nothing. Empty text with at least one filter lists every
     /// matching alarm, ordered by alarm code (natural order), alarms without a code last, then title.
     /// </summary>
+    /// <summary>
+    /// The codes that alarms in this area or on this unit have, each once (upper case), in natural order (M2.1 before
+    /// M10.1), for the code filter. <paramref name="withoutCode"/> is true when some alarm there has no code.
+    /// </summary>
+    public IReadOnlyList<string> CodesIn(int? areaId, int? equipmentId, out bool withoutCode)
+    {
+        var views = _alarms.Values.Select(a => a.View)
+            .Where(v => areaId is not { } area || v.Area.Id == area)
+            .Where(v => equipmentId is not { } unit || v.Equipment.Id == unit)
+            .ToList();
+        withoutCode = views.Any(v => string.IsNullOrWhiteSpace(v.Alarm.AlarmCode));
+        return views.Select(v => NormaliseCode(v.Alarm.AlarmCode)).OfType<string>().Distinct()
+            .Order(NaturalComparer.Instance).ToList();
+    }
+
     public AlarmSearchResult Search(AlarmSearchQuery query)
     {
         var terms = Tokenize(query.Text);
         if (terms.Count == 0)
         {
             var hasFilter = query.AreaId is not null || query.EquipmentId is not null
-                || !string.IsNullOrEmpty(query.Severity);
+                || !string.IsNullOrEmpty(query.Severity) || query.AlarmCode is not null;
             return hasFilter ? ListFiltered(query) : AlarmSearchResult.Empty;
         }
 
@@ -250,6 +280,7 @@ public sealed class AlarmIndex
             if (query.AreaId is { } areaId && view.Area.Id != areaId) continue;
             if (query.EquipmentId is { } equipmentId && view.Equipment.Id != equipmentId) continue;
             if (!string.IsNullOrEmpty(query.Severity) && view.Alarm.Severity != query.Severity) continue;
+            if (!query.MatchesCode(view.Alarm.AlarmCode)) continue;
 
             var total = 0;
             var all = true;
@@ -282,6 +313,7 @@ public sealed class AlarmIndex
             .Where(v => query.AreaId is not { } areaId || v.Area.Id == areaId)
             .Where(v => query.EquipmentId is not { } equipmentId || v.Equipment.Id == equipmentId)
             .Where(v => string.IsNullOrEmpty(query.Severity) || v.Alarm.Severity == query.Severity)
+            .Where(v => query.MatchesCode(v.Alarm.AlarmCode))
             .OrderBy(v => string.IsNullOrWhiteSpace(v.Alarm.AlarmCode) ? 1 : 0)
             .ThenBy(v => v.Alarm.AlarmCode ?? "", NaturalComparer.Instance)
             .ThenBy(v => v.Alarm.Title, StringComparer.CurrentCultureIgnoreCase)

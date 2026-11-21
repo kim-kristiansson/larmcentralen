@@ -93,6 +93,59 @@ public sealed class AlarmCodeTests : IDisposable
         Assert.Equal(["T102", "T103", "T104"], index.SameCode(100).Select(a => a.Equipment.Title));
     }
 
+    private static List<int> Find(AlarmIndex index, string text = "", int? areaId = null, int? equipmentId = null, string? code = null)
+        => index.Search(new AlarmSearchQuery(text, areaId, equipmentId, Take: 100, AlarmCode: code))
+            .Items.Select(a => a.Alarm.Id).Order().ToList();
+
+    [Fact]
+    public void Code_filter_alone_lists_every_unit_with_that_code_in_any_case()
+    {
+        var index = new AlarmIndex(Snapshot());
+
+        Assert.Equal([100, 101, 102, 103, 104, 105], Find(index, code: "M200.0"));
+        Assert.Equal([100, 101, 102, 103, 104, 105], Find(index, code: " m200.0 "));
+        Assert.Equal([106], Find(index, code: "M200.1"));
+        Assert.Empty(Find(index, code: "M999.9"));
+    }
+
+    [Fact]
+    public void Code_filter_combines_with_unit_area_severity_and_text()
+    {
+        var index = new AlarmIndex(Snapshot());
+
+        Assert.Equal([100], Find(index, equipmentId: 10, code: "M200.0"));
+        Assert.Equal([100, 101, 102, 103, 104, 105], Find(index, areaId: 1, code: "M200.0"));
+        Assert.Empty(Find(index, areaId: 2, code: "M200.0"));
+        // Text AND code: "batteri" matches the furnaces' and A03's texts, not MAIN's "Config Error".
+        Assert.Equal([100, 101, 102, 103, 104], Find(index, text: "batteri", code: "M200.0"));
+        Assert.Empty(Find(index, text: "elskåp", code: "M200.0"));
+        Assert.Equal([107], index.Search(new AlarmSearchQuery("", Severity: Severity.Critical, Take: 100, AlarmCode: "M10.0")).Items.Select(a => a.Alarm.Id));
+    }
+
+    [Fact]
+    public void Without_code_filter_lists_alarms_that_have_no_code()
+    {
+        var index = new AlarmIndex(Snapshot());
+
+        Assert.Equal([108], Find(index, code: AlarmSearchQuery.WithoutCode));
+        Assert.Empty(Find(index, equipmentId: 11, code: AlarmSearchQuery.WithoutCode));
+    }
+
+    [Fact]
+    public void Codes_offered_by_the_filter_are_those_in_the_area_or_on_the_unit_in_natural_order()
+    {
+        var index = new AlarmIndex(Snapshot());
+
+        // M999.9 is in the code list but no alarm has it, so the filter does not offer it.
+        Assert.Equal(["M10.0", "M200.0", "M200.1"], index.CodesIn(null, null, out var anyWithout));
+        Assert.True(anyWithout);
+        Assert.Equal(["M200.0", "M200.1"], index.CodesIn(1, 10, out var t101Without));
+        Assert.True(t101Without); // T101's "Lampa" has no code
+        Assert.Equal(["M10.0"], index.CodesIn(null, 21, out var n1Without));
+        Assert.False(n1Without);
+        Assert.Empty(index.CodesIn(2, null, out _));
+    }
+
     [Fact]
     public async Task Store_round_trips_codes()
     {
