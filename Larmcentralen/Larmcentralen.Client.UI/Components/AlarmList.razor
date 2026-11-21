@@ -2,7 +2,7 @@
     @foreach (var item in Items)
     {
         <li @key="item.Alarm.Id">
-            <a class="alarm-row" href="larm/@item.Alarm.Id">
+            <a class="alarm-row sev-@SeverityBadge.KeyFor(item.Alarm.Severity)" href="larm/@item.Alarm.Id">
                 <SeverityBadge Value="@item.Alarm.Severity" />
                 <span class="alarm-main">
                     <span class="alarm-title">@item.Alarm.Title</span>

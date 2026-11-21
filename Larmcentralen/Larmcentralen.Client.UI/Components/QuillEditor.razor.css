@@ -1,5 +1,5 @@
 /* The editor frame. Quill builds the toolbar and editing area in JS, so ::deep reaches them. */
-.quill-editor { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.quill-editor { color-scheme: light; background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .quill-editor ::deep .ql-toolbar.ql-snow { border: none; border-bottom: 1px solid var(--border); background: #F8FAFC; }
 .quill-editor ::deep .ql-container.ql-snow { border: none; font: inherit; }
 .quill-editor ::deep .ql-editor { min-height: 320px; font-size: 1rem; line-height: 1.6; }

@@ -6,32 +6,92 @@
    single component live next to it in Component.razor.css (CSS isolation) and reach
    the app through the scoped bundle, Larmcentralen.App.styles.css. */
 
+/* Theming: light-dark() tokens follow the OS (color-scheme) and can be forced with
+   data-theme="light" or "dark" on <html>. */
+:root { color-scheme: light dark; }
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+
 :root {
-  --brand: #DD042B;          /* Aalberts red */
+  /* Brand: top bar and start-up only, never text on dark */
+  --brand: #DD042B;
   --brand-dark: #A8031F;
-  --ink: #1A1D21;
-  --ink-soft: #4A5260;
-  --muted: #6B7280;
-  --surface: #FFFFFF;
-  --background: #F3F4F6;
-  --border: #D6DAE0;
-  --focus: #1D4ED8;
-  --success: #166534;
-  --error: #B91C1C;
 
-  --sev-low: #475569;
-  --sev-low-bg: #E2E8F0;
-  --sev-medium: #92400E;
-  --sev-medium-bg: #FEF3C7;
-  --sev-high: #9A3412;
-  --sev-high-bg: #FFEDD5;
+  /* Neutrals */
+  --background: light-dark(#F1F3F5, #0F1317);
+  --surface: light-dark(#FFFFFF, #181D23);
+  --surface-2: light-dark(#E8ECF0, #232A32);
+  --surface-hover: light-dark(#F6F8FA, #1E242B);
+  --ink: light-dark(#1A1D21, #E8ECF1);
+  --ink-soft: light-dark(#414A57, #C2C9D3);
+  --muted: light-dark(#5A6372, #9BA5B3);
+  --border: light-dark(#D3D8DF, #2E3640);
+  --border-strong: light-dark(#7C8797, #6F7B8B);
+
+  /* Interactive accent */
+  --accent: light-dark(#1D5FA7, #8BB8F2);
+  --accent-hover: light-dark(#174C87, #A9CBF7);
+  --on-accent: light-dark(#FFFFFF, #0B1520);
+  --accent-soft: light-dark(#E3EEFA, #1B2B40);
+  --focus: light-dark(#1D4ED8, #9CC2FF);
+
+  /* Status */
+  --success: light-dark(#166534, #6EE7A0);
+  --success-bg: light-dark(#DCFCE7, #12301F);
+  --error: light-dark(#B91C1C, #FF8A8A);
+  --error-bg: light-dark(#FEE2E2, #3A1517);
+  --error-fill: light-dark(#B91C1C, #C62828);
+  --warn: light-dark(#7A4A00, #FCD34D);
+  --warn-bg: light-dark(#FEF3C7, #3A2E0A);
+  --warn-edge: light-dark(#B45309, #EAB308);
+  --info: light-dark(#1D4E89, #A9CBF7);
+  --info-bg: light-dark(#E0ECF9, #172A40);
+
+  /* Severity: text, background, edge (stripe) */
+  --sev-low: light-dark(#334155, #CBD5E1);
+  --sev-low-bg: light-dark(#E2E8F0, #2B333E);
+  --sev-low-edge: light-dark(#64748B, #8795A8);
+  --sev-medium: light-dark(#6B4500, #FCD34D);
+  --sev-medium-bg: light-dark(#FDECB0, #3A2E0A);
+  --sev-medium-edge: light-dark(#B7791F, #EAB308);
+  --sev-high: light-dark(#8A2C0B, #FDBA74);
+  --sev-high-bg: light-dark(#FFE0C7, #45230E);
+  --sev-high-edge: light-dark(#D9480F, #F97316);
   --sev-critical: #FFFFFF;
-  --sev-critical-bg: #B91C1C;
+  --sev-critical-bg: light-dark(#B91C1C, #C62828);
+  --sev-critical-edge: light-dark(#B91C1C, #EF4444);
 
+  /* Type scale */
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, Arial, sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+  --text-xs: 0.833rem;
+  --text-sm: 0.889rem;
+  --text-md: 1rem;
+  --text-lg: 1.111rem;
+  --text-xl: 1.333rem;
+  --text-2xl: 1.667rem;
+
+  /* Space, shape, depth, controls */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --radius-sm: 4px;
   --radius: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+  --shadow-1: 0 1px 2px light-dark(rgb(16 24 40 / 0.08), transparent);
+  --shadow-2: 0 12px 32px rgb(0 0 0 / 0.28);
+  --control-h: 48px;
+  --control-h-sm: 44px;
+  --control-h-lg: 64px;
   --content-width: 960px;
-  font-family: "Gotham", Arial, "Segoe UI", sans-serif;
-  font-size: 17px;
+
+  font-family: var(--font-ui);
+  font-size: 18px;
   line-height: 1.5;
   color: var(--ink);
   background: var(--background);
@@ -39,12 +99,15 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: var(--background); }
-a { color: var(--brand-dark); }
+a { color: var(--accent); }
+a:hover { color: var(--accent-hover); }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
-h1 { font-size: 1.7rem; line-height: 1.25; margin: 0.25rem 0 0.75rem; }
-h2 { font-size: 1.25rem; }
-h3 { font-size: 1.1rem; margin: 0; }
-code { font-family: Consolas, "Cascadia Mono", monospace; }
+/* FocusOnNavigate moves focus to the page's h1 for screen readers; it is not interactive, so no ring. */
+h1[tabindex="-1"]:focus { outline: none; }
+h1 { font-size: var(--text-2xl); line-height: 1.25; margin: 0.25rem 0 0.75rem; }
+h2 { font-size: var(--text-xl); }
+h3 { font-size: var(--text-lg); margin: 0; }
+code { font-family: var(--font-mono); }
 .muted { color: var(--muted); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
@@ -57,63 +120,80 @@ code { font-family: Consolas, "Cascadia Mono", monospace; }
 /* Buttons */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  min-height: 44px; padding: 0 18px; border-radius: var(--radius);
-  border: 1px solid var(--border); background: var(--surface); color: var(--ink);
+  min-height: var(--control-h); padding: 0 18px; border-radius: var(--radius);
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink);
   font: inherit; font-weight: 600; text-decoration: none; cursor: pointer;
 }
-.btn:hover:not(:disabled) { border-color: var(--ink-soft); }
+.btn:hover:not(:disabled) { border-color: var(--accent); color: var(--ink); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn-primary { background: var(--brand); border-color: var(--brand); color: #fff; }
-.btn-primary:hover:not(:disabled) { background: var(--brand-dark); border-color: var(--brand-dark); }
-.btn-danger { background: var(--error); border-color: var(--error); color: #fff; }
-.btn-danger-outline { color: var(--error); border-color: #F1B5B5; }
-.btn-small { min-height: 34px; padding: 0 12px; font-size: 0.9rem; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent); }
+.btn-danger { background: var(--error-fill); border-color: var(--error-fill); color: #fff; }
+.btn-danger-outline { color: var(--error); border-color: color-mix(in srgb, var(--error) 45%, var(--surface)); }
+.btn-small { min-height: var(--control-h-sm); padding: 0 14px; font-size: var(--text-md); }
 .btn-on-dark { background: transparent; color: #fff; border-color: rgba(255,255,255,0.7); }
 .btn-on-dark:hover:not(:disabled) { border-color: #fff; background: rgba(255,255,255,0.12); }
-.btn-link { border: none; background: none; color: var(--brand-dark); text-decoration: underline; padding: 0 6px; }
+.btn-link { border: none; background: none; color: var(--accent); text-decoration: underline; padding: 0 6px; }
+.btn-link:hover:not(:disabled) { color: var(--accent-hover); }
 .btn-wide { width: 100%; margin-top: 12px; }
 .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
 
 /* Page parts used on several pages */
 .back { margin: 0 0 8px; }
 .back a { text-decoration: none; font-weight: 600; }
-.section-title { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); margin: 18px 0 8px; }
-.alarm-code { background: #EEF0F3; padding: 1px 6px; border-radius: 4px; font-size: 0.9em; color: var(--ink); }
+.section-title { font-size: var(--text-md); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); margin: 18px 0 8px; }
+.alarm-code { font-family: var(--font-mono); font-variant-numeric: tabular-nums slashed-zero; font-weight: 600; background: var(--surface-2); padding: 1px 6px; border-radius: var(--radius-sm); font-size: 0.9em; color: var(--ink); }
+
+/* Empty states: no solutions, no hits */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-2);
+  text-align: center; padding: var(--space-6); margin-top: var(--space-3);
+  border: 2px dashed var(--border-strong); border-radius: var(--radius-lg);
+}
+.empty-state h2, .empty-state h3 { font-size: var(--text-lg); margin: 0; }
+.empty-state p { margin: 0; color: var(--muted); }
 
 /* Rich text, the same in reading (RichContent, HTML via MarkupString) and editing
    (Quill's .ql-editor, built in JS). Kept global: neither is Razor markup, and these
    rules must compete with quill.snow.css on equal terms. */
-.rich-content { line-height: 1.6; overflow-wrap: anywhere; }
+.rich-content { font-size: var(--text-lg); line-height: 1.65; max-width: 68ch; overflow-wrap: anywhere; }
 .rich-content h2, .ql-editor h2 { font-size: 1.2rem; margin: 1em 0 0.4em; }
 .rich-content h3, .ql-editor h3 { font-size: 1.05rem; margin: 0.9em 0 0.3em; }
-.rich-content ol, .rich-content ul { padding-left: 1.6em; }
-.rich-content li { margin: 0.2em 0; }
+.rich-content ol, .rich-content ul { padding-left: 2em; }
+.rich-content li { margin: 0.6em 0; }
+.rich-content li::marker { font-weight: 700; }
 .rich-content blockquote, .ql-editor blockquote {
-  border-left: 4px solid #D97706; background: #FEF3C7; color: #78350F;
+  border-left: 6px solid var(--warn-edge); background: var(--warn-bg); color: var(--warn);
   margin: 0.8em 0; padding: 10px 16px; border-radius: 0 6px 6px 0; font-weight: 600;
 }
-.rich-content code, .ql-editor code { background: #EEF0F3; padding: 1px 6px; border-radius: 4px; font-size: 0.92em; }
-.rich-content pre, .ql-editor pre, .ql-editor .ql-code-block-container { background: #EEF0F3; padding: 12px; border-radius: 6px; overflow-x: auto; font-family: Consolas, monospace; }
+.rich-content code, .ql-editor code { font-family: var(--font-mono); font-weight: 600; background: var(--surface-2); padding: 1px 6px; border-radius: var(--radius-sm); font-size: 0.92em; }
+.rich-content pre, .ql-editor pre, .ql-editor .ql-code-block-container { background: var(--surface-2); padding: 12px; border-radius: 6px; overflow-x: auto; font-family: var(--font-mono); }
 .rich-content table { border-collapse: collapse; width: 100%; margin: 0.8em 0; }
 .rich-content td, .rich-content th { border: 1px solid var(--border); padding: 8px; text-align: left; }
+.rich-content th { background: var(--surface-2); }
 
 /* Forms. Global because EditForm and the Input* components render the elements. */
 .form { display: grid; gap: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
 .form label, .form .field { display: flex; flex-direction: column; gap: 6px; }
-.form label > span, .field-label { font-weight: 700; font-size: 0.95rem; }
-.form input, .form select, .form textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); min-height: 44px; }
+.form label > span, .field-label { font-weight: 700; font-size: var(--text-md); }
+.form input, .form select, .form textarea { font: inherit; color: var(--ink); padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); min-height: var(--control-h); }
 .form textarea { resize: vertical; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.validation-message { color: var(--error); font-size: 0.9rem; }
+.validation-message { color: var(--error); font-size: var(--text-sm); }
 .invalid { border-color: var(--error) !important; }
 
 /* Messages */
-.notice { background: #FFFBEB; border: 1px solid #FCD34D; border-radius: var(--radius); padding: 12px 16px; margin: 12px 0; }
-.error { color: var(--error); font-weight: 600; }
-.success { color: var(--success); font-weight: 600; }
+.notice { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-edge); border-radius: var(--radius); padding: 12px 16px; margin: 12px 0; }
+.error, .success { margin: 12px 0 0; padding: 8px 12px; border-left: 4px solid currentColor; border-radius: var(--radius-sm); font-weight: 600; }
+.error { color: var(--error); background: var(--error-bg); }
+.success { color: var(--success); background: var(--success-bg); }
 
 @media (max-width: 640px) {
   .form-row { grid-template-columns: 1fr; }
+}
+
+@media (forced-colors: active) {
+  .btn, .empty-state { border: 1px solid CanvasText; }
 }
 
 /* Swedish labels for Quill's heading picker. Global: Quill builds the picker in JS. */

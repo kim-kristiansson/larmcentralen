@@ -17,7 +17,7 @@ else
 {
     var alarm = _details.Alarm;
     <article class="alarm-detail">
-        <header class="alarm-header">
+        <header class="alarm-header sev-@SeverityBadge.KeyFor(alarm.Severity)">
             <div class="alarm-header-top">
                 <SeverityBadge Value="@alarm.Severity" />
                 @if (!string.IsNullOrEmpty(alarm.AlarmCode))
@@ -62,7 +62,9 @@ else
 
             @if (_details.Solutions.Count == 0)
             {
-                <p class="muted">Ingen lösning är skriven för det här larmet ännu.</p>
+                <div class="empty-state">
+                    <p>Ingen lösning är skriven för det här larmet ännu.</p>
+                </div>
             }
             @foreach (var (solution, index) in _details.Solutions.Select((s, i) => (s, i)))
             {
@@ -77,7 +79,7 @@ else
                         </h3>
                         @if (!string.IsNullOrWhiteSpace(solution.EstimatedTime))
                         {
-                            <span class="estimate" title="Uppskattad tid">⏱ @solution.EstimatedTime</span>
+                            <span class="estimate" title="Uppskattad tid"><span class="visually-hidden">Uppskattad tid: </span><span aria-hidden="true">⏱</span> @solution.EstimatedTime</span>
                         }
                     </header>
                     <RichContent Html="@solution.Content" />

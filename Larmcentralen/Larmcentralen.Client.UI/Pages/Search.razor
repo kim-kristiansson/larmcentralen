@@ -71,7 +71,11 @@
 }
 else if (string.IsNullOrWhiteSpace(State.Text))
 {
-    @if (_recent.Count > 0)
+    @if (HasFilters)
+    {
+        <p class="muted hint">Skriv i sökrutan för att söka i det valda filtret.</p>
+    }
+    else if (_recent.Count > 0)
     {
         <h2 class="section-title">Senast visade</h2>
         <AlarmList Items="_recent" />
@@ -88,7 +92,14 @@ else
     </p>
     @if (_result.TotalCount == 0)
     {
-        <p class="muted">Inga larm matchar. Prova färre ord, eller larmkoden utan bokstaven (”200.4”).</p>
+        <div class="empty-state">
+            <h2>Inga larm matchar</h2>
+            <p>Prova färre ord, eller larmkoden utan bokstaven (”200.4”).</p>
+            @if (HasFilters)
+            {
+                <button type="button" class="btn" @onclick="ClearFilters">Rensa filter</button>
+            }
+        </div>
     }
     else
     {
