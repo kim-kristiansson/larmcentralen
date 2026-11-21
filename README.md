@@ -9,7 +9,7 @@ means and follow a step-by-step solution. It is a documentation platform, not an
 | --- | --- |
 | `Larmcentralen.Domain` | Entities and repository interfaces. No dependencies. |
 | `Larmcentralen.Application` | DTOs and services (search, export, sync snapshot). |
-| `Larmcentralen.Infrastructure` | EF Core on PostgreSQL, repositories, migrations. |
+| `Larmcentralen.Infrastructure` | EF Core on SQLite, repositories, migrations. |
 | `Larmcentralen.Api` | ASP.NET Core Web API, SharePoint and SMS integrations. |
 | `Larmcentralen.Client.Core` | Client logic with no UI: HTTP API client, local SQLite copy, sync, offline search. |
 | `Larmcentralen.Client.UI` | Every screen as Razor components (Swedish UI), plus the bundled Quill editor. |
@@ -31,14 +31,27 @@ Everything targets **.NET 11**. The target framework is set once in `Directory.B
 - Creating, editing and deleting need a connection in v1. After each write the app re-syncs.
 - Solutions are stored and edited as HTML with Quill 2 (MIT/BSD licensed, bundled locally).
 
+## Server database
+
+The API stores everything in one SQLite file, by default `Larmcentralen.Api/data/larmcentralen.db`
+(set `ConnectionStrings:DefaultConnection`, for example `Data Source=D:\\Larmcentralen\\larmcentralen.db`).
+On start-up the API creates the file if needed, applies migrations and turns on WAL mode.
+
+- Keep the file on a local disk. Network shares (SMB, Azure Files, App Service `/home`) break
+  SQLite's file locking.
+- Back up with `sqlite3 larmcentralen.db ".backup backup.db"` or Litestream, not by copying the
+  file while the API is running (the `-wal` file holds recent writes).
+- Search is case-insensitive for å, ä and ö: the API replaces SQLite's ASCII-only `lower()` with
+  .NET's on every connection (`Infrastructure/Data/SqliteSetup.cs`).
+
 ## Running locally
 
-Requirements: .NET 11 SDK, PostgreSQL, and on Windows the MAUI workload
+Requirements: .NET 11 SDK, and on Windows the MAUI workload
 (`dotnet workload install maui-windows`).
 
 ```bash
 cd Larmcentralen
-# API (put the real connection string in appsettings.Development.json, which git ignores)
+# API (creates and migrates data/larmcentralen.db next to the API on start-up)
 dotnet run --project Larmcentralen.Api --launch-profile https
 
 # Desktop app (Windows)

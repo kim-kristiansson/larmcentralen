@@ -22,22 +22,25 @@ public class AlarmRepository(AppDbContext db) : Repository<Alarm>(db), IAlarmRep
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var terms = search.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            // Case-insensitive for å/ä/ö too: lower() is replaced by a Unicode-aware
+            // version on every connection (see SqliteConnectionInterceptor).
+            var terms = search.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
             foreach (var term in terms)
             {
-                var startsWith = $"{term}%";
-                var wordStartsWith = $"% {term}%";
-        
+                var escaped = EscapeLike(term);
+                var startsWith = $"{escaped}%";
+                var wordStartsWith = $"% {escaped}%";
+
                 query = query.Where(a =>
-                    EF.Functions.ILike(a.Title, startsWith) ||
-                    EF.Functions.ILike(a.Title, wordStartsWith) ||
-                    (a.AlarmCode != null && (EF.Functions.ILike(a.AlarmCode, startsWith) || EF.Functions.ILike(a.AlarmCode, wordStartsWith))) ||
-                    (a.Description != null && (EF.Functions.ILike(a.Description, startsWith) || EF.Functions.ILike(a.Description, wordStartsWith))) ||
-                    EF.Functions.ILike(a.Equipment.Title, startsWith) ||
-                    EF.Functions.ILike(a.Equipment.Title, wordStartsWith) ||
-                    (a.Equipment.DisplayName != null && (EF.Functions.ILike(a.Equipment.DisplayName, startsWith) || EF.Functions.ILike(a.Equipment.DisplayName, wordStartsWith))) ||
-                    EF.Functions.ILike(a.Equipment.Area.Title, startsWith) ||
-                    EF.Functions.ILike(a.Equipment.Area.Title, wordStartsWith));
+                    EF.Functions.Like(a.Title.ToLower(), startsWith, "\\") ||
+                    EF.Functions.Like(a.Title.ToLower(), wordStartsWith, "\\") ||
+                    (a.AlarmCode != null && (EF.Functions.Like(a.AlarmCode.ToLower(), startsWith, "\\") || EF.Functions.Like(a.AlarmCode.ToLower(), wordStartsWith, "\\"))) ||
+                    (a.Description != null && (EF.Functions.Like(a.Description.ToLower(), startsWith, "\\") || EF.Functions.Like(a.Description.ToLower(), wordStartsWith, "\\"))) ||
+                    EF.Functions.Like(a.Equipment.Title.ToLower(), startsWith, "\\") ||
+                    EF.Functions.Like(a.Equipment.Title.ToLower(), wordStartsWith, "\\") ||
+                    (a.Equipment.DisplayName != null && (EF.Functions.Like(a.Equipment.DisplayName.ToLower(), startsWith, "\\") || EF.Functions.Like(a.Equipment.DisplayName.ToLower(), wordStartsWith, "\\"))) ||
+                    EF.Functions.Like(a.Equipment.Area.Title.ToLower(), startsWith, "\\") ||
+                    EF.Functions.Like(a.Equipment.Area.Title.ToLower(), wordStartsWith, "\\"));
             }
         }
         
@@ -46,11 +49,11 @@ public class AlarmRepository(AppDbContext db) : Repository<Alarm>(db), IAlarmRep
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var firstTerm = search.Split(' ', StringSplitOptions.RemoveEmptyEntries).Last();
-            var startsWithPattern = $"{firstTerm}%";
+            var firstTerm = search.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries).Last();
+            var startsWithPattern = $"{EscapeLike(firstTerm)}%";
 
             return await query
-                .OrderByDescending(a => EF.Functions.ILike(a.Title, startsWithPattern))
+                .OrderByDescending(a => EF.Functions.Like(a.Title.ToLower(), startsWithPattern, "\\"))
                 .ThenBy(a => a.Title)
                 .Skip(skip)
                 .Take(take)
@@ -83,4 +86,7 @@ public class AlarmRepository(AppDbContext db) : Repository<Alarm>(db), IAlarmRep
             .Where(a => ids.Contains(a.Id))
             .ToListAsync();
     }
+
+    private static string EscapeLike(string term) =>
+        term.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
 }

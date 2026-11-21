@@ -20,7 +20,8 @@ builder.Services.AddSwaggerGen();
 
 // Database
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"))
+        .AddInterceptors(new SqliteConnectionInterceptor()));
 
 // Repositories
 builder.Services.AddScoped<IAreaRepository, AreaRepository>();
@@ -46,6 +47,12 @@ builder.Services.Configure<SharePointOptions>(
     builder.Configuration.GetSection("SharePoint"));
 
 var app = builder.Build();
+
+// Create the database file if needed and bring it up to date.
+using (var scope = app.Services.CreateScope())
+{
+    await SqliteSetup.InitialiseAsync(scope.ServiceProvider.GetRequiredService<AppDbContext>());
+}
 
 if (app.Environment.IsDevelopment())
 {
