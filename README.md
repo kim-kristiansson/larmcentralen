@@ -104,6 +104,11 @@ setx LARMCENTRALEN_API_KEY "<key>"
 
 If a key leaks, generate a new one, update the API setting and every PC's `LARMCENTRALEN_API_KEY`.
 
+A GitHub Actions check (`.github/workflows/secret-scan.yml`, gitleaks) fails any push or pull
+request that adds something that looks like a secret. To catch it before committing, install
+gitleaks (`winget install gitleaks`) and add `.git/hooks/pre-commit` containing
+`gitleaks git --pre-commit --staged --redact -v`.
+
 ## Claude Code agents
 
 `.claude/agents/` holds subagents for Claude Code, each on the cheapest model that does its job
