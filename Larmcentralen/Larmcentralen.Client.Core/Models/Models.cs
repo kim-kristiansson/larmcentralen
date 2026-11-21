@@ -35,6 +35,10 @@ public record Equipment(int Id, string Title, string? DisplayName, int AreaId, D
     public string Name => string.IsNullOrWhiteSpace(DisplayName) ? Title : DisplayName;
 }
 
+/// <summary>
+/// An alarm on one unit. Title, code, severity and description come from its definition, which units of the
+/// same type with the same code and text share. <see cref="AlarmDefinitionId"/> is null from older servers.
+/// </summary>
 public record Alarm(
     int Id,
     string Title,
@@ -43,7 +47,25 @@ public record Alarm(
     string? Description,
     int EquipmentId,
     DateTime CreatedAt,
+    DateTime? UpdatedAt,
+    int? AlarmDefinitionId = null);
+
+/// <summary>
+/// What an alarm means, shared by units of <see cref="EquipmentType"/> (or owned by one unit when
+/// <see cref="ScopeEquipmentId"/> is not 0). Solutions belong to definitions.
+/// </summary>
+public record AlarmDefinition(
+    int Id,
+    string EquipmentType,
+    int ScopeEquipmentId,
+    string? AlarmCode,
+    string Title,
+    string Severity,
+    string? Description,
     DateTime? UpdatedAt);
+
+/// <summary>Links an alarm definition to a solution.</summary>
+public record DefinitionSolution(int AlarmDefinitionId, int SolutionId);
 
 /// <summary>
 /// A solution. It can be shared by several alarms: the links are in <see cref="SyncSnapshot.AlarmSolutions"/>.
@@ -65,6 +87,7 @@ public record AlarmSolution(int AlarmId, int SolutionId);
 /// <summary>
 /// Response of GET /api/sync. <see cref="AlarmSolutions"/> is null from a server that predates shared
 /// solutions; then each solution belongs to its <see cref="Solution.AlarmId"/> only.
+/// <see cref="AlarmDefinitions"/> and <see cref="DefinitionSolutions"/> are null from a server that predates definitions.
 /// </summary>
 public record SyncSnapshot(
     DateTime GeneratedAt,
@@ -72,7 +95,9 @@ public record SyncSnapshot(
     List<Equipment> Equipment,
     List<Alarm> Alarms,
     List<Solution> Solutions,
-    List<AlarmSolution>? AlarmSolutions = null);
+    List<AlarmSolution>? AlarmSolutions = null,
+    List<AlarmDefinition>? AlarmDefinitions = null,
+    List<DefinitionSolution>? DefinitionSolutions = null);
 
 /// <summary>An alarm with its equipment and area resolved, ready to show.</summary>
 public record AlarmView(Alarm Alarm, Equipment Equipment, Area Area);
@@ -84,10 +109,12 @@ public record AlarmDetails(Alarm Alarm, Equipment Equipment, Area Area, IReadOnl
 public record SaveAlarmRequest(string Title, string? AlarmCode, string Severity, string? Description, int EquipmentId);
 
 /// <summary><see cref="AlarmId"/> is for servers that predate shared solutions; newer ones use <see cref="AlarmIds"/>.</summary>
-public record CreateSolutionRequest(string Title, string? Content, int SortOrder, string? EstimatedTime, int AlarmId, List<int>? AlarmIds = null);
+public record CreateSolutionRequest(string Title, string? Content, int SortOrder, string? EstimatedTime, int AlarmId,
+    List<int>? AlarmIds = null, List<int>? AlarmDefinitionIds = null);
 
 /// <summary><see cref="AlarmIds"/> null leaves the links unchanged; a list replaces them.</summary>
-public record UpdateSolutionRequest(string Title, string? Content, int SortOrder, string? EstimatedTime, List<int>? AlarmIds = null);
+public record UpdateSolutionRequest(string Title, string? Content, int SortOrder, string? EstimatedTime,
+    List<int>? AlarmIds = null, List<int>? AlarmDefinitionIds = null);
 
 public record CreatedEntity(int Id);
 

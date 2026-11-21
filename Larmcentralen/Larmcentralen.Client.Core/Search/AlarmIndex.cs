@@ -32,6 +32,9 @@ public sealed class AlarmIndex
     private readonly ILookup<int, Solution> _solutionsByAlarm;
     private readonly ILookup<int, int> _alarmIdsBySolution;
     private readonly Dictionary<int, Solution> _solutions;
+    private readonly Dictionary<int, AlarmDefinition> _definitions;
+    private readonly ILookup<int, int> _alarmIdsByDefinition;
+    private readonly ILookup<int, int> _definitionIdsBySolution;
 
     public static readonly AlarmIndex Empty = new(new SyncSnapshot(DateTime.MinValue, [], [], [], []));
 
@@ -41,10 +44,20 @@ public sealed class AlarmIndex
         _equipment = snapshot.Equipment.ToDictionary(e => e.Id);
         _solutions = snapshot.Solutions.ToDictionary(s => s.Id);
 
-        // A server without shared solutions sends no links: each solution then belongs to its AlarmId only,
-        // and the app hides everything about sharing.
-        SupportsSharing = snapshot.AlarmSolutions is not null;
-        var links = (snapshot.AlarmSolutions ?? snapshot.Solutions.Select(s => new AlarmSolution(s.AlarmId, s.Id)).ToList())
+        // Solutions belong to alarm definitions; every alarm of a definition shows them. A server without
+        // definitions sends per-alarm links instead, and one without shared solutions only Solution.AlarmId:
+        // then the app hides definitions, or all sharing.
+        SupportsDefinitions = snapshot.AlarmDefinitions is not null && snapshot.DefinitionSolutions is not null;
+        SupportsSharing = SupportsDefinitions || snapshot.AlarmSolutions is not null;
+        _definitions = SupportsDefinitions ? snapshot.AlarmDefinitions!.ToDictionary(d => d.Id) : [];
+        _alarmIdsByDefinition = snapshot.Alarms.Where(a => SupportsDefinitions && a.AlarmDefinitionId is not null)
+            .ToLookup(a => a.AlarmDefinitionId!.Value, a => a.Id);
+        _definitionIdsBySolution = (snapshot.DefinitionSolutions ?? []).Where(l => SupportsDefinitions)
+            .ToLookup(l => l.SolutionId, l => l.AlarmDefinitionId);
+        var alarmLinks = SupportsDefinitions
+            ? snapshot.DefinitionSolutions!.SelectMany(l => _alarmIdsByDefinition[l.AlarmDefinitionId].Select(a => new AlarmSolution(a, l.SolutionId))).ToList()
+            : snapshot.AlarmSolutions;
+        var links = (alarmLinks ?? snapshot.Solutions.Select(s => new AlarmSolution(s.AlarmId, s.Id)).ToList())
             .Where(l => _solutions.ContainsKey(l.SolutionId))
             .Distinct()
             .ToList();
@@ -90,6 +103,54 @@ public sealed class AlarmIndex
     /// predates shared solutions; then the app shows no sharing features.
     /// </summary>
     public bool SupportsSharing { get; private init; }
+
+    /// <summary>True when the server sends alarm definitions (units of a type sharing what an alarm means and its solutions).</summary>
+    public bool SupportsDefinitions { get; private init; }
+
+    public AlarmDefinition? DefinitionOf(int alarmId)
+        => _alarms.TryGetValue(alarmId, out var a) && a.View.Alarm.AlarmDefinitionId is { } id ? _definitions.GetValueOrDefault(id) : null;
+
+    /// <summary>The same alarm on other units: those sharing its definition, ordered by unit.</summary>
+    public IReadOnlyList<AlarmView> SameDefinition(int alarmId)
+        => TargetFor(alarmId)?.Alarms.Where(a => a.Alarm.Id != alarmId).ToList() ?? [];
+
+    /// <summary>
+    /// What a solution is attached to for this alarm: its definition with all its alarms, or (from a server
+    /// without definitions) the alarm alone.
+    /// </summary>
+    public SolutionTarget? TargetFor(int alarmId)
+    {
+        if (!_alarms.TryGetValue(alarmId, out var a)) return null;
+        if (SupportsDefinitions && a.View.Alarm.AlarmDefinitionId is { } id)
+            return new SolutionTarget(id, id, ByUnit(_alarmIdsByDefinition[id]));
+        return new SolutionTarget(-alarmId, null, [a.View]);
+    }
+
+    /// <summary>Where a solution is attached: one target per definition (or per alarm from older servers).</summary>
+    public IReadOnlyList<SolutionTarget> TargetsForSolution(int solutionId)
+        => SupportsDefinitions
+            ? _definitionIdsBySolution[solutionId].Select(id => new SolutionTarget(id, id, ByUnit(_alarmIdsByDefinition[id])))
+                .Where(t => t.Alarms.Count > 0).OrderBy(t => t.Alarms[0].Equipment.Title, NaturalComparer.Instance).ToList()
+            : AlarmsForSolution(solutionId).Select(a => new SolutionTarget(-a.Alarm.Id, null, [a])).ToList();
+
+    /// <summary>
+    /// <see cref="Siblings"/> as solution targets: other definitions (or alarms) that are probably the same fault,
+    /// not counting the alarms that already share this alarm's definition.
+    /// </summary>
+    public IReadOnlyList<SolutionTarget> SiblingTargets(int alarmId)
+    {
+        var own = TargetFor(alarmId);
+        if (own is null) return [];
+        return Siblings(alarmId)
+            .Select(a => TargetFor(a.Alarm.Id)!)
+            .Where(t => t.Key != own.Key)
+            .DistinctBy(t => t.Key)
+            .ToList();
+    }
+
+    private IReadOnlyList<AlarmView> ByUnit(IEnumerable<int> alarmIds)
+        => alarmIds.Select(id => _alarms.TryGetValue(id, out var a) ? a.View : null).OfType<AlarmView>()
+            .OrderBy(v => v.Equipment.Title, NaturalComparer.Instance).ThenBy(v => v.Alarm.Id).ToList();
 
     /// <summary>The type name units without a type are grouped under, and that gets no suggestions.</summary>
     public const string OtherType = "Övrigt";
@@ -155,21 +216,18 @@ public sealed class AlarmIndex
     private static string? NormaliseCode(string? code)
         => string.IsNullOrWhiteSpace(code) ? null : code.Trim().ToUpperInvariant();
 
-    /// <summary>Lower case, accents removed (å → a), runs of whitespace collapsed to one space.</summary>
+    /// <summary>
+    /// Lower case, accents removed (å → a), whitespace and punctuation removed. The same rule the server uses
+    /// to decide which alarms share a definition.
+    /// </summary>
     public static string NormaliseText(string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return "";
         var decomposed = text.Normalize(System.Text.NormalizationForm.FormD);
         var sb = new System.Text.StringBuilder(decomposed.Length);
-        var space = false;
         foreach (var ch in decomposed)
-        {
-            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch) == System.Globalization.UnicodeCategory.NonSpacingMark) continue;
-            if (char.IsWhiteSpace(ch)) { space = sb.Length > 0; continue; }
-            if (space) { sb.Append(' '); space = false; }
-            sb.Append(char.ToLowerInvariant(ch));
-        }
-        return sb.ToString();
+            if (char.IsLetterOrDigit(ch)) sb.Append(char.ToLowerInvariant(ch));
+        return sb.ToString().Normalize(System.Text.NormalizationForm.FormC);
     }
 
     /// <summary>
@@ -338,4 +396,14 @@ public sealed class AlarmIndex
             return false;
         }
     }
+}
+
+/// <summary>
+/// Where a solution is attached: an alarm definition with every alarm (unit) that shares it, or, from a server
+/// without definitions, one alarm. <see cref="Key"/> is the definition id, or minus the alarm id.
+/// </summary>
+public sealed record SolutionTarget(int Key, int? DefinitionId, IReadOnlyList<AlarmView> Alarms)
+{
+    public AlarmView First => Alarms[0];
+    public IEnumerable<string> Units => Alarms.Select(a => a.Equipment.Title).Distinct();
 }
