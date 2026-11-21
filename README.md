@@ -54,8 +54,9 @@ cd Larmcentralen
 # API (creates and migrates data/larmcentralen.db next to the API on start-up)
 dotnet run --project Larmcentralen.Api --launch-profile https
 
-# Desktop app (Windows)
-dotnet build Larmcentralen.App -t:Run -f net11.0-windows10.0.19041.0
+# Desktop app (Windows): builds, then starts it. Close the running app first, or the build can't
+# replace its files. (`dotnet build -t:Run` only starts the last build without rebuilding.)
+dotnet run --project Larmcentralen.App -f net11.0-windows10.0.19041.0
 
 # Tests
 dotnet test --project tests/Larmcentralen.Client.Core.Tests
