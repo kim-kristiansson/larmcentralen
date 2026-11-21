@@ -1,0 +1,8 @@
+.theme-switch { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--bar-muted); }
+.theme-switch select {
+  min-height: var(--control-h-sm); padding: 0 var(--space-2); font: inherit; font-size: var(--text-md); font-weight: 600;
+  color: var(--bar-ink); background: var(--bar-bg); border: 1px solid var(--bar-btn-border); border-radius: var(--radius); cursor: pointer;
+}
+.theme-switch select:hover { border-color: var(--bar-ink); }
+/* The popup list follows color-scheme, not the bar colours; system colours keep it readable in every mode. */
+.theme-switch option { background: Canvas; color: CanvasText; }
