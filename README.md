@@ -68,7 +68,9 @@ well, so simple work does not run on the most expensive model.
 | `code-reviewer` | Sonnet | Read-only review of a diff before a PR |
 | `architect` | Opus | Sync/offline design, data model, hosting, big refactors (plans, no code) |
 | `debugger` | Opus | Hard bugs: sync, SQLite, EF Core, WebView/interop, CI-only failures |
+| `principal-architect` | Fable | Expensive escalation only: hard-to-undo calls such as sync/conflict handling or data model changes (plans, no code) |
 
 Claude picks one from its description, or ask for it by name ("use the architect agent to …").
-To change an agent's model, edit the `model:` line in its file (`haiku`, `sonnet`, `opus`, or
-`fable` for the rare job that needs the strongest model).
+To change an agent's model, edit the `model:` line in its file (`haiku`, `sonnet`, `opus` or
+`fable`). Use `architect` for normal design work and escalate to `principal-architect` only
+for decisions that are expensive to get wrong.
