@@ -183,7 +183,7 @@ public sealed class SharedSolutionTests : IDisposable
         Assert.Equal("<p>Stäng av ugnen.</p>", details.Solutions.Single().Content);
         Assert.Null(details.Equipment.EquipmentType);
         Assert.NotNull(await store.GetLastSyncedAtAsync(Ct));
-        Assert.Equal("2", await store.GetSettingAsync("SchemaVersion", Ct));
+        Assert.Equal("4", await store.GetSettingAsync("SchemaVersion", Ct));
 
         SqliteConnection.ClearAllPools();
         await using var check = new SqliteConnection($"Data Source={_dbPath}");

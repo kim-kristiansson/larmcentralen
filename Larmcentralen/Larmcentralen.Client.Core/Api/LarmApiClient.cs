@@ -74,6 +74,25 @@ public class LarmApiClient(HttpClient http)
         return copy?.Id ?? throw new InvalidOperationException("The API did not return the copy's id.");
     }
 
+    /// <summary>
+    /// Adds a code to the shared list and returns its id. A code that is already there (in any case) is not an
+    /// error: its id is returned.
+    /// </summary>
+    public async Task<int> CreateAlarmCodeAsync(string code, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsJsonAsync("api/alarm-codes", new { code }, ct);
+        if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            var conflict = await response.Content.ReadFromJsonAsync<CodeConflict>(ct);
+            if (conflict?.Code is { } existing) return existing.Id;
+        }
+        await EnsureSuccessAsync(response, ct);
+        var created = await response.Content.ReadFromJsonAsync<CreatedEntity>(ct);
+        return created?.Id ?? throw new InvalidOperationException("The API did not return the new code's id.");
+    }
+
+    private sealed record CodeConflict(string? Error, CreatedEntity? Code);
+
     /// <summary>Downloads the alarm and its solutions as a .docx.</summary>
     public async Task<(byte[] Bytes, string FileName)> ExportAlarmAsync(int alarmId, CancellationToken ct = default)
     {

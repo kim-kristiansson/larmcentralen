@@ -32,6 +32,7 @@ public sealed class AlarmIndex
     private readonly ILookup<int, Solution> _solutionsByAlarm;
     private readonly ILookup<int, int> _alarmIdsBySolution;
     private readonly Dictionary<int, Solution> _solutions;
+    private readonly Dictionary<int, AlarmCode> _codes;
 
     public static readonly AlarmIndex Empty = new(new SyncSnapshot(DateTime.MinValue, [], [], [], []));
 
@@ -40,6 +41,8 @@ public sealed class AlarmIndex
         _areas = snapshot.Areas.ToDictionary(a => a.Id);
         _equipment = snapshot.Equipment.ToDictionary(e => e.Id);
         _solutions = snapshot.Solutions.ToDictionary(s => s.Id);
+        _codes = (snapshot.AlarmCodes ?? []).ToDictionary(c => c.Id);
+        SupportsAlarmCodes = snapshot.AlarmCodes is not null;
 
         // A server without shared solutions sends no links: each solution then belongs to its AlarmId only,
         // and the app hides everything about sharing.
@@ -90,6 +93,58 @@ public sealed class AlarmIndex
     /// predates shared solutions; then the app shows no sharing features.
     /// </summary>
     public bool SupportsSharing { get; private init; }
+
+    /// <summary>True when the server sends the shared list of alarm codes (then the code is picked from it).</summary>
+    public bool SupportsAlarmCodes { get; private init; }
+
+    public AlarmCode? GetCode(int codeId) => _codes.GetValueOrDefault(codeId);
+
+    /// <summary>
+    /// The same alarm code on other units of the same type: for M200.0 on T101, M200.0 on T102, T103 and T104 (with their
+    /// own text). Units with no type, or "Övrigt", are never related to other units. Alarms without a code have none.
+    /// Ordered by unit (natural order).
+    /// </summary>
+    public IReadOnlyList<AlarmView> SameCode(int alarmId)
+    {
+        if (!_alarms.TryGetValue(alarmId, out var current)) return [];
+        var type = TypeOf(current.View.Equipment);
+        var code = NormaliseCode(current.View.Alarm.AlarmCode);
+        if (code is null || type is null || type == OtherType) return [];
+
+        return _alarms.Values
+            .Select(a => a.View)
+            .Where(v => v.Equipment.Id != current.View.Equipment.Id && TypeOf(v.Equipment) == type
+                        && NormaliseCode(v.Alarm.AlarmCode) == code)
+            .OrderBy(v => v.Equipment.Title, NaturalComparer.Instance)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Alarm codes to pick from for an alarm on <paramref name="equipmentId"/>: each code once, filtered by what is typed
+    /// (anywhere in the code, any case), ordered by code (natural order: M2.1 before M10.1). A code the unit already has on
+    /// another alarm than <paramref name="editingAlarmId"/> is listed with the reason it cannot be picked.
+    /// </summary>
+    public IReadOnlyList<CodeOption> SearchCodes(string? text, int equipmentId, int? editingAlarmId = null, int take = 50)
+    {
+        var term = NormaliseCode(text);
+        var used = _alarms.Values.Select(a => a.View.Alarm)
+            .Where(a => a.AlarmCodeId is not null)
+            .ToLookup(a => a.AlarmCodeId!.Value);
+
+        return _codes.Values
+            .Where(c => term is null || c.Code.Contains(term, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(c => term is not null && !c.Code.StartsWith(term, StringComparison.OrdinalIgnoreCase) ? 1 : 0)
+            .ThenBy(c => c.Code, NaturalComparer.Instance)
+            .Take(Math.Max(0, take))
+            .Select(c =>
+            {
+                var alarms = used[c.Id].ToList();
+                var taken = alarms.Any(a => a.EquipmentId == equipmentId && a.Id != editingAlarmId);
+                return new CodeOption(c, alarms.Select(a => a.EquipmentId).Distinct().Count(),
+                    taken ? "Finns redan på den här enheten" : null);
+            })
+            .ToList();
+    }
 
     /// <summary>The type name units without a type are grouped under, and that gets no suggestions.</summary>
     public const string OtherType = "Övrigt";
@@ -338,4 +393,10 @@ public sealed class AlarmIndex
             return false;
         }
     }
+}
+
+/// <summary>An alarm code offered in the code picker, with how many units use it.</summary>
+public sealed record CodeOption(AlarmCode Code, int UnitCount, string? DisabledReason)
+{
+    public bool Disabled => DisabledReason is not null;
 }
