@@ -38,3 +38,7 @@ public interface ISolutionService
     Task<bool> UpdateAsync(int id, UpdateSolutionDto dto);
     Task<bool> DeleteAsync(int id);
 }
+public interface ISyncService
+{
+    Task<SyncSnapshotDto> GetSnapshotAsync();
+}
