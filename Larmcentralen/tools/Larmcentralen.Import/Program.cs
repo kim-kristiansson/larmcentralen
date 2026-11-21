@@ -11,10 +11,12 @@ using Microsoft.EntityFrameworkCore;
 //
 // Usage:
 //   dotnet run --project tools/Larmcentralen.Import -- <alarms.json> --db <path-to.db> [--area "<title>"]
-//       [--types <types.json>] [--remove <unit>[,<unit>...]] [--dry-run]
+//       [--types <types.json>] [--remove <unit>[,<unit>...]] [--restore-text] [--dry-run]
 //
 // --types sets each unit's EquipmentType from a file like { "Härdugn": ["T101", "T102"], "Tvätt": ["W1"] }.
 //         Keep it next to the alarm list, outside the repository.
+// --restore-text sets the text of alarms already in the database to the text in the alarm list for their unit
+//          (for example after alarm definitions had merged the texts of several units into one).
 // --remove skips these units in the alarm list and deletes them from the database with their alarms,
 //          and the solutions only those alarms had. Their codes stay in the code list.
 // --dry-run does everything in a transaction and rolls it back.
@@ -29,7 +31,7 @@ if (options is null)
 {
     Console.Error.WriteLine("""
         Usage: Larmcentralen.Import <alarms.json> --db <path-to.db> [--area "<title>"]
-               [--types <types.json>] [--remove <unit>[,<unit>...]] [--dry-run]
+               [--types <types.json>] [--remove <unit>[,<unit>...]] [--restore-text] [--dry-run]
         """);
     return 1;
 }
@@ -71,7 +73,7 @@ if (area is null)
     Console.WriteLine($"+ area   {area.Title}");
 }
 
-int addedEquipment = 0, addedAlarms = 0, skipped = 0, existing = 0, typed = 0, removedUnits = 0, removedAlarms = 0;
+int addedEquipment = 0, addedAlarms = 0, skipped = 0, existing = 0, typed = 0, removedUnits = 0, removedAlarms = 0, restored = 0;
 
 // 1. Unit types (they decide which units count as the same kind, for related alarms and suggestions).
 foreach (var equipment in await db.Equipment.Where(e => e.AreaId == area.Id).ToListAsync())
@@ -131,6 +133,13 @@ foreach (var unit in units)
             code is not null ? a.AlarmCode?.Code == code : a.AlarmCode is null && AlarmText.NormaliseTitle(a.Title) == key);
         if (match is not null)
         {
+            if (options.RestoreText && match.Title != text)
+            {
+                Console.WriteLine($"~ text   {unit.Equipment} {code ?? "-"} '{match.Title}' -> '{text}'");
+                match.Title = text;
+                match.UpdatedAt = DateTime.UtcNow;
+                restored++;
+            }
             existing++;
             continue;
         }
@@ -150,6 +159,8 @@ foreach (var unit in units)
 Console.WriteLine();
 Console.WriteLine($"New units: {addedEquipment}, new alarms: {addedAlarms}, already there: {existing}, skipped rows: {skipped}");
 Console.WriteLine($"Types set: {typed}, removed units: {removedUnits}, removed alarms: {removedAlarms}");
+if (options.RestoreText) Console.WriteLine($"Texts restored: {restored}");
+await db.SaveChangesAsync();
 Console.WriteLine($"After:  {await CountsAsync()}");
 
 if (options.DryRun)
@@ -172,7 +183,8 @@ internal sealed record UnitRow(string Equipment, List<AlarmRow> Alarms);
 
 internal sealed record AlarmRow(string? Code, string? Text, string? Type);
 
-internal sealed record ImportOptions(string JsonPath, string DbPath, string AreaTitle, bool DryRun, string? TypesPath, IReadOnlyList<string> Remove)
+internal sealed record ImportOptions(string JsonPath, string DbPath, string AreaTitle, bool DryRun, string? TypesPath,
+    IReadOnlyList<string> Remove, bool RestoreText)
 {
     public static ImportOptions? Parse(string[] args)
     {
@@ -180,6 +192,7 @@ internal sealed record ImportOptions(string JsonPath, string DbPath, string Area
         string? types = null;
         var remove = new List<string>();
         var dryRun = false;
+        var restoreText = false;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -191,12 +204,13 @@ internal sealed record ImportOptions(string JsonPath, string DbPath, string Area
                     remove.AddRange(args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
                     break;
                 case "--dry-run": dryRun = true; break;
+                case "--restore-text": restoreText = true; break;
                 default:
                     if (args[i].StartsWith("--")) return null;
                     json = args[i];
                     break;
             }
         }
-        return json is null || db is null ? null : new ImportOptions(json, db, area, dryRun, types, remove);
+        return json is null || db is null ? null : new ImportOptions(json, db, area, dryRun, types, remove, restoreText);
     }
 }
