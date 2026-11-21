@@ -14,14 +14,12 @@ using Microsoft.EntityFrameworkCore;
 //       [--types <types.json>] [--remove <unit>[,<unit>...]] [--dry-run]
 //
 // --types sets each unit's EquipmentType from a file like { "Härdugn": ["T101", "T102"], "Tvätt": ["W1"] }.
-//         Keep it next to the alarm list, outside the repository. Applied before the alarms, because
-//         alarm definitions are shared per type.
+//         Keep it next to the alarm list, outside the repository.
 // --remove skips these units in the alarm list and deletes them from the database with their alarms,
-//          and the definitions and solutions only those alarms had.
+//          and the solutions only those alarms had. Their codes stay in the code list.
 // --dry-run does everything in a transaction and rolls it back.
 //
-// Alarms join an alarm definition by the app's own rule: units of the same type with the same code and the
-// same text (ignoring case, accents, spacing and punctuation) share one, "Övrigt" units each have their own.
+// Each code is added once to the shared code list; each alarm gets the text from the list for its own unit.
 //
 // JSON shape: [ { "equipment": "T101", "alarms": [ { "code": "M200.0", "text": "...", "type": "Type 1" } ] } ]
 // Running it again is safe: existing areas, equipment and alarms are matched and left as they are.
@@ -53,13 +51,13 @@ var dbOptions = new DbContextOptionsBuilder<AppDbContext>()
 await using var db = new AppDbContext(dbOptions);
 await SqliteSetup.InitialiseAsync(db);
 
-// The app's own services, so definitions follow exactly the same rules as edits in the app.
+// The app's own services, so codes and alarms follow exactly the same rules as edits in the app.
 var alarmRepo = new AlarmRepository(db);
 var equipmentRepo = new EquipmentRepository(db);
-var definitionRepo = new AlarmDefinitionRepository(db);
+var codeRepo = new AlarmCodeRepository(db);
 var solutionRepo = new SolutionRepository(db);
-var equipmentService = new EquipmentService(equipmentRepo, alarmRepo, definitionRepo, solutionRepo);
-var alarmService = new AlarmService(alarmRepo, definitionRepo, equipmentRepo, solutionRepo);
+var equipmentService = new EquipmentService(equipmentRepo);
+var alarmService = new AlarmService(alarmRepo, codeRepo, equipmentRepo, solutionRepo);
 
 Console.WriteLine($"Before: {await CountsAsync()}");
 await using var tx = await db.Database.BeginTransactionAsync();
@@ -75,7 +73,7 @@ if (area is null)
 
 int addedEquipment = 0, addedAlarms = 0, skipped = 0, existing = 0, typed = 0, removedUnits = 0, removedAlarms = 0;
 
-// 1. Types first: a unit that changes type takes its alarms (and their solutions) to definitions of the new type.
+// 1. Unit types (they decide which units count as the same kind, for related alarms and suggestions).
 foreach (var equipment in await db.Equipment.Where(e => e.AreaId == area.Id).ToListAsync())
 {
     if (!types.TryGetValue(equipment.Title, out var type) || equipment.EquipmentType == type) continue;
@@ -102,7 +100,7 @@ foreach (var unit in units)
 {
     if (remove.Contains(unit.Equipment)) continue;
 
-    var equipment = await db.Equipment.Include(e => e.Alarms).ThenInclude(a => a.Definition)
+    var equipment = await db.Equipment.Include(e => e.Alarms).ThenInclude(a => a.AlarmCode)
         .FirstOrDefaultAsync(e => e.AreaId == area.Id && e.Title == unit.Equipment);
     if (equipment is null)
     {
@@ -127,10 +125,10 @@ foreach (var unit in units)
             continue;
         }
 
-        var code = AlarmDefinition.NormaliseCode(row.Code);
-        var key = AlarmDefinition.NormaliseTitle(text);
+        var code = AlarmText.NormaliseCode(row.Code);
+        var key = AlarmText.NormaliseTitle(text);
         var match = equipment.Alarms.FirstOrDefault(a =>
-            code is not null ? a.Definition.AlarmCode == code : a.Definition.AlarmCode is null && a.Definition.NormalizedTitle == key);
+            code is not null ? a.AlarmCode?.Code == code : a.AlarmCode is null && AlarmText.NormaliseTitle(a.Title) == key);
         if (match is not null)
         {
             existing++;
@@ -167,8 +165,8 @@ return 0;
 
 async Task<string> CountsAsync() =>
     $"units {await db.Equipment.CountAsync()}, alarms {await db.Alarms.CountAsync()}, " +
-    $"definitions {await db.AlarmDefinitions.CountAsync()}, solutions {await db.Solutions.CountAsync()}, " +
-    $"links {await db.DefinitionSolutions.CountAsync()}";
+    $"codes {await db.AlarmCodes.CountAsync()}, solutions {await db.Solutions.CountAsync()}, " +
+    $"links {await db.AlarmSolutions.CountAsync()}";
 
 internal sealed record UnitRow(string Equipment, List<AlarmRow> Alarms);
 
