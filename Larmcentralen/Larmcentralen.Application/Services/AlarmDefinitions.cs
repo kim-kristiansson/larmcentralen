@@ -55,18 +55,21 @@ public static class AlarmDefinitions
     }
 
     /// <summary>
-    /// Marks definitions that no alarm uses any more for deletion, and the solutions that only they had.
-    /// Needs each definition's Alarms and Solutions (with their Definitions) loaded. Call before saving.
+    /// After <paramref name="leaving"/> moved to another definition or was deleted: deletes <paramref name="definition"/>
+    /// when no other alarm uses it, with the solutions only it had. Needs the definition's Alarms and Solutions
+    /// (with their Definitions) loaded. Call before saving.
+    /// Do not remove the alarm from <c>definition.Alarms</c> yourself: EF would then null its required foreign key
+    /// before it sees the new definition. Setting <c>alarm.Definition</c> (or deleting the alarm) is enough.
     /// </summary>
-    public static void RemoveUnused(IEnumerable<AlarmDefinition> candidates, IAlarmDefinitionRepository definitions,
+    public static void RemoveIfUnused(AlarmDefinition definition, Alarm leaving, IAlarmDefinitionRepository definitions,
         ISolutionRepository solutions)
     {
-        var unused = candidates.Where(d => d.Alarms.Count == 0).Distinct().ToList();
-        foreach (var solution in unused.SelectMany(d => d.Solutions).Distinct().ToList())
+        if (definition.Alarms.Any(a => a != leaving)) return;
+        foreach (var solution in definition.Solutions.ToList())
         {
-            if (solution.Definitions.All(unused.Contains))
+            if (solution.Definitions.All(d => d == definition))
                 solutions.Remove(solution);
         }
-        foreach (var definition in unused) definitions.Remove(definition);
+        definitions.Remove(definition);
     }
 }

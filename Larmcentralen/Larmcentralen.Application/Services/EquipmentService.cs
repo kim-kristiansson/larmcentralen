@@ -99,9 +99,12 @@ public class EquipmentService(
         {
             var alarm = (await alarms.GetForUpdateAsync(alarmId))!;
             var old = alarm.Definition;
-            var scope = old.ScopeEquipmentId == unit.Id ? unit.Id : AlarmDefinition.DefaultScopeFor(unit);
+            // A definition split off for this unit stays its own; one it only had for being "Övrigt" becomes shareable.
+            var splitOff = old.EquipmentType != AlarmDefinition.OtherType && old.ScopeEquipmentId == unit.Id;
+            var scope = splitOff ? unit.Id : AlarmDefinition.DefaultScopeFor(unit);
             var target = await definitions.FindAsync(type, old.AlarmCode, old.NormalizedTitle, scope);
-            if (target is null && old.Alarms.Count == 1)
+            if (target == old) continue; // e.g. no type before and "Övrigt" now: the same definition
+            if (target is null && old.Alarms.All(a => a == alarm))
             {
                 old.EquipmentType = type;
                 old.ScopeEquipmentId = scope;
@@ -118,9 +121,8 @@ public class EquipmentService(
                 await definitions.AddAsync(target);
             }
             foreach (var s in old.Solutions.ToList()) AlarmDefinitions.Link(target, s);
-            old.Alarms.Remove(alarm);
             alarm.Definition = target;
-            AlarmDefinitions.RemoveUnused([old], definitions, solutions);
+            AlarmDefinitions.RemoveIfUnused(old, alarm, definitions, solutions);
         }
     }
 

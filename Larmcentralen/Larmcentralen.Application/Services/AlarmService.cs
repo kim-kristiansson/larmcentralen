@@ -59,11 +59,10 @@ public class AlarmService(
 
             // It keeps the solutions it had.
             foreach (var s in old.Solutions.ToList()) AlarmDefinitions.Link(target, s);
-            old.Alarms.Remove(alarm);
             alarm.EquipmentId = unit.Id;
             alarm.Definition = target;
             alarm.UpdatedAt = DateTime.UtcNow;
-            AlarmDefinitions.RemoveUnused([old], definitions, solutions);
+            if (target != old) AlarmDefinitions.RemoveIfUnused(old, alarm, definitions, solutions);
         }
         else
         {
@@ -99,9 +98,8 @@ public class AlarmService(
         if (alarm is null) return false;
 
         var definition = alarm.Definition;
-        definition.Alarms.Remove(alarm);
         repo.Remove(alarm);
-        AlarmDefinitions.RemoveUnused([definition], definitions, solutions);
+        AlarmDefinitions.RemoveIfUnused(definition, alarm, definitions, solutions);
         await repo.SaveChangesAsync();
         return true;
     }
@@ -116,7 +114,7 @@ public class AlarmService(
         if (alarm is null) return AlarmWriteResult.NotFound();
 
         var shared = alarm.Definition;
-        if (shared.Alarms.Count > 1)
+        if (shared.Alarms.Any(a => a != alarm))
         {
             var own = await definitions.FindAsync(shared.EquipmentType, shared.AlarmCode, shared.NormalizedTitle, alarm.EquipmentId);
             if (own is null)
@@ -134,7 +132,6 @@ public class AlarmService(
                 await definitions.AddAsync(own);
             }
             foreach (var s in shared.Solutions.ToList()) AlarmDefinitions.Link(own, s);
-            shared.Alarms.Remove(alarm);
             alarm.Definition = own;
             alarm.UpdatedAt = DateTime.UtcNow;
             await repo.SaveChangesAsync();
