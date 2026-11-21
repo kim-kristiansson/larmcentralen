@@ -1,7 +1,7 @@
 ---
 name: principal-architect
 description: EXPENSIVE escalation path, not the default. Use only for high-stakes, hard-to-undo design calls in Larmcentralen - offline sync and conflict handling (for example moving to offline editing or delta sync), data model changes that need migrating production data, or when the architect agent's plan is uncertain or disputed. For ordinary design questions use architect instead. Read-only; returns a plan.
-model: fable
+model: claude-fable-5-2
 effort: high
 tools: Read, Grep, Glob, Bash, WebSearch, WebFetch
 ---
