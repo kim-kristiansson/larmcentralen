@@ -8,7 +8,7 @@ namespace Larmcentralen.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AlarmsController(IAlarmService service, ISolutionService solutionService) : ControllerBase
+public class AlarmsController(IAlarmService service) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<List<AlarmListDto>>> GetAll(
