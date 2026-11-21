@@ -9,6 +9,7 @@ namespace Larmcentralen.Client.Core;
 public static class ServiceCollectionExtensions
 {
     private const string HttpClientName = "LarmApi";
+    public const string ApiKeyHeader = "X-Api-Key";
 
     /// <summary>
     /// Registers the API client, local store, recent alarms and the knowledge base.
@@ -25,6 +26,8 @@ public static class ServiceCollectionExtensions
         {
             http.BaseAddress = options.BaseAddress;
             http.Timeout = options.Timeout;
+            if (!string.IsNullOrWhiteSpace(options.ApiKey))
+                http.DefaultRequestHeaders.Add(ApiKeyHeader, options.ApiKey);
         });
 
         // One long-lived client for a desktop app. KnowledgeBase is a singleton and owns the connection state.

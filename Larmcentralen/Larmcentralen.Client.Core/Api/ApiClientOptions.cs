@@ -7,4 +7,7 @@ public class ApiClientOptions
 
     /// <summary>How long a request may take before the client treats the API as unreachable.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>Key sent in the <c>X-Api-Key</c> header. Empty sends no header (local development).</summary>
+    public string? ApiKey { get; set; }
 }
