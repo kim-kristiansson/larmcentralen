@@ -5,7 +5,7 @@
 
 <PageTitle>@(IsNew ? "Ny lösning" : "Redigera lösning") · Larmcentralen</PageTitle>
 
-<p class="back"><a href="@BackUrl">← Avbryt</a></p>
+<p class="back"><a href="@BackUrl">← @(_alarm is null ? "Tillbaka till sökningen" : "Tillbaka till larmet")</a></p>
 
 @if (!CanEdit)
 {
@@ -57,7 +57,7 @@ else
             <p class="error" role="alert">@_error</p>
         }
 
-        <div class="actions">
+        <div class="form-actions">
             <OnlineButton Type="submit" Class="btn btn-primary" Disabled="_saving">@(_saving ? "Sparar…" : "Spara")</OnlineButton>
             <a class="btn" href="@BackUrl">Avbryt</a>
         </div>

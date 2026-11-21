@@ -1,3 +1,8 @@
 /* Start-up screen, shown while the local copy loads. */
-.startup { min-height: 100vh; display: grid; place-content: center; text-align: center; gap: 8px; }
-.brand-mark { font-size: 2rem; font-weight: 700; color: var(--brand); }
+.startup { min-height: 100vh; display: grid; place-content: center; justify-items: center; text-align: center; gap: var(--space-4); padding: var(--space-5); }
+.brand-mark { padding: var(--space-3) var(--space-5); border-radius: var(--radius-lg); background: var(--brand); color: var(--on-brand); font-size: var(--text-2xl); font-weight: 700; letter-spacing: 0.02em; }
+.startup p { margin: 0; font-size: var(--text-lg); color: var(--ink-soft); }
+.startup .error { max-width: 36rem; text-align: left; }
+@media (forced-colors: active) {
+  .brand-mark { border: 1px solid CanvasText; }
+}
