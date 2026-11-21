@@ -13,6 +13,11 @@ public class LarmApiClient(HttpClient http)
         => await http.GetFromJsonAsync<SyncSnapshot>("api/sync", ct)
            ?? throw new InvalidOperationException("The API returned an empty sync snapshot.");
 
+    /// <summary>Asks the API what this app's key allows (read only, or edit too).</summary>
+    public async Task<AccessInfo> GetAccessAsync(CancellationToken ct = default)
+        => await http.GetFromJsonAsync<AccessInfo>("api/me", ct)
+           ?? throw new InvalidOperationException("The API returned an empty answer for api/me.");
+
     public async Task<int> CreateAlarmAsync(SaveAlarmRequest request, CancellationToken ct = default)
     {
         using var response = await http.PostAsJsonAsync("api/alarms", request, ct);

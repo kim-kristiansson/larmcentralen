@@ -7,7 +7,12 @@
 
 <p class="back"><a href="@BackUrl">← Avbryt</a></p>
 
-@if (_alarm is null)
+@if (!CanEdit)
+{
+    <h1>@(IsNew ? "Ny lösning" : "Redigera lösning")</h1>
+    <NoEditAccess />
+}
+else if (_alarm is null)
 {
     <h1>@(IsNew ? "Ny lösning" : "Redigera lösning")</h1>
     <p class="muted">@(IsNew ? "Larmet finns inte." : "Lösningen finns inte.")</p>

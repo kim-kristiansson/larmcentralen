@@ -26,6 +26,8 @@ jobs:
         run: dotnet build Larmcentralen.Client.UI
       - name: Test client core (search, sync, offline store)
         run: dotnet test --project tests/Larmcentralen.Client.Core.Tests
+      - name: Test API (roles and startup checks)
+        run: dotnet test --project tests/Larmcentralen.Api.Tests
 
   windows-app:
     name: Blazor Hybrid app (Windows, MAUI 11)

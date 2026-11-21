@@ -34,6 +34,15 @@ public sealed class KnowledgeBase(
     public string? LastSyncError { get; private set; }
     public bool HasLocalData => Index.AlarmCount > 0 || LastSyncedAt is not null;
 
+    /// <summary>
+    /// True when this app's API key is an admin key. Learned from the API on every sync and saved
+    /// locally, so the UI knows offline too. False until the API has said otherwise.
+    /// The API enforces it; this only decides which buttons to show.
+    /// </summary>
+    public bool CanEdit { get; private set; }
+
+    private const string CanEditSetting = "CanEdit";
+
     private bool _apiReachable = true;
 
     /// <summary>Opens the local database and loads it into memory. Call once at start-up, before any page reads.</summary>
@@ -43,6 +52,7 @@ public sealed class KnowledgeBase(
         await store.InitializeAsync(ct);
         Index = new AlarmIndex(await store.LoadAllAsync(ct));
         LastSyncedAt = await store.GetLastSyncedAtAsync(ct);
+        CanEdit = await store.GetSettingAsync(CanEditSetting, ct) == "true";
         _initialized = true;
         network.Changed += OnNetworkChanged;
         RaiseChanged();
@@ -64,8 +74,10 @@ public sealed class KnowledgeBase(
             RaiseChanged();
 
             var snapshot = await api.GetSnapshotAsync(ct);
+            var access = await api.GetAccessAsync(ct);
             var syncedAt = DateTimeOffset.UtcNow;
             await store.ReplaceAllAsync(snapshot, syncedAt, ct);
+            await SetCanEditAsync(access.CanEdit, ct);
 
             Index = new AlarmIndex(snapshot);
             LastSyncedAt = syncedAt;
@@ -129,6 +141,14 @@ public sealed class KnowledgeBase(
             SetReachable(false, "Servern går inte att nå.");
             throw new OfflineException(ex);
         }
+        catch (ApiException ex) when (ex.Status == System.Net.HttpStatusCode.Forbidden)
+        {
+            // The key lost its admin rights since the last sync: hide the edit buttons straight away.
+            logger.LogWarning("Write refused: this API key may only read");
+            SetReachable(true, null);
+            await SetCanEditAsync(false, ct);
+            throw new NotAllowedException(ex);
+        }
         SetReachable(true, null);
         await SyncAsync(ct);
         return result;
@@ -153,6 +173,14 @@ public sealed class KnowledgeBase(
             SetReachable(false, "Servern går inte att nå.");
             throw new OfflineException(ex);
         }
+    }
+
+    private async Task SetCanEditAsync(bool canEdit, CancellationToken ct)
+    {
+        if (CanEdit == canEdit) return;
+        CanEdit = canEdit;
+        await store.SetSettingAsync(CanEditSetting, canEdit ? "true" : "false", ct);
+        RaiseChanged();
     }
 
     private void OnNetworkChanged(object? sender, EventArgs e)
@@ -197,3 +225,7 @@ public sealed class KnowledgeBase(
 
 public class OfflineException(Exception? inner = null)
     : Exception("Det här kräver anslutning till servern.", inner);
+
+/// <summary>The API refused a change because this app's key may only read.</summary>
+public class NotAllowedException(Exception? inner = null)
+    : Exception("Du har bara läsbehörighet. Be en administratör om ändringen.", inner);
