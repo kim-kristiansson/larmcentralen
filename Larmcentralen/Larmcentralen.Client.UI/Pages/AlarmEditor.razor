@@ -27,28 +27,6 @@ else
         <DataAnnotationsValidator />
 
         <label>
-            <span>Titel</span>
-            <InputText @bind-Value="_form.Title" placeholder="Det som står i larmlistan, t.ex. ”Temperatur för hög”" />
-            <ValidationMessage For="() => _form.Title" />
-        </label>
-
-        <div class="form-row">
-            <label>
-                <span>Larmkod</span>
-                <InputText @bind-Value="_form.AlarmCode" placeholder="t.ex. M200.4" />
-            </label>
-            <label>
-                <span>Allvarlighet</span>
-                <InputSelect @bind-Value="_form.Severity">
-                    @foreach (var s in Severity.All)
-                    {
-                        <option value="@s">@s</option>
-                    }
-                </InputSelect>
-            </label>
-        </div>
-
-        <label>
             <span>Utrustning</span>
             <InputSelect @bind-Value="_form.EquipmentId">
                 <option value="0">Välj utrustning…</option>
@@ -57,12 +35,41 @@ else
                     <optgroup label="@area.Name">
                         @foreach (var eq in Kb.Index.EquipmentInArea(area.Id))
                         {
-                            <option value="@eq.Id">@eq.Title@(string.IsNullOrWhiteSpace(eq.DisplayName) ? "" : $" ({eq.DisplayName})")</option>
+                            <option value="@eq.Id">@eq.Title@(string.IsNullOrWhiteSpace(eq.DisplayName) ? "" : $" ({eq.DisplayName})")@(AlarmIndex.TypeOf(eq) is { } t ? $" – {t}" : "")</option>
                         }
                     </optgroup>
                 }
             </InputSelect>
             <ValidationMessage For="() => _form.EquipmentId" />
+        </label>
+
+        @if (Kb.Index.SupportsAlarmCodes)
+        {
+            <AlarmCodePicker EquipmentId="_form.EquipmentId" EditingAlarmId="Id" SelectedCodeId="_form.AlarmCodeId"
+                             Disabled="_saving" OnPick="PickCode" OnCreate="CreateCodeAsync" />
+        }
+        else
+        {
+            <label>
+                <span>Larmkod</span>
+                <InputText @bind-Value="_form.AlarmCode" placeholder="t.ex. M200.4" />
+            </label>
+        }
+
+        <label>
+            <span>Larmtext</span>
+            <InputText @bind-Value="_form.Title" placeholder="Det som står i larmlistan för den här enheten, t.ex. ”Temperatur för hög”" />
+            <ValidationMessage For="() => _form.Title" />
+        </label>
+
+        <label>
+            <span>Allvarlighet</span>
+            <InputSelect @bind-Value="_form.Severity">
+                @foreach (var s in Severity.All)
+                {
+                    <option value="@s">@s</option>
+                }
+            </InputSelect>
         </label>
 
         <label>
@@ -99,9 +106,38 @@ else
         _found = true;
         _form.Title = details.Alarm.Title;
         _form.AlarmCode = details.Alarm.AlarmCode;
+        _form.AlarmCodeId = details.Alarm.AlarmCodeId;
         _form.Severity = details.Alarm.Severity;
         _form.Description = details.Alarm.Description;
         _form.EquipmentId = details.Alarm.EquipmentId;
+    }
+
+    private void PickCode(AlarmCode? code)
+    {
+        _error = null;
+        _form.AlarmCodeId = code?.Id;
+        _form.AlarmCode = code?.Code;
+    }
+
+    /// <summary>"+ Ny larmkod": adds the code to the shared list, then uses it here.</summary>
+    private async Task CreateCodeAsync(string code)
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            var id = await Kb.WriteAsync((api, ct) => api.CreateAlarmCodeAsync(code, ct));
+            _form.AlarmCodeId = id;
+            _form.AlarmCode = Kb.Index.GetCode(id)?.Code ?? code;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Larmkoden kunde inte läggas till. {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
     }
 
     private async Task SaveAsync()
@@ -113,7 +149,8 @@ else
             string.IsNullOrWhiteSpace(_form.AlarmCode) ? null : _form.AlarmCode.Trim(),
             _form.Severity,
             string.IsNullOrWhiteSpace(_form.Description) ? null : _form.Description.Trim(),
-            _form.EquipmentId);
+            _form.EquipmentId,
+            Kb.Index.SupportsAlarmCodes ? _form.AlarmCodeId : null);
         try
         {
             var id = IsNew
@@ -133,12 +170,14 @@ else
 
     private sealed class AlarmForm
     {
-        [Required(ErrorMessage = "Ange en titel.")]
+        [Required(ErrorMessage = "Ange larmtexten.")]
         [MaxLength(300, ErrorMessage = "Högst 300 tecken.")]
         public string Title { get; set; } = "";
 
         [MaxLength(50, ErrorMessage = "Högst 50 tecken.")]
         public string? AlarmCode { get; set; }
+
+        public int? AlarmCodeId { get; set; }
 
         // Imported and new alarms start as Medel until someone rates them.
         public string Severity { get; set; } = global::Larmcentralen.Client.Core.Models.Severity.Medium;

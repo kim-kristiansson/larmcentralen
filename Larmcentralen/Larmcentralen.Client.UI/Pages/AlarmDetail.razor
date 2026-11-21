@@ -104,6 +104,44 @@ else
                 </section>
             }
         </section>
+
+        @if (Kb.Index.SameCode(Id) is { Count: > 0 } related)
+        {
+            <section class="same-code" aria-labelledby="same-code-title">
+                <h2 id="same-code-title" class="section-title">Samma larmkod på andra @TypePlural(_details.Equipment)</h2>
+                <p class="muted hint">@alarm.AlarmCode på andra enheter av samma typ. Texten är deras egen; en lösning som fungerar där kan du använda även här.</p>
+                @foreach (var other in related)
+                {
+                    var foreign = Kb.Index.GetDetails(other.Alarm.Id)?.Solutions
+                        .Where(s => _details.Solutions.All(own => own.Id != s.Id)).ToList() ?? [];
+                    <div class="same-code-alarm" @key="other.Alarm.Id">
+                        <p class="same-code-head">
+                            <a href="larm/@other.Alarm.Id"><strong>@other.Equipment.Title</strong></a>
+                            <span class="muted">· @other.Alarm.Title</span>
+                            <SeverityBadge Value="@other.Alarm.Severity" />
+                        </p>
+                        @if (foreign.Count == 0)
+                        {
+                            <p class="muted same-code-none">@(Kb.Index.GetDetails(other.Alarm.Id)?.Solutions.Count > 0 ? "Samma lösningar som här." : "Ingen lösning skriven.")</p>
+                        }
+                        @foreach (var solution in foreign)
+                        {
+                            <details class="same-code-solution" @key="solution.Id">
+                                <summary>
+                                    <span>@solution.Title</span>
+                                    @if (CanEdit)
+                                    {
+                                        <OnlineButton Class="btn btn-small" Disabled="_busy" OnClick="@(() => UseHereAsync(solution))"
+                                                      Title="Lösningen visas då även på det här larmet. En ändring gäller båda.">Använd även här</OnlineButton>
+                                    }
+                                </summary>
+                                <RichContent Html="@solution.Content" />
+                            </details>
+                        }
+                    </div>
+                }
+            </section>
+        }
     </article>
 
     <ConfirmDialog Open="_confirmDeleteAlarm"
@@ -220,6 +258,31 @@ else
         catch (Exception ex)
         {
             Show($"Lösningen kunde inte tas bort. {ex.Message}", error: true);
+        }
+    }
+
+    /// <summary>"härdugnar", "anlöpningsugnar", "tvättar".</summary>
+    private static string TypePlural(Equipment equipment)
+        => AlarmIndex.TypeOf(equipment) is { } type ? type.ToLowerInvariant() + "ar" : "enheter";
+
+    /// <summary>"Använd även här": links another unit's solution to this alarm too (it is then shared).</summary>
+    private async Task UseHereAsync(Solution solution)
+    {
+        _busy = true;
+        try
+        {
+            var alarmIds = Kb.Index.AlarmsForSolution(solution.Id).Select(a => a.Alarm.Id).Append(Id).Distinct().ToList();
+            await Kb.WriteAsync((api, ct) => api.UpdateSolutionAsync(solution.Id,
+                new UpdateSolutionRequest(solution.Title, solution.Content, solution.SortOrder, solution.EstimatedTime, alarmIds), ct));
+            Show($"”{solution.Title}” gäller nu även det här larmet.", error: false);
+        }
+        catch (Exception ex)
+        {
+            Show($"Lösningen kunde inte läggas till. {ex.Message}", error: true);
+        }
+        finally
+        {
+            _busy = false;
         }
     }
 
