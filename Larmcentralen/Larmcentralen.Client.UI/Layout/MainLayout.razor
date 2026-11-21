@@ -4,9 +4,13 @@
     <header class="topbar">
         <div class="content-container topbar-inner">
             <a class="brand" href="">Larmcentralen</a>
-            <StatusBar />
+            <div class="topbar-tools">
+                <StatusBar />
+                <ThemeSwitch />
+            </div>
         </div>
     </header>
+    <SyncErrorBanner />
     <main>
         @* One shared container sets the page width for every page. *@
         <div class="content-container">

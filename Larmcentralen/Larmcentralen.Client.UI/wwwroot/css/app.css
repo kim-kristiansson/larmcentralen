@@ -16,6 +16,17 @@
   /* Brand: top bar and start-up only, never text on dark */
   --brand: #DD042B;
   --brand-dark: #A8031F;
+  --on-brand: #FFFFFF;
+
+  /* Top bar: graphite in light mode, a plain surface with a bottom border in dark */
+  --bar-bg: light-dark(#232A32, var(--surface));
+  --bar-ink: light-dark(#FFFFFF, var(--ink));
+  --bar-muted: light-dark(#C2C9D3, var(--muted));
+  --bar-border: light-dark(#232A32, var(--border));
+  --bar-btn-border: light-dark(rgb(255 255 255 / 0.7), var(--border-strong));
+  --bar-hover: light-dark(rgb(255 255 255 / 0.12), var(--surface-hover));
+  --bar-ok: light-dark(#4ADE80, #6EE7A0);
+  --bar-info: #8BB8F2;
 
   /* Neutrals */
   --background: light-dark(#F1F3F5, #0F1317);
@@ -41,6 +52,8 @@
   --error: light-dark(#B91C1C, #FF8A8A);
   --error-bg: light-dark(#FEE2E2, #3A1517);
   --error-fill: light-dark(#B91C1C, #C62828);
+  --on-error-fill: #FFFFFF;
+  --scrim: light-dark(rgb(17 24 39 / 0.5), rgb(0 0 0 / 0.65));
   --warn: light-dark(#7A4A00, #FCD34D);
   --warn-bg: light-dark(#FEF3C7, #3A2E0A);
   --warn-edge: light-dark(#B45309, #EAB308);
@@ -122,17 +135,18 @@ code { font-family: var(--font-mono); }
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   min-height: var(--control-h); padding: 0 18px; border-radius: var(--radius);
   border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink);
-  font: inherit; font-weight: 600; text-decoration: none; cursor: pointer;
+  font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap;
 }
 .btn:hover:not(:disabled) { border-color: var(--accent); color: var(--ink); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .btn-primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent); }
-.btn-danger { background: var(--error-fill); border-color: var(--error-fill); color: #fff; }
+.btn-danger { background: var(--error-fill); border-color: var(--error-fill); color: var(--on-error-fill); }
+.btn-danger:hover:not(:disabled) { border-color: var(--error-fill); color: var(--on-error-fill); filter: brightness(1.12); }
 .btn-danger-outline { color: var(--error); border-color: color-mix(in srgb, var(--error) 45%, var(--surface)); }
 .btn-small { min-height: var(--control-h-sm); padding: 0 14px; font-size: var(--text-md); }
-.btn-on-dark { background: transparent; color: #fff; border-color: rgba(255,255,255,0.7); }
-.btn-on-dark:hover:not(:disabled) { border-color: #fff; background: rgba(255,255,255,0.12); }
+.btn-on-dark { background: transparent; color: var(--bar-ink); border-color: var(--bar-btn-border); }
+.btn-on-dark:hover:not(:disabled) { border-color: var(--bar-ink); color: var(--bar-ink); background: var(--bar-hover); }
 .btn-link { border: none; background: none; color: var(--accent); text-decoration: underline; padding: 0 6px; }
 .btn-link:hover:not(:disabled) { color: var(--accent-hover); }
 .btn-wide { width: 100%; margin-top: 12px; }
@@ -140,7 +154,7 @@ code { font-family: var(--font-mono); }
 
 /* Page parts used on several pages */
 .back { margin: 0 0 8px; }
-.back a { text-decoration: none; font-weight: 600; }
+.back a { display: inline-flex; align-items: center; min-height: var(--control-h-sm); text-decoration: none; font-weight: 600; }
 .section-title { font-size: var(--text-md); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); margin: 18px 0 8px; }
 .alarm-code { font-family: var(--font-mono); font-variant-numeric: tabular-nums slashed-zero; font-weight: 600; background: var(--surface-2); padding: 1px 6px; border-radius: var(--radius-sm); font-size: 0.9em; color: var(--ink); }
 
@@ -150,30 +164,38 @@ code { font-family: var(--font-mono); }
   text-align: center; padding: var(--space-6); margin-top: var(--space-3);
   border: 2px dashed var(--border-strong); border-radius: var(--radius-lg);
 }
+.empty-state h1 { font-size: var(--text-xl); margin: 0; }
 .empty-state h2, .empty-state h3 { font-size: var(--text-lg); margin: 0; }
 .empty-state p { margin: 0; color: var(--muted); }
 
 /* Rich text, the same in reading (RichContent, HTML via MarkupString) and editing
-   (Quill's .ql-editor, built in JS). Kept global: neither is Razor markup, and these
-   rules must compete with quill.snow.css on equal terms. */
+   (Quill's .ql-editor, styled in Components/QuillEditor.razor.css). Kept global because the
+   HTML is not Razor markup. */
 .rich-content { font-size: var(--text-lg); line-height: 1.65; max-width: 68ch; overflow-wrap: anywhere; }
-.rich-content h2, .ql-editor h2 { font-size: 1.2rem; margin: 1em 0 0.4em; }
-.rich-content h3, .ql-editor h3 { font-size: 1.05rem; margin: 0.9em 0 0.3em; }
+.rich-content h2 { font-size: 1.2rem; margin: 1em 0 0.4em; }
+.rich-content h3 { font-size: 1.05rem; margin: 0.9em 0 0.3em; }
 .rich-content ol, .rich-content ul { padding-left: 2em; }
 .rich-content li { margin: 0.6em 0; }
 .rich-content li::marker { font-weight: 700; }
-.rich-content blockquote, .ql-editor blockquote {
+.rich-content blockquote {
   border-left: 6px solid var(--warn-edge); background: var(--warn-bg); color: var(--warn);
   margin: 0.8em 0; padding: 10px 16px; border-radius: 0 6px 6px 0; font-weight: 600;
 }
-.rich-content code, .ql-editor code { font-family: var(--font-mono); font-weight: 600; background: var(--surface-2); padding: 1px 6px; border-radius: var(--radius-sm); font-size: 0.92em; }
-.rich-content pre, .ql-editor pre, .ql-editor .ql-code-block-container { background: var(--surface-2); padding: 12px; border-radius: 6px; overflow-x: auto; font-family: var(--font-mono); }
+.rich-content code { font-family: var(--font-mono); font-weight: 600; background: var(--surface-2); padding: 1px 6px; border-radius: var(--radius-sm); font-size: 0.92em; }
+.rich-content pre { background: var(--surface-2); padding: 12px; border-radius: 6px; overflow-x: auto; font-family: var(--font-mono); }
 .rich-content table { border-collapse: collapse; width: 100%; margin: 0.8em 0; }
 .rich-content td, .rich-content th { border: 1px solid var(--border); padding: 8px; text-align: left; }
 .rich-content th { background: var(--surface-2); }
 
 /* Forms. Global because EditForm and the Input* components render the elements. */
-.form { display: grid; gap: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+.form { display: grid; gap: var(--space-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-1); padding: var(--space-5); }
+/* Spara/Avbryt stays at the bottom of the window while a long form (the Quill editor) scrolls.
+   Negative margins make the bar span the card's padding. */
+.form-actions {
+  position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center;
+  margin: 0 calc(-1 * var(--space-5)) calc(-1 * var(--space-5)); padding: var(--space-4) var(--space-5);
+  background: var(--surface); border-top: 1px solid var(--border); border-radius: 0 0 var(--radius) var(--radius);
+}
 .form label, .form .field { display: flex; flex-direction: column; gap: 6px; }
 .form label > span, .field-label { font-weight: 700; font-size: var(--text-md); }
 .form input, .form select, .form textarea { font: inherit; color: var(--ink); padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); min-height: var(--control-h); }
@@ -183,7 +205,9 @@ code { font-family: var(--font-mono); }
 .invalid { border-color: var(--error) !important; }
 
 /* Messages */
-.notice { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-edge); border-radius: var(--radius); padding: 12px 16px; margin: 12px 0; }
+.notice { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-edge); border-left-width: 6px; border-radius: var(--radius); padding: var(--space-3) var(--space-4); margin: var(--space-3) 0; font-size: var(--text-md); }
+.notice p { margin: 0; }
+.notice p + p { margin-top: var(--space-2); }
 .error, .success { margin: 12px 0 0; padding: 8px 12px; border-left: 4px solid currentColor; border-radius: var(--radius-sm); font-weight: 600; }
 .error { color: var(--error); background: var(--error-bg); }
 .success { color: var(--success); background: var(--success-bg); }
@@ -195,12 +219,3 @@ code { font-family: var(--font-mono); }
 @media (forced-colors: active) {
   .btn, .empty-state { border: 1px solid CanvasText; }
 }
-
-/* Swedish labels for Quill's heading picker. Global: Quill builds the picker in JS. */
-.ql-snow .ql-picker.ql-header .ql-picker-label::before,
-.ql-snow .ql-picker.ql-header .ql-picker-item::before { content: "Brödtext"; }
-.ql-snow .ql-picker.ql-header .ql-picker-label[data-value="2"]::before,
-.ql-snow .ql-picker.ql-header .ql-picker-item[data-value="2"]::before { content: "Rubrik"; }
-.ql-snow .ql-picker.ql-header .ql-picker-label[data-value="3"]::before,
-.ql-snow .ql-picker.ql-header .ql-picker-item[data-value="3"]::before { content: "Underrubrik"; }
-.ql-snow .ql-picker.ql-header { width: 120px; }

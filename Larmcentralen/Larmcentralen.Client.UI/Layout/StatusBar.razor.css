@@ -1,5 +1,9 @@
-.status { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }
-.status-dot { width: 10px; height: 10px; border-radius: 50%; background: #4ADE80; box-shadow: 0 0 0 2px rgba(255,255,255,0.6); }
-.status-offline .status-dot { background: #FACC15; }
-.status-offline .status-text { font-weight: 700; }
-.status-detail { opacity: 0.9; font-weight: 400; }
+.status { display: flex; align-items: center; gap: var(--space-3); font-size: var(--text-sm); }
+.status-live { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-1) var(--space-3); }
+.status-pill { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 32px; padding: 0 var(--space-3); border-radius: var(--radius-pill); font-weight: 700; color: var(--bar-ink); }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--bar-ok); }
+.status-syncing .status-dot { background: var(--bar-info); }
+/* Offline is the state that matters most on the shop floor, so it gets the amber warning pill. */
+.status-offline { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-edge); }
+.status-offline .status-dot { background: var(--warn-edge); }
+.status-detail { color: var(--bar-muted); }
