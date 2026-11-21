@@ -1,0 +1,35 @@
+@inherits KnowledgeBaseComponent
+@* Shows whether the app is online and when the local copy was last synced. *@
+<div class="status @(IsOnline ? "status-online" : "status-offline")" role="status" aria-live="polite">
+    <span class="status-dot" aria-hidden="true"></span>
+    <span class="status-text">
+        @if (Kb.IsSyncing)
+        {
+            <text>Synkar…</text>
+        }
+        else if (IsOnline)
+        {
+            <text>Ansluten</text>
+        }
+        else
+        {
+            <text>Offline</text>
+        }
+        @if (Kb.LastSyncedAt is { } synced)
+        {
+            <span class="status-detail"> · synkad @Format.When(synced)</span>
+        }
+        else
+        {
+            <span class="status-detail"> · aldrig synkad</span>
+        }
+    </span>
+    <button type="button" class="btn btn-small btn-on-dark" disabled="@Kb.IsSyncing" @onclick="SyncNow"
+            title="@(Kb.LastSyncError ?? "Hämta senaste versionen från servern")">
+        Synka nu
+    </button>
+</div>
+
+@code {
+    private async Task SyncNow() => await Kb.SyncAsync();
+}

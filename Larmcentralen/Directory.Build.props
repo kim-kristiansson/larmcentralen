@@ -1,0 +1,10 @@
+<Project>
+  <!-- Shared settings for every project in the solution. -->
+  <PropertyGroup>
+    <!-- One place to move the whole solution to a new .NET version. -->
+    <LarmTargetFramework Condition="'$(LarmTargetFramework)' == ''">net11.0</LarmTargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>

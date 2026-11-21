@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!--
+    The desktop app: a thin .NET MAUI Blazor Hybrid shell around Larmcentralen.Client.UI.
+    Windows first. It only wires up platform services (network status, save dialog, file paths);
+    every screen lives in the shared Razor library.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>$(LarmTargetFramework)-windows10.0.19041.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Larmcentralen.App</RootNamespace>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <EnableDefaultCssItems>false</EnableDefaultCssItems>
+
+    <ApplicationTitle>Larmcentralen</ApplicationTitle>
+    <ApplicationId>se.larmcentralen.app</ApplicationId>
+    <ApplicationDisplayVersion>2.0</ApplicationDisplayVersion>
+    <ApplicationVersion>2</ApplicationVersion>
+
+    <!-- Unpackaged: runs as a normal .exe, no Store or MSIX needed for the pilot. -->
+    <WindowsPackageType>None</WindowsPackageType>
+
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#DD042B" />
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#DD042B" BaseSize="128,128" />
+    <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Maui" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" />
+    <PackageReference Include="Microsoft.Maui.Controls" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Larmcentralen.Client.Core\Larmcentralen.Client.Core.csproj" />
+    <ProjectReference Include="..\Larmcentralen.Client.UI\Larmcentralen.Client.UI.csproj" />
+  </ItemGroup>
+
+</Project>

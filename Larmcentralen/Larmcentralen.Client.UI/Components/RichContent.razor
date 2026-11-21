@@ -1,0 +1,15 @@
+@* Shows a solution exactly as written in the editor. Content is HTML from Quill, written by staff. *@
+<div class="rich-content ql-editor-like">
+    @if (Format.IsEmptyHtml(Html))
+    {
+        <p class="muted">Ingen beskrivning ännu.</p>
+    }
+    else
+    {
+        @((MarkupString)Html!)
+    }
+</div>
+
+@code {
+    [Parameter] public string? Html { get; set; }
+}

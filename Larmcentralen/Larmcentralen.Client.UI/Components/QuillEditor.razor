@@ -1,0 +1,43 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@* Word-like rich text editing with the locally bundled Quill. Produces HTML; nobody types markup. *@
+<div class="quill-editor">
+    <div @ref="_host"></div>
+</div>
+
+@code {
+    private ElementReference _host;
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _editor;
+
+    /// <summary>The HTML the editor starts with. Read the current HTML with <see cref="GetHtmlAsync"/>.</summary>
+    [Parameter] public string? InitialHtml { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "Skriv lösningen här…";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/Larmcentralen.Client.UI/js/quill-interop.js");
+        _editor = await _module.InvokeAsync<IJSObjectReference>("create", _host, InitialHtml ?? "", Placeholder);
+    }
+
+    /// <summary>The editor's content as HTML. Strings cross the interop boundary as UTF-8 JSON, so Swedish text is safe.</summary>
+    public async Task<string> GetHtmlAsync()
+    {
+        if (_module is null || _editor is null) return InitialHtml ?? "";
+        return await _module.InvokeAsync<string>("getHtml", _editor);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_editor is not null) await _editor.DisposeAsync();
+            if (_module is not null) await _module.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+            // The WebView is already gone; nothing to clean up.
+        }
+    }
+}

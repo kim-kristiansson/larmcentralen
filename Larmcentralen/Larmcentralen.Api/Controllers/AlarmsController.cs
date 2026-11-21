@@ -1,4 +1,4 @@
-﻿using Larmcentralen.Api.Services;
+using Larmcentralen.Api.Services;
 using Larmcentralen.Application.DTOs;
 using Larmcentralen.Application.Interfaces;
 using Larmcentralen.Application.Services;
@@ -10,8 +10,6 @@ namespace Larmcentralen.Api.Controllers;
 [Route("api/[controller]")]
 public class AlarmsController(IAlarmService service, ISolutionService solutionService) : ControllerBase
 {
-    [HttpGet]
-    [HttpGet]
     [HttpGet]
     public async Task<ActionResult<List<AlarmListDto>>> GetAll(
         [FromQuery] string? search,

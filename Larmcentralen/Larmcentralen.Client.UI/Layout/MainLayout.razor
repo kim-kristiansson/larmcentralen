@@ -1,0 +1,16 @@
+@inherits LayoutComponentBase
+
+<div class="app">
+    <header class="topbar">
+        <div class="content-container topbar-inner">
+            <a class="brand" href="">Larmcentralen</a>
+            <StatusBar />
+        </div>
+    </header>
+    <main>
+        @* One shared container sets the page width for every page. *@
+        <div class="content-container">
+            @Body
+        </div>
+    </main>
+</div>

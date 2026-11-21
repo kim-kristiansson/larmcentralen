@@ -1,0 +1,48 @@
+@inject KnowledgeBase Kb
+@* Root component. Hosts (Blazor Hybrid today, a web app later) render this. *@
+
+@if (_ready)
+{
+    <Router AppAssembly="typeof(App).Assembly">
+        <Found Context="routeData">
+            <RouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)" />
+            <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <LayoutView Layout="typeof(MainLayout)">
+                <h1>Sidan finns inte</h1>
+                <p><a href="">Till sökningen</a></p>
+            </LayoutView>
+        </NotFound>
+    </Router>
+}
+else
+{
+    <div class="startup">
+        <div class="brand-mark">Larmcentralen</div>
+        <p>@(_error ?? "Startar…")</p>
+    </div>
+}
+
+@code {
+    /// <summary>How often to pull a fresh copy from the API while the app is open.</summary>
+    [Parameter] public TimeSpan SyncInterval { get; set; } = TimeSpan.FromMinutes(5);
+
+    private bool _ready;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Load the local copy first so search works at once, even with no network.
+            await Kb.InitializeAsync();
+            _ready = true;
+            Kb.StartBackgroundSync(SyncInterval);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Kunde inte öppna den lokala databasen: {ex.Message}";
+        }
+    }
+}

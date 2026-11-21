@@ -1,0 +1,44 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-and-client-libraries:
+    name: API, client libraries and tests (.NET 11)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Larmcentralen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: Larmcentralen/global.json
+      - name: Build API
+        run: dotnet build Larmcentralen.Api
+      - name: Build shared Razor UI
+        run: dotnet build Larmcentralen.Client.UI
+      - name: Test client core (search, sync, offline store)
+        run: dotnet test --project tests/Larmcentralen.Client.Core.Tests
+
+  windows-app:
+    name: Blazor Hybrid app (Windows, MAUI 11)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: Larmcentralen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: Larmcentralen/global.json
+      - name: Install MAUI workload
+        run: dotnet workload install maui-windows
+      - name: Build app
+        run: dotnet build Larmcentralen.App -c Release

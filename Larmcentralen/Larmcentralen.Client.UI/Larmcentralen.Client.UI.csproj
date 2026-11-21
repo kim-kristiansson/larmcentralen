@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!--
+    Every screen of Larmcentralen as Razor components. Hosted today by the Blazor Hybrid
+    desktop app (Larmcentralen.App); a web host can serve the same components later
+    without a rewrite. No MAUI dependency here.
+  -->
+  <PropertyGroup>
+    <TargetFramework>$(LarmTargetFramework)</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Larmcentralen.Client.Core\Larmcentralen.Client.Core.csproj" />
+  </ItemGroup>
+
+</Project>

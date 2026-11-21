@@ -1,0 +1,6 @@
+<svg width="456" height="456" viewBox="0 0 456 456" xmlns="http://www.w3.org/2000/svg">
+  <!-- Warning triangle with an exclamation mark. -->
+  <path d="M228 110 L346 322 H110 Z" fill="none" stroke="#FFFFFF" stroke-width="22" stroke-linejoin="round" />
+  <rect x="217" y="178" width="22" height="80" rx="11" fill="#FFFFFF" />
+  <circle cx="228" cy="288" r="13" fill="#FFFFFF" />
+</svg>
