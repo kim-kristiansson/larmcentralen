@@ -34,6 +34,12 @@ else
                     <div><dt>Typ</dt><dd>@unitType</dd></div>
                 }
             </dl>
+            @if (Kb.Index.SupportsDefinitions && Kb.Index.SameDefinition(Id) is { Count: > 0 } same)
+            {
+                <p class="same-alarm" title="Samma larmdefinition: text och lösningar är gemensamma för de här enheterna.">
+                    <span class="shared-label">Samma larm på:</span> @string.Join(", ", same.Select(a => a.Equipment.Title).Distinct())
+                </p>
+            }
             @if (!string.IsNullOrWhiteSpace(alarm.Description))
             {
                 <p class="alarm-description">@alarm.Description</p>
@@ -113,12 +119,14 @@ else
                        : $"”{alarm.Title}” och alla dess lösningar tas bort för alla användare. Det går inte att ångra.")"
                    OnConfirm="DeleteAlarmAsync" OnCancel="@(() => _confirmDeleteAlarm = false)" />
 
-    @if (_solutionToDelete is { } toDelete && AlsoFor(toDelete) is { Count: > 0 } others)
+    @if (_solutionToDelete is { } toDelete && Kb.Index.TargetsForSolution(toDelete.Id).Count > 1)
     {
+        var others = AlsoFor(toDelete);
+        var here = HereUnits();
         <ConfirmDialog Open="true"
                        Title="Ta bort lösningen?"
                        Message="@($"”{toDelete.Title}” gäller även {string.Join(", ", others.Select(a => a.Equipment.Title).Distinct())}. Ta bort den bara här, eller överallt? Det går inte att ångra.")"
-                       SecondaryText="Ta bort från det här larmet"
+                       SecondaryText="@(here.Count > 1 ? $"Ta bort från det här larmet ({string.Join(", ", here)})" : "Ta bort från det här larmet")"
                        ConfirmText="@($"Ta bort överallt ({others.Count + 1} larm)")"
                        OnSecondary="UnlinkSolutionAsync"
                        OnConfirm="DeleteSolutionAsync" OnCancel="@(() => _solutionToDelete = null)" />
@@ -127,7 +135,9 @@ else
     {
         <ConfirmDialog Open="@(_solutionToDelete is not null)"
                        Title="Ta bort lösningen?"
-                       Message="@($"”{_solutionToDelete?.Title}” tas bort för alla användare. Det går inte att ångra.")"
+                       Message="@(HereUnits().Count > 1
+                           ? $"”{_solutionToDelete?.Title}” tas bort för alla användare, på {string.Join(", ", HereUnits())}. Det går inte att ångra."
+                           : $"”{_solutionToDelete?.Title}” tas bort för alla användare. Det går inte att ångra.")"
                        OnConfirm="DeleteSolutionAsync" OnCancel="@(() => _solutionToDelete = null)" />
     }
 }
@@ -206,6 +216,9 @@ else
         => Kb.Index.SupportsSharing
             ? Kb.Index.AlarmsForSolution(solution.Id).Where(a => a.Alarm.Id != Id).ToList()
             : [];
+
+    /// <summary>The units that share this alarm's definition, this one included (just this one without definitions).</summary>
+    private List<string> HereUnits() => Kb.Index.TargetFor(Id)?.Units.ToList() ?? [];
 
     private async Task UnlinkSolutionAsync()
     {

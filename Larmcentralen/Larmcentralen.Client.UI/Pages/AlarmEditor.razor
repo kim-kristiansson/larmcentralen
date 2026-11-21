@@ -23,6 +23,19 @@ else
         <p class="notice">Du är offline. Ändringar kan sparas när anslutningen är tillbaka.</p>
     }
 
+    @if (!IsNew && Kb.Index.SupportsDefinitions && Kb.Index.SameDefinition(Id!.Value).Count > 0)
+    {
+        var units = Kb.Index.TargetFor(Id!.Value)!.Units.ToList();
+        <div class="notice shared-banner" role="status">
+            <p>Ändringen gäller @units.Count enheter: @string.Join(", ", units)</p>
+            <p class="banner-hint">Text, kod, allvarlighet och beskrivning är samma för alla enheter med det här larmet.</p>
+            <p>
+                <OnlineButton Class="btn btn-small" OnClick="SplitAsync" Disabled="_saving"
+                              Title="Kopierar larmet till en egen larmdefinition med samma lösningar. De andra enheterna påverkas inte.">Gör egen larmdefinition för den här enheten</OnlineButton>
+            </p>
+        </div>
+    }
+
     <EditForm Model="_form" OnValidSubmit="SaveAsync" class="form">
         <DataAnnotationsValidator />
 
@@ -102,6 +115,24 @@ else
         _form.Severity = details.Alarm.Severity;
         _form.Description = details.Alarm.Description;
         _form.EquipmentId = details.Alarm.EquipmentId;
+    }
+
+    private async Task SplitAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            await Kb.WriteAsync((api, ct) => api.SplitAlarmDefinitionAsync(Id!.Value, ct));
+        }
+        catch (Exception ex)
+        {
+            _error = $"Larmet kunde inte delas av. {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
     }
 
     private async Task SaveAsync()
