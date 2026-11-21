@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- One-time tool: copies an old PostgreSQL database into the new SQLite file. -->
+  <PropertyGroup>
+    <TargetFramework>$(LarmTargetFramework)</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Larmcentralen.Infrastructure\Larmcentralen.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

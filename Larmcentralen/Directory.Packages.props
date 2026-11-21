@@ -2,6 +2,8 @@
   <!-- Central package versions. Microsoft.* runtime packages move together with the .NET version. -->
   <PropertyGroup>
     <DotNetPackageVersion Condition="'$(DotNetPackageVersion)' == ''">11.0.0</DotNetPackageVersion>
+    <!-- Only used by tools/Larmcentralen.PostgresImport (one-time copy from the old database). -->
+    <NpgsqlPackageVersion Condition="'$(NpgsqlPackageVersion)' == ''">11.0.0</NpgsqlPackageVersion>
     <MauiPackageVersion Condition="'$(MauiPackageVersion)' == ''">11.0.10</MauiPackageVersion>
   </PropertyGroup>
 
@@ -14,6 +16,10 @@
     <PackageVersion Include="Microsoft.Graph" Version="5.103.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="$(DotNetPackageVersion)" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="11.0.1" />
+  </ItemGroup>
+
+  <ItemGroup Label="Tools">
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="$(NpgsqlPackageVersion)" />
   </ItemGroup>
 
   <ItemGroup Label="Client">
