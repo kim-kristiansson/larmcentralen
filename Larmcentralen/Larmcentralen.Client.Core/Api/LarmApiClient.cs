@@ -58,17 +58,7 @@ public class LarmApiClient(HttpClient http)
         await EnsureSuccessAsync(response, ct);
     }
 
-    /// <summary>Gives this unit its own alarm definition (a copy with the same solutions), so its text can change alone.</summary>
-    public async Task SplitAlarmDefinitionAsync(int alarmId, CancellationToken ct = default)
-    {
-        using var response = await http.PostAsync($"api/alarms/{alarmId}/own-definition", null, ct);
-        await EnsureSuccessAsync(response, ct);
-    }
-
-    /// <summary>
-    /// Removes a shared solution from one alarm (on a server with definitions: from that alarm's definition,
-    /// so every unit sharing it); the others keep it. The API refuses (409) the last link.
-    /// </summary>
+    /// <summary>Removes a shared solution from one alarm; the other alarms keep it. The API refuses (409) the last link.</summary>
     public async Task UnlinkSolutionAsync(int alarmId, int solutionId, CancellationToken ct = default)
     {
         using var response = await http.DeleteAsync($"api/alarms/{alarmId}/solutions/{solutionId}", ct);

@@ -15,7 +15,7 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261121172920_MoveAlarmTextToDefinitions";
+    public override string LastMigrationId => "20261121202256_DropAlarmDefinitions";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -28,36 +28,8 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                     .ValueGeneratedOnAdd()
                     .HasColumnType("INTEGER");
 
-                b.Property<int>("AlarmDefinitionId")
+                b.Property<int?>("AlarmCodeId")
                     .HasColumnType("INTEGER");
-
-                b.Property<DateTime>("CreatedAt")
-                    .HasColumnType("TEXT");
-
-                b.Property<int>("EquipmentId")
-                    .HasColumnType("INTEGER");
-
-                b.Property<DateTime?>("UpdatedAt")
-                    .HasColumnType("TEXT");
-
-                b.HasKey("Id");
-
-                b.HasIndex("AlarmDefinitionId");
-
-                b.HasIndex("EquipmentId");
-
-                b.ToTable("Alarms");
-            });
-
-        modelBuilder.Entity("Larmcentralen.Domain.Entities.AlarmDefinition", b =>
-            {
-                b.Property<int>("Id")
-                    .ValueGeneratedOnAdd()
-                    .HasColumnType("INTEGER");
-
-                b.Property<string>("AlarmCode")
-                    .HasMaxLength(50)
-                    .HasColumnType("TEXT");
 
                 b.Property<DateTime>("CreatedAt")
                     .HasColumnType("TEXT");
@@ -65,17 +37,7 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                 b.Property<string>("Description")
                     .HasColumnType("TEXT");
 
-                b.Property<string>("EquipmentType")
-                    .IsRequired()
-                    .HasMaxLength(50)
-                    .HasColumnType("TEXT");
-
-                b.Property<string>("NormalizedTitle")
-                    .IsRequired()
-                    .HasMaxLength(300)
-                    .HasColumnType("TEXT");
-
-                b.Property<int>("ScopeEquipmentId")
+                b.Property<int>("EquipmentId")
                     .HasColumnType("INTEGER");
 
                 b.Property<string>("Severity")
@@ -93,10 +55,52 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
 
                 b.HasKey("Id");
 
-                b.HasIndex("EquipmentType", "AlarmCode", "NormalizedTitle", "ScopeEquipmentId")
+                b.HasIndex("AlarmCodeId");
+
+                b.HasIndex("EquipmentId", "AlarmCodeId")
                     .IsUnique();
 
-                b.ToTable("AlarmDefinitions");
+                b.ToTable("Alarms");
+            });
+
+        modelBuilder.Entity("Larmcentralen.Domain.Entities.AlarmCode", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
+
+                b.Property<string>("Code")
+                    .IsRequired()
+                    .HasMaxLength(50)
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Description")
+                    .HasColumnType("TEXT");
+
+                b.HasKey("Id");
+
+                b.HasIndex("Code")
+                    .IsUnique();
+
+                b.ToTable("AlarmCodes");
+            });
+
+        modelBuilder.Entity("Larmcentralen.Domain.Entities.AlarmSolution", b =>
+            {
+                b.Property<int>("AlarmId")
+                    .HasColumnType("INTEGER");
+
+                b.Property<int>("SolutionId")
+                    .HasColumnType("INTEGER");
+
+                b.HasKey("AlarmId", "SolutionId");
+
+                b.HasIndex("SolutionId");
+
+                b.ToTable("AlarmSolutions");
             });
 
         modelBuilder.Entity("Larmcentralen.Domain.Entities.Area", b =>
@@ -131,21 +135,6 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                     .IsUnique();
 
                 b.ToTable("Areas");
-            });
-
-        modelBuilder.Entity("Larmcentralen.Domain.Entities.DefinitionSolution", b =>
-            {
-                b.Property<int>("AlarmDefinitionId")
-                    .HasColumnType("INTEGER");
-
-                b.Property<int>("SolutionId")
-                    .HasColumnType("INTEGER");
-
-                b.HasKey("AlarmDefinitionId", "SolutionId");
-
-                b.HasIndex("SolutionId");
-
-                b.ToTable("DefinitionSolutions");
             });
 
         modelBuilder.Entity("Larmcentralen.Domain.Entities.Equipment", b =>
@@ -223,11 +212,10 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
 
         modelBuilder.Entity("Larmcentralen.Domain.Entities.Alarm", b =>
             {
-                b.HasOne("Larmcentralen.Domain.Entities.AlarmDefinition", "Definition")
+                b.HasOne("Larmcentralen.Domain.Entities.AlarmCode", "AlarmCode")
                     .WithMany("Alarms")
-                    .HasForeignKey("AlarmDefinitionId")
-                    .OnDelete(DeleteBehavior.Restrict)
-                    .IsRequired();
+                    .HasForeignKey("AlarmCodeId")
+                    .OnDelete(DeleteBehavior.Restrict);
 
                 b.HasOne("Larmcentralen.Domain.Entities.Equipment", "Equipment")
                     .WithMany("Alarms")
@@ -235,16 +223,16 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                     .OnDelete(DeleteBehavior.Restrict)
                     .IsRequired();
 
-                b.Navigation("Definition");
+                b.Navigation("AlarmCode");
 
                 b.Navigation("Equipment");
             });
 
-        modelBuilder.Entity("Larmcentralen.Domain.Entities.DefinitionSolution", b =>
+        modelBuilder.Entity("Larmcentralen.Domain.Entities.AlarmSolution", b =>
             {
-                b.HasOne("Larmcentralen.Domain.Entities.AlarmDefinition", "Definition")
+                b.HasOne("Larmcentralen.Domain.Entities.Alarm", "Alarm")
                     .WithMany()
-                    .HasForeignKey("AlarmDefinitionId")
+                    .HasForeignKey("AlarmId")
                     .OnDelete(DeleteBehavior.Cascade)
                     .IsRequired();
 
@@ -254,7 +242,7 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                     .OnDelete(DeleteBehavior.Cascade)
                     .IsRequired();
 
-                b.Navigation("Definition");
+                b.Navigation("Alarm");
 
                 b.Navigation("Solution");
             });
@@ -270,7 +258,7 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                 b.Navigation("Area");
             });
 
-        modelBuilder.Entity("Larmcentralen.Domain.Entities.AlarmDefinition", b =>
+        modelBuilder.Entity("Larmcentralen.Domain.Entities.AlarmCode", b =>
             {
                 b.Navigation("Alarms");
             });

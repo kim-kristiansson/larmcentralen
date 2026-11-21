@@ -1,8 +1,8 @@
 namespace Larmcentralen.Domain.Entities;
 
 /// <summary>
-/// A step-by-step fix, written for alarm definitions. One solution can be shared by several
-/// definitions, so editing it once updates every unit. A solution always has at least one definition.
+/// A step-by-step fix. One solution can be shared by several alarms (the same fault on several
+/// units), so editing it once updates every unit. A solution always has at least one alarm.
 /// </summary>
 public class Solution
 {
@@ -14,5 +14,5 @@ public class Solution
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 
-    public List<AlarmDefinition> Definitions { get; set; } = [];
+    public List<Alarm> Alarms { get; set; } = [];
 }

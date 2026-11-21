@@ -52,7 +52,7 @@ public class AlarmsController(IAlarmService service) : ControllerBase
         return alarm is null ? NotFound() : Ok(alarm);
     }
 
-    /// <summary>The new alarm joins the definition with the same code and text on units of its type, or starts one.</summary>
+    /// <summary>The code as AlarmCodeId (picked from the list) or as text (found or added). 409 when the unit already has it.</summary>
     [HttpPost]
     public async Task<IActionResult> Create(CreateAlarmDto dto)
     {
@@ -61,23 +61,11 @@ public class AlarmsController(IAlarmService service) : ControllerBase
         return CreatedAtAction(nameof(Get), new { id = result.Alarm!.Id }, result.Alarm);
     }
 
-    /// <summary>
-    /// Text, code, severity and description belong to the alarm's definition: they change for every unit
-    /// that shares it. 409 when another definition of the same type already has that code and text.
-    /// </summary>
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, UpdateAlarmDto dto)
     {
         var result = await service.UpdateAsync(id, dto);
         return result.Status == WriteStatus.Ok ? NoContent() : this.ToError(result.Status, result.Error);
-    }
-
-    /// <summary>Gives this unit its own definition (a copy, with the same solutions), so it can be changed alone.</summary>
-    [HttpPost("{id:int}/own-definition")]
-    public async Task<IActionResult> Split(int id)
-    {
-        var result = await service.SplitAsync(id);
-        return result.Status == WriteStatus.Ok ? Ok(result.Alarm) : this.ToError(result.Status, result.Error);
     }
 
     [HttpDelete("{id:int}")]

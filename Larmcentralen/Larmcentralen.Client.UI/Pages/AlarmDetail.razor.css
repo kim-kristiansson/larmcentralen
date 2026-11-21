@@ -25,4 +25,3 @@
 .solution-card footer.actions { margin-top: var(--space-3); }
 .shared-with { margin: 0 0 var(--space-3); font-size: var(--text-sm); color: var(--ink-soft); background: var(--surface-2); border-radius: var(--radius-sm); padding: var(--space-1) var(--space-3); display: inline-block; }
 .shared-label { font-weight: 600; color: var(--ink); }
-.same-alarm { margin: var(--space-3) 0 0; font-size: var(--text-md); color: var(--ink-soft); }

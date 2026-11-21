@@ -7,8 +7,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Larmcentralen.Api.Tests;
 
 /// <summary>
-/// Upgrading databases made before alarm definitions: every alarm keeps its id and gets a definition,
-/// alarms that mean the same on units of a type share one, and no solution link is lost.
+/// Upgrading old databases through alarm definitions to reusable alarm codes: every alarm keeps its id,
+/// gets its code and its own text, and no solution link is lost.
 /// </summary>
 public sealed class MigrationTests : IDisposable
 {
@@ -57,7 +57,7 @@ public sealed class MigrationTests : IDisposable
     }
 
     [Fact]
-    public async Task Upgrade_groups_alarms_into_definitions_and_keeps_every_id_and_link()
+    public async Task Upgrade_through_definitions_to_alarm_codes_keeps_every_alarm_id_and_link()
     {
         await SeedOldDatabaseAsync();
 
@@ -72,37 +72,34 @@ public sealed class MigrationTests : IDisposable
         await using var connection = new SqliteConnection($"Data Source={DbPath}");
         await connection.OpenAsync(Ct);
 
-        var alarms = await QueryAsync(connection,
-            "SELECT Id, AlarmDefinitionId FROM Alarms ORDER BY Id", r => (Id: r.GetInt32(0), Definition: r.GetInt32(1)));
+        var alarms = await QueryAsync(connection, """
+            SELECT a.Id, a.Title, a.Severity, c.Code FROM Alarms a LEFT JOIN AlarmCodes c ON c.Id = a.AlarmCodeId ORDER BY a.Id
+            """, r => (Id: r.GetInt32(0), Title: r.GetString(1), Severity: r.GetString(2), Code: r.IsDBNull(3) ? null : r.GetString(3)));
         Assert.Equal([100, 101, 102, 103, 104, 105], alarms.Select(a => a.Id));
-        var definitionOf = alarms.ToDictionary(a => a.Id, a => a.Definition);
-
-        // T101 and T102 share M200.1 (same type, code and text); everything else is its own definition.
-        Assert.Equal(definitionOf[100], definitionOf[101]);
-        Assert.Equal(5, definitionOf.Values.Distinct().Count());
-        Assert.NotEqual(definitionOf[103], definitionOf[104]); // MAIN and N1 (Övrigt) never share
-
-        var shared = (await QueryAsync(connection,
-            $"SELECT EquipmentType, ScopeEquipmentId, AlarmCode, Title, Severity FROM AlarmDefinitions WHERE Id = {definitionOf[100]}",
-            r => (r.GetString(0), r.GetInt32(1), r.GetString(2), r.GetString(3), r.GetString(4)))).Single();
-        Assert.Equal(("Härdugn", 0, "M200.1", "Temperatur elskåp", "Kritisk"), shared);
-        var main = (await QueryAsync(connection,
-            $"SELECT EquipmentType, ScopeEquipmentId FROM AlarmDefinitions WHERE Id = {definitionOf[104]}",
-            r => (r.GetString(0), r.GetInt32(1)))).Single();
-        Assert.Equal(("Övrigt", 13), main); // N1 had no type
-
-        // Every old (alarm, solution) link is now (alarm's definition, solution); duplicates collapsed.
-        var links = await QueryAsync(connection, "SELECT AlarmDefinitionId, SolutionId FROM DefinitionSolutions ORDER BY 1, 2",
-            r => (r.GetInt32(0), r.GetInt32(1)));
         Assert.Equal(
-            new[] { (definitionOf[100], 7), (definitionOf[100], 8), (definitionOf[102], 42) }.Order().ToList(),
-            links);
+            [
+                (100, "Temperatur elskåp", "Kritisk", "M200.1"),
+                // The shared definition's text and highest severity; the import tool's --restore-text brings back each unit's own spelling.
+                (101, "Temperatur elskåp", "Kritisk", "M200.1"),
+                (102, "Kommunikation CP", "Medel", "M200.5"),
+                (103, "Nödstopp", "Kritisk", "M200.0"),
+                (104, "Nödstopp", "Kritisk", "M200.0"),
+                (105, "Lampa trasig", "Låg", null),
+            ],
+            alarms.Select(a => (a.Id, a.Title, a.Severity, a.Code)));
+
+        // Each code once, whatever the unit or type.
+        Assert.Equal(["M200.0", "M200.1", "M200.5"], await QueryAsync(connection, "SELECT Code FROM AlarmCodes ORDER BY Code", r => r.GetString(0)));
+
+        // Every link from before definitions is back, plus the ones definitions shared (solution 8 now also on T101).
+        var links = await QueryAsync(connection, "SELECT AlarmId, SolutionId FROM AlarmSolutions ORDER BY 1, 2", r => (r.GetInt32(0), r.GetInt32(1)));
+        Assert.Equal([(100, 7), (100, 8), (101, 7), (101, 8), (102, 42)], links);
         Assert.Equal([7, 8, 42], await QueryAsync(connection, "SELECT Id FROM Solutions ORDER BY Id", r => r.GetInt32(0)));
 
         var tables = await QueryAsync(connection, "SELECT name FROM sqlite_master WHERE type = 'table'", r => r.GetString(0));
-        Assert.DoesNotContain("AlarmSolutions", tables);
-        Assert.DoesNotContain("_SolutionAlarmStash", tables);
-        Assert.DoesNotContain("Title", await QueryAsync(connection, "SELECT name FROM pragma_table_info('Alarms')", r => r.GetString(0)));
+        foreach (var gone in new[] { "AlarmDefinitions", "DefinitionSolutions", "_AlarmSolutionStash", "_SolutionAlarmStash" })
+            Assert.DoesNotContain(gone, tables);
+        Assert.DoesNotContain("AlarmDefinitionId", await QueryAsync(connection, "SELECT name FROM pragma_table_info('Alarms')", r => r.GetString(0)));
         Assert.Empty(await QueryAsync(connection, "PRAGMA foreign_key_check", r => r.GetString(0)));
 
         // A copy was written before migrating, and it still has the old shape.
@@ -121,8 +118,8 @@ public sealed class MigrationTests : IDisposable
 
         await SqliteSetup.MigrateAsync(db, Ct);
 
-        Assert.Equal(5, await db.AlarmDefinitions.CountAsync(Ct));
-        Assert.Equal(3, await db.DefinitionSolutions.CountAsync(Ct));
+        Assert.Equal(3, await db.AlarmCodes.CountAsync(Ct));
+        Assert.Equal(5, await db.AlarmSolutions.CountAsync(Ct));
     }
 
     [Fact]

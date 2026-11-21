@@ -54,16 +54,23 @@ public static class SqliteSetup
     }
 
     /// <summary>
-    /// Applies pending migrations. Alarm definitions need a step in C# between their two migrations:
-    /// migrate up to AddAlarmDefinitions, group the alarms into definitions, then apply the rest.
+    /// Applies pending migrations. Two changes need a step in C# between their two migrations: alarm definitions
+    /// (group the alarms) and, after them, reusable alarm codes (give each alarm its own text and code back).
+    /// For each: migrate up to its first migration, run the step, then go on.
     /// </summary>
     public static async Task MigrateAsync(AppDbContext db, CancellationToken ct = default)
     {
+        var migrator = db.GetService<IMigrator>();
         var pending = (await db.Database.GetPendingMigrationsAsync(ct)).ToList();
         if (pending.Contains(Migrations._20261121172920_MoveAlarmTextToDefinitions.Id))
         {
-            await db.GetService<IMigrator>().MigrateAsync(Migrations._20261121172910_AddAlarmDefinitions.Id, ct);
+            await migrator.MigrateAsync(Migrations._20261121172910_AddAlarmDefinitions.Id, ct);
             await AlarmDefinitionBackfill.RunAsync(db, ct);
+        }
+        if (pending.Contains(Migrations._20261121202256_DropAlarmDefinitions.Id))
+        {
+            await migrator.MigrateAsync(Migrations._20261121202250_AddAlarmCodes.Id, ct);
+            await AlarmCodeBackfill.RunAsync(db, ct);
         }
         await db.Database.MigrateAsync(ct);
     }

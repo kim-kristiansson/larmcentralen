@@ -19,19 +19,14 @@ public sealed class SharedSolutionTests(ApiFactory factory) : IClassFixture<ApiF
 
     private HttpClient Admin() => factory.ClientWithKey(ApiFactory.AdminKey);
 
-    /// <summary>
-    /// A new area with two furnaces of the same type and one alarm each: same code, different text, so they are
-    /// two definitions (alarms with the same text would share one, see AlarmDefinitionTests).
-    /// </summary>
+    /// <summary>A new area with two furnaces of the same type and one alarm each, same code.</summary>
     private static async Task<(int T101Alarm, int T102Alarm, int T102Equipment)> SeedAsync(HttpClient c)
     {
-        // Definitions are shared per unit type across areas: a type of its own keeps tests apart.
-        var type = $"Härdugn {Guid.NewGuid():N}";
         var area = await PostAsync(c, "api/areas", new { title = $"Area {Guid.NewGuid():N}" });
-        var t101 = await PostAsync(c, "api/equipment", new { title = "T101", areaId = area, equipmentType = type });
-        var t102 = await PostAsync(c, "api/equipment", new { title = "T102", areaId = area, equipmentType = type });
+        var t101 = await PostAsync(c, "api/equipment", new { title = "T101", areaId = area, equipmentType = "Härdugn" });
+        var t102 = await PostAsync(c, "api/equipment", new { title = "T102", areaId = area, equipmentType = "Härdugn" });
         var a1 = await PostAsync(c, "api/alarms", new { title = "Temperatur för hög", alarmCode = "M200.1", severity = "Hög", equipmentId = t101 });
-        var a2 = await PostAsync(c, "api/alarms", new { title = "Temperatur elskåp", alarmCode = "M200.1", severity = "Hög", equipmentId = t102 });
+        var a2 = await PostAsync(c, "api/alarms", new { title = "Temperatur för hög", alarmCode = "M200.1", severity = "Hög", equipmentId = t102 });
         return (a1, a2, t102);
     }
 
@@ -211,7 +206,7 @@ public sealed class SharedSolutionTests(ApiFactory factory) : IClassFixture<ApiF
 
         Assert.Contains(new Link(a1, id), snapshot.AlarmSolutions);
         Assert.Contains(new Link(a2, id), snapshot.AlarmSolutions);
-        Assert.StartsWith("Härdugn", snapshot.Equipment.Single(e => e.Id == t102).EquipmentType);
+        Assert.Equal("Härdugn", snapshot.Equipment.Single(e => e.Id == t102).EquipmentType);
 
         // The client record shape from before shared solutions: AlarmId must still be filled in.
         var old = JsonSerializer.Deserialize<OldSnapshot>(json, Json)!;
@@ -227,7 +222,7 @@ public sealed class SharedSolutionTests(ApiFactory factory) : IClassFixture<ApiF
         var areaId = (await c.GetFromJsonAsync<JsonElement>($"api/equipment/{t102}", Ct)).GetProperty("areaId").GetInt32();
 
         (await c.PutAsJsonAsync($"api/equipment/{t102}", new { title = "T102", areaId }, Ct)).EnsureSuccessStatusCode();
-        Assert.StartsWith("Härdugn", (await c.GetFromJsonAsync<JsonElement>($"api/equipment/{t102}", Ct)).GetProperty("equipmentType").GetString());
+        Assert.Equal("Härdugn", (await c.GetFromJsonAsync<JsonElement>($"api/equipment/{t102}", Ct)).GetProperty("equipmentType").GetString());
 
         (await c.PutAsJsonAsync($"api/equipment/{t102}", new { title = "T102", areaId, equipmentType = "" }, Ct)).EnsureSuccessStatusCode();
         Assert.Equal(JsonValueKind.Null, (await c.GetFromJsonAsync<JsonElement>($"api/equipment/{t102}", Ct)).GetProperty("equipmentType").ValueKind);

@@ -36,7 +36,7 @@ public class SmsAlarmService(
         // Look up alarm in database
         var alarms = await alarmRepo.SearchAsync(alarmCode, null, null, null, 0, 5);
         var alarm = alarms.FirstOrDefault(a =>
-            a.Definition.AlarmCode == alarmCode &&
+            a.AlarmCode?.Code == alarmCode &&
             a.Equipment.Title.Equals(equipment, StringComparison.OrdinalIgnoreCase));
 
         if (alarm is null)
@@ -45,15 +45,15 @@ public class SmsAlarmService(
             return;
         }
 
-        if (alarm.Definition.Severity is not ("Hög" or "Kritisk"))
+        if (alarm.Severity is not ("Hög" or "Kritisk"))
         {
-            logger.LogInformation("Alarm {Code} on {Equipment} is {Severity} — ignoring", alarmCode, equipment, alarm.Definition.Severity);
+            logger.LogInformation("Alarm {Code} on {Equipment} is {Severity} — ignoring", alarmCode, equipment, alarm.Severity);
             return;
         }
 
         // Send alert email
-        await SendAlertSmsAsync(alarm.Equipment.Title, alarm.Definition.AlarmCode!, alarm.Definition.Title, alarm.Definition.Severity, description);
-        logger.LogInformation("Alert email sent for {Severity} alarm: {Code} on {Equipment}", alarm.Definition.Severity, alarmCode, equipment);
+        await SendAlertSmsAsync(alarm.Equipment.Title, alarm.AlarmCode!.Code, alarm.Title, alarm.Severity, description);
+        logger.LogInformation("Alert email sent for {Severity} alarm: {Code} on {Equipment}", alarm.Severity, alarmCode, equipment);
     }
 
     private static (string Equipment, string AlarmCode, string Description)? ParseSms(string message)

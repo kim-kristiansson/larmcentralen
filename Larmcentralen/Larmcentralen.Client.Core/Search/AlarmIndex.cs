@@ -32,9 +32,6 @@ public sealed class AlarmIndex
     private readonly ILookup<int, Solution> _solutionsByAlarm;
     private readonly ILookup<int, int> _alarmIdsBySolution;
     private readonly Dictionary<int, Solution> _solutions;
-    private readonly Dictionary<int, AlarmDefinition> _definitions;
-    private readonly ILookup<int, int> _alarmIdsByDefinition;
-    private readonly ILookup<int, int> _definitionIdsBySolution;
 
     public static readonly AlarmIndex Empty = new(new SyncSnapshot(DateTime.MinValue, [], [], [], []));
 
@@ -44,20 +41,10 @@ public sealed class AlarmIndex
         _equipment = snapshot.Equipment.ToDictionary(e => e.Id);
         _solutions = snapshot.Solutions.ToDictionary(s => s.Id);
 
-        // Solutions belong to alarm definitions; every alarm of a definition shows them. A server without
-        // definitions sends per-alarm links instead, and one without shared solutions only Solution.AlarmId:
-        // then the app hides definitions, or all sharing.
-        SupportsDefinitions = snapshot.AlarmDefinitions is not null && snapshot.DefinitionSolutions is not null;
-        SupportsSharing = SupportsDefinitions || snapshot.AlarmSolutions is not null;
-        _definitions = SupportsDefinitions ? snapshot.AlarmDefinitions!.ToDictionary(d => d.Id) : [];
-        _alarmIdsByDefinition = snapshot.Alarms.Where(a => SupportsDefinitions && a.AlarmDefinitionId is not null)
-            .ToLookup(a => a.AlarmDefinitionId!.Value, a => a.Id);
-        _definitionIdsBySolution = (snapshot.DefinitionSolutions ?? []).Where(l => SupportsDefinitions)
-            .ToLookup(l => l.SolutionId, l => l.AlarmDefinitionId);
-        var alarmLinks = SupportsDefinitions
-            ? snapshot.DefinitionSolutions!.SelectMany(l => _alarmIdsByDefinition[l.AlarmDefinitionId].Select(a => new AlarmSolution(a, l.SolutionId))).ToList()
-            : snapshot.AlarmSolutions;
-        var links = (alarmLinks ?? snapshot.Solutions.Select(s => new AlarmSolution(s.AlarmId, s.Id)).ToList())
+        // A server without shared solutions sends no links: each solution then belongs to its AlarmId only,
+        // and the app hides everything about sharing.
+        SupportsSharing = snapshot.AlarmSolutions is not null;
+        var links = (snapshot.AlarmSolutions ?? snapshot.Solutions.Select(s => new AlarmSolution(s.AlarmId, s.Id)).ToList())
             .Where(l => _solutions.ContainsKey(l.SolutionId))
             .Distinct()
             .ToList();
@@ -103,111 +90,6 @@ public sealed class AlarmIndex
     /// predates shared solutions; then the app shows no sharing features.
     /// </summary>
     public bool SupportsSharing { get; private init; }
-
-    /// <summary>True when the server sends alarm definitions (units of a type sharing what an alarm means and its solutions).</summary>
-    public bool SupportsDefinitions { get; private init; }
-
-    public AlarmDefinition? DefinitionOf(int alarmId)
-        => _alarms.TryGetValue(alarmId, out var a) && a.View.Alarm.AlarmDefinitionId is { } id ? _definitions.GetValueOrDefault(id) : null;
-
-    /// <summary>The same alarm on other units: those sharing its definition, ordered by unit.</summary>
-    public IReadOnlyList<AlarmView> SameDefinition(int alarmId)
-        => TargetFor(alarmId)?.Alarms.Where(a => a.Alarm.Id != alarmId).ToList() ?? [];
-
-    /// <summary>
-    /// What a solution is attached to for this alarm: its definition with all its alarms, or (from a server
-    /// without definitions) the alarm alone.
-    /// </summary>
-    public SolutionTarget? TargetFor(int alarmId)
-    {
-        if (!_alarms.TryGetValue(alarmId, out var a)) return null;
-        if (SupportsDefinitions && a.View.Alarm.AlarmDefinitionId is { } id)
-            return new SolutionTarget(id, id, ByUnit(_alarmIdsByDefinition[id]));
-        return new SolutionTarget(-alarmId, null, [a.View]);
-    }
-
-    /// <summary>Where a solution is attached: one target per definition (or per alarm from older servers).</summary>
-    public IReadOnlyList<SolutionTarget> TargetsForSolution(int solutionId)
-        => SupportsDefinitions
-            ? _definitionIdsBySolution[solutionId].Select(id => new SolutionTarget(id, id, ByUnit(_alarmIdsByDefinition[id])))
-                .Where(t => t.Alarms.Count > 0).OrderBy(t => t.Alarms[0].Equipment.Title, NaturalComparer.Instance).ToList()
-            : AlarmsForSolution(solutionId).Select(a => new SolutionTarget(-a.Alarm.Id, null, [a])).ToList();
-
-    /// <summary>
-    /// <see cref="Siblings"/> as solution targets: other definitions (or alarms) that are probably the same fault,
-    /// not counting the alarms that already share this alarm's definition.
-    /// </summary>
-    public IReadOnlyList<SolutionTarget> SiblingTargets(int alarmId)
-    {
-        var own = TargetFor(alarmId);
-        if (own is null) return [];
-        return Siblings(alarmId)
-            .Select(a => TargetFor(a.Alarm.Id)!)
-            .Where(t => t.Key != own.Key)
-            .DistinctBy(t => t.Key)
-            .ToList();
-    }
-
-    /// <summary>
-    /// Alarm definitions to pick an alarm code from, for an alarm on <paramref name="equipmentId"/>. By default only
-    /// definitions of that unit's type (<paramref name="allTypes"/> widens it). Every word typed must appear in the
-    /// code or the text, ignoring case and accents. A definition the unit cannot use is listed with the reason:
-    /// owned by another unit, or the unit already has an alarm with it (other than <paramref name="editingAlarmId"/>).
-    /// Ordered by code (natural order), then text.
-    /// </summary>
-    public IReadOnlyList<DefinitionOption> SearchDefinitions(string? text, int equipmentId, bool allTypes = false,
-        int? editingAlarmId = null, int take = 50)
-    {
-        if (!_equipment.TryGetValue(equipmentId, out var unit)) return [];
-        var type = TypeOf(unit) ?? OtherType;
-        var terms = string.IsNullOrWhiteSpace(text)
-            ? []
-            : text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Select(SearchKey).ToList();
-
-        return _definitions.Values
-            .Where(d => allTypes || d.EquipmentType == type)
-            .Where(d =>
-            {
-                if (terms.Count == 0) return true;
-                var key = SearchKey($"{d.AlarmCode} {d.Title}");
-                return terms.All(t => key.Contains(t, StringComparison.Ordinal));
-            })
-            .OrderBy(d => d.AlarmCode ?? "￿", NaturalComparer.Instance)
-            .ThenBy(d => d.Title, StringComparer.CurrentCultureIgnoreCase)
-            .ThenBy(d => d.Id)
-            .Take(Math.Max(0, take))
-            .Select(d =>
-            {
-                var alarms = ByUnit(_alarmIdsByDefinition[d.Id]);
-                string? reason = null;
-                if (d.ScopeEquipmentId != 0 && d.ScopeEquipmentId != equipmentId)
-                    reason = $"Gäller bara {(_equipment.TryGetValue(d.ScopeEquipmentId, out var owner) ? owner.Title : "en annan enhet")}";
-                else if (alarms.Any(a => a.Equipment.Id == equipmentId && a.Alarm.Id != editingAlarmId))
-                    reason = $"Finns redan på {unit.Title}";
-                return new DefinitionOption(d, alarms, reason);
-            })
-            .ToList();
-    }
-
-    public AlarmDefinition? GetDefinition(int definitionId) => _definitions.GetValueOrDefault(definitionId);
-
-    /// <summary>The alarms (units) that use a definition, ordered by unit.</summary>
-    public IReadOnlyList<AlarmView> AlarmsForDefinition(int definitionId) => ByUnit(_alarmIdsByDefinition[definitionId]);
-
-    /// <summary>Lower case without accents, punctuation kept, so "200.1" and "temperatur elskap" both match.</summary>
-    private static string SearchKey(string s)
-    {
-        var decomposed = s.Normalize(System.Text.NormalizationForm.FormD);
-        var sb = new System.Text.StringBuilder(decomposed.Length);
-        foreach (var ch in decomposed)
-            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch) != System.Globalization.UnicodeCategory.NonSpacingMark)
-                sb.Append(char.ToLowerInvariant(ch));
-        return sb.ToString();
-    }
-
-    private IReadOnlyList<AlarmView> ByUnit(IEnumerable<int> alarmIds)
-        => alarmIds.Select(id => _alarms.TryGetValue(id, out var a) ? a.View : null).OfType<AlarmView>()
-            .OrderBy(v => v.Equipment.Title, NaturalComparer.Instance).ThenBy(v => v.Alarm.Id).ToList();
 
     /// <summary>The type name units without a type are grouped under, and that gets no suggestions.</summary>
     public const string OtherType = "Övrigt";
@@ -273,18 +155,21 @@ public sealed class AlarmIndex
     private static string? NormaliseCode(string? code)
         => string.IsNullOrWhiteSpace(code) ? null : code.Trim().ToUpperInvariant();
 
-    /// <summary>
-    /// Lower case, accents removed (å → a), whitespace and punctuation removed. The same rule the server uses
-    /// to decide which alarms share a definition.
-    /// </summary>
+    /// <summary>Lower case, accents removed (å → a), runs of whitespace collapsed to one space.</summary>
     public static string NormaliseText(string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return "";
         var decomposed = text.Normalize(System.Text.NormalizationForm.FormD);
         var sb = new System.Text.StringBuilder(decomposed.Length);
+        var space = false;
         foreach (var ch in decomposed)
-            if (char.IsLetterOrDigit(ch)) sb.Append(char.ToLowerInvariant(ch));
-        return sb.ToString().Normalize(System.Text.NormalizationForm.FormC);
+        {
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch) == System.Globalization.UnicodeCategory.NonSpacingMark) continue;
+            if (char.IsWhiteSpace(ch)) { space = sb.Length > 0; continue; }
+            if (space) { sb.Append(' '); space = false; }
+            sb.Append(char.ToLowerInvariant(ch));
+        }
+        return sb.ToString();
     }
 
     /// <summary>
@@ -453,21 +338,4 @@ public sealed class AlarmIndex
             return false;
         }
     }
-}
-
-/// <summary>
-/// Where a solution is attached: an alarm definition with every alarm (unit) that shares it, or, from a server
-/// without definitions, one alarm. <see cref="Key"/> is the definition id, or minus the alarm id.
-/// </summary>
-public sealed record SolutionTarget(int Key, int? DefinitionId, IReadOnlyList<AlarmView> Alarms)
-{
-    public AlarmView First => Alarms[0];
-    public IEnumerable<string> Units => Alarms.Select(a => a.Equipment.Title).Distinct();
-}
-
-/// <summary>An alarm definition offered in the alarm code picker, with the units that use it.</summary>
-public sealed record DefinitionOption(AlarmDefinition Definition, IReadOnlyList<AlarmView> Alarms, string? DisabledReason)
-{
-    public bool Disabled => DisabledReason is not null;
-    public IEnumerable<string> Units => Alarms.Select(a => a.Equipment.Title).Distinct();
 }

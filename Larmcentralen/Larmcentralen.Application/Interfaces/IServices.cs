@@ -26,7 +26,6 @@ public interface IAlarmService
     Task<AlarmDto?> GetByIdAsync(int id);
     Task<AlarmWriteResult> CreateAsync(CreateAlarmDto dto);
     Task<AlarmWriteResult> UpdateAsync(int id, UpdateAlarmDto dto);
-    Task<AlarmWriteResult> SplitAsync(int id);
     Task<bool> DeleteAsync(int id);
     Task<List<AlarmListDto>> GetByIdsAsync(List<int> ids);
 }
@@ -40,10 +39,14 @@ public interface ISolutionService
     Task<SolutionWriteResult> DeleteAsync(int id);
     Task<SolutionWriteResult> UnlinkAsync(int alarmId, int solutionId);
     Task<SolutionWriteResult> DetachAsync(int alarmId, int solutionId);
-    Task<SolutionWriteResult> UnlinkDefinitionAsync(int definitionId, int solutionId);
-    Task<SolutionWriteResult> DetachDefinitionAsync(int definitionId, int solutionId);
 }
 public interface ISyncService
 {
     Task<SyncSnapshotDto> GetSnapshotAsync();
+}
+
+public interface IAlarmCodeService
+{
+    Task<List<AlarmCodeDto>> GetAllAsync();
+    Task<(WriteStatus Status, AlarmCodeDto? Code, string? Error)> CreateAsync(CreateAlarmCodeDto dto);
 }

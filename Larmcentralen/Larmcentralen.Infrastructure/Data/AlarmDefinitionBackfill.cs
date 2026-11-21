@@ -42,9 +42,9 @@ public static class AlarmDefinitionBackfill
             var created = 0;
             var groups = rows.GroupBy(x =>
             {
-                var type = AlarmDefinition.TypeFor(x.EquipmentType);
-                return (Type: type, Code: AlarmDefinition.NormaliseCode(x.Code), Key: AlarmDefinition.NormaliseTitle(x.Title),
-                    Scope: type == AlarmDefinition.OtherType ? x.EquipmentId : 0);
+                var type = AlarmText.TypeFor(x.EquipmentType);
+                return (Type: type, Code: AlarmText.NormaliseCode(x.Code), Key: AlarmText.NormaliseTitle(x.Title),
+                    Scope: type == AlarmText.OtherType ? x.EquipmentId : 0);
             });
 
             foreach (var g in groups)
@@ -60,7 +60,7 @@ public static class AlarmDefinitionBackfill
                         """,
                         ("$type", (object?)g.Key.Type), ("$scope", (object?)g.Key.Scope), ("$code", (object?)g.Key.Code), ("$key", (object?)g.Key.Key),
                         ("$title", (object?)MostCommon(alarms.Select(a => a.Title.Trim()))),
-                        ("$severity", (object?)alarms.MaxBy(a => AlarmDefinition.SeverityRank(a.Severity))!.Severity),
+                        ("$severity", (object?)alarms.MaxBy(a => AlarmText.SeverityRank(a.Severity))!.Severity),
                         ("$description", (object?)MostCommon(alarms.Select(a => a.Description).Where(d => !string.IsNullOrWhiteSpace(d)))),
                         ("$created", (object?)alarms.Select(a => a.CreatedAt).Min(StringComparer.Ordinal)));
                     definitionId = Convert.ToInt32(await insert.ExecuteScalarAsync(ct));

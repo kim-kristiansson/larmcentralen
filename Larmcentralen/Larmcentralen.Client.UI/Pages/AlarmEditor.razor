@@ -23,80 +23,20 @@ else
         <p class="notice">Du är offline. Ändringar kan sparas när anslutningen är tillbaka.</p>
     }
 
-    @if (Mode == EditMode.Current && Kb.Index.SameDefinition(Id!.Value).Count > 0)
-    {
-        var units = Kb.Index.TargetFor(Id!.Value)!.Units.ToList();
-        <div class="notice shared-banner" role="status">
-            <p>Ändringen gäller @units.Count enheter: @string.Join(", ", units)</p>
-            <p class="banner-hint">Text, kod, allvarlighet och beskrivning är samma för alla enheter med det här larmet.</p>
-            <p>
-                <OnlineButton Class="btn btn-small" OnClick="SplitAsync" Disabled="_saving"
-                              Title="Kopierar larmet till en egen larmdefinition med samma lösningar. De andra enheterna påverkas inte.">Gör egen larmdefinition för den här enheten</OnlineButton>
-            </p>
-        </div>
-    }
-
-    <EditForm Model="_form" OnValidSubmit="SubmitAsync" class="form">
+    <EditForm Model="_form" OnValidSubmit="SaveAsync" class="form">
         <DataAnnotationsValidator />
 
         <label>
-            <span>Utrustning</span>
-            <InputSelect @bind-Value="_form.EquipmentId" @bind-Value:after="OnUnitChanged">
-                <option value="0">Välj utrustning…</option>
-                @foreach (var area in Kb.Index.Areas)
-                {
-                    <optgroup label="@area.Name">
-                        @foreach (var eq in Kb.Index.EquipmentInArea(area.Id))
-                        {
-                            <option value="@eq.Id">@eq.Title@(string.IsNullOrWhiteSpace(eq.DisplayName) ? "" : $" ({eq.DisplayName})")@(AlarmIndex.TypeOf(eq) is { } t ? $" – {t}" : "")</option>
-                        }
-                    </optgroup>
-                }
-            </InputSelect>
-            <ValidationMessage For="() => _form.EquipmentId" />
+            <span>Titel</span>
+            <InputText @bind-Value="_form.Title" placeholder="Det som står i larmlistan, t.ex. ”Temperatur för hög”" />
+            <ValidationMessage For="() => _form.Title" />
         </label>
 
-        @if (Picking)
-        {
-            <AlarmCodePicker EquipmentId="_form.EquipmentId" EditingAlarmId="Id" SelectedDefinitionId="_pickedId" NewCode="_newCode"
-                             OnPick="Pick" OnNewCode="ChooseNewCode" />
-        }
-
-        @if (Mode == EditMode.Picked && Kb.Index.GetDefinition(_pickedId!.Value) is { } picked)
-        {
-            var users = Kb.Index.AlarmsForDefinition(picked.Id).Select(a => a.Equipment.Title).Distinct().ToList();
-            <div class="definition-preview" aria-live="polite">
-                <dl class="facts">
-                    <div><dt>Larmtext</dt><dd>@picked.Title</dd></div>
-                    <div><dt>Allvarlighet</dt><dd>@picked.Severity</dd></div>
-                    <div><dt>Typ</dt><dd>@picked.EquipmentType</dd></div>
-                    <div><dt>Används på</dt><dd>@(users.Count == 0 ? "Ingen enhet än" : string.Join(", ", users))</dd></div>
-                    @if (!string.IsNullOrWhiteSpace(picked.Description))
-                    {
-                        <div class="wide"><dt>Beskrivning</dt><dd>@picked.Description</dd></div>
-                    }
-                </dl>
-                <p class="muted">
-                    Text, allvarlighet och beskrivning hör till larmkoden och visas på alla enheter som använder den.
-                    Vill du ändra dem gör du det på ett av de larmen, och då ändras de för alla de enheterna.
-                </p>
-            </div>
-        }
-        else if (Mode is EditMode.Current or EditMode.NewCode or EditMode.Plain)
-        {
-            @if (Mode is EditMode.NewCode or EditMode.Plain)
-            {
-                <label>
-                    <span>@(Mode == EditMode.NewCode ? "Ny larmkod" : "Larmkod")</span>
-                    <InputText @bind-Value="_form.AlarmCode" placeholder="t.ex. M200.4" />
-                </label>
-            }
-
+        <div class="form-row">
             <label>
-                <span>Larmtext</span>
-                <InputText @bind-Value="_form.Title" placeholder="Det som står i larmlistan, t.ex. ”Temperatur för hög”" />
+                <span>Larmkod</span>
+                <InputText @bind-Value="_form.AlarmCode" placeholder="t.ex. M200.4" />
             </label>
-
             <label>
                 <span>Allvarlighet</span>
                 <InputSelect @bind-Value="_form.Severity">
@@ -106,12 +46,29 @@ else
                     }
                 </InputSelect>
             </label>
+        </div>
 
-            <label>
-                <span>Beskrivning</span>
-                <InputTextArea @bind-Value="_form.Description" rows="4" placeholder="Vad larmet betyder, kort" />
-            </label>
-        }
+        <label>
+            <span>Utrustning</span>
+            <InputSelect @bind-Value="_form.EquipmentId">
+                <option value="0">Välj utrustning…</option>
+                @foreach (var area in Kb.Index.Areas)
+                {
+                    <optgroup label="@area.Name">
+                        @foreach (var eq in Kb.Index.EquipmentInArea(area.Id))
+                        {
+                            <option value="@eq.Id">@eq.Title@(string.IsNullOrWhiteSpace(eq.DisplayName) ? "" : $" ({eq.DisplayName})")</option>
+                        }
+                    </optgroup>
+                }
+            </InputSelect>
+            <ValidationMessage For="() => _form.EquipmentId" />
+        </label>
+
+        <label>
+            <span>Beskrivning</span>
+            <InputTextArea @bind-Value="_form.Description" rows="4" placeholder="Vad larmet betyder, kort" />
+        </label>
 
         @if (_error is not null)
         {
@@ -123,49 +80,16 @@ else
             <a class="btn" href="@(IsNew ? "" : $"larm/{Id}")">Avbryt</a>
         </div>
     </EditForm>
-
-    <ConfirmDialog Open="_confirmMove"
-                   Title="Byta larmkod?"
-                   Message="@MoveMessage()"
-                   ConfirmText="Byt larmkod"
-                   OnConfirm="ConfirmMoveAsync" OnCancel="@(() => _confirmMove = false)" />
 }
 
 @code {
     [Parameter] public int? Id { get; set; }
 
-    private enum EditMode
-    {
-        /// <summary>Nothing picked yet (new alarm).</summary>
-        None,
-        /// <summary>The alarm's own definition: its text can be edited, for every unit that shares it.</summary>
-        Current,
-        /// <summary>Another existing definition picked from the list: shown read-only.</summary>
-        Picked,
-        /// <summary>"Ny larmkod": code and text typed by hand.</summary>
-        NewCode,
-        /// <summary>A server without alarm definitions: the old free-text form.</summary>
-        Plain
-    }
-
     private bool IsNew => Id is null;
-    private bool Picking => Kb.Index.SupportsDefinitions;
     private readonly AlarmForm _form = new();
     private bool _found;
     private bool _saving;
-    private bool _confirmMove;
     private string? _error;
-
-    private int? _currentDefinitionId;
-    private int? _pickedId;
-    private bool _newCode;
-
-    private EditMode Mode =>
-        !Picking ? EditMode.Plain
-        : _newCode ? EditMode.NewCode
-        : _pickedId is null ? EditMode.None
-        : _pickedId == _currentDefinitionId ? EditMode.Current
-        : EditMode.Picked;
 
     protected override void OnParametersSet()
     {
@@ -178,138 +102,18 @@ else
         _form.Severity = details.Alarm.Severity;
         _form.Description = details.Alarm.Description;
         _form.EquipmentId = details.Alarm.EquipmentId;
-        _currentDefinitionId = details.Alarm.AlarmDefinitionId;
-        _pickedId = _currentDefinitionId;
-    }
-
-    private void Pick(AlarmDefinition definition)
-    {
-        _error = null;
-        _newCode = false;
-        _pickedId = definition.Id;
-        if (definition.Id == _currentDefinitionId && Kb.Index.GetDetails(Id!.Value) is { } details)
-        {
-            // Back to its own code: show its text again for editing.
-            _form.Title = details.Alarm.Title;
-            _form.AlarmCode = details.Alarm.AlarmCode;
-            _form.Severity = details.Alarm.Severity;
-            _form.Description = details.Alarm.Description;
-        }
-    }
-
-    private void ChooseNewCode()
-    {
-        _error = null;
-        _newCode = true;
-        _pickedId = null;
-        if (IsNew) return;
-        // Start from the current text, so a small change is quick.
-        _form.AlarmCode = Kb.Index.GetDetails(Id!.Value)?.Alarm.AlarmCode;
-    }
-
-    /// <summary>A picked code the new unit cannot use (other type is fine, owned by another unit or already there is not) is cleared.</summary>
-    private void OnUnitChanged()
-    {
-        if (_pickedId is not { } picked || _form.EquipmentId == 0) return;
-        var option = Kb.Index.SearchDefinitions(null, _form.EquipmentId, allTypes: true, editingAlarmId: Id, take: int.MaxValue)
-            .FirstOrDefault(o => o.Definition.Id == picked);
-        if (option is null || option.Disabled)
-        {
-            _error = option?.DisabledReason is { } reason ? $"Larmkoden går inte att använda här: {reason}." : null;
-            _pickedId = null;
-        }
-    }
-
-    private async Task SplitAsync()
-    {
-        _saving = true;
-        _error = null;
-        try
-        {
-            await Kb.WriteAsync((api, ct) => api.SplitAlarmDefinitionAsync(Id!.Value, ct));
-            // The alarm now has a definition of its own.
-            _currentDefinitionId = Kb.Index.GetDetails(Id!.Value)?.Alarm.AlarmDefinitionId;
-            _pickedId = _currentDefinitionId;
-        }
-        catch (Exception ex)
-        {
-            _error = $"Larmet kunde inte delas av. {ex.Message}";
-        }
-        finally
-        {
-            _saving = false;
-        }
-    }
-
-    /// <summary>
-    /// True when saving takes the alarm away from its current definition. "Ny larmkod" with the same code and text as now
-    /// keeps it (the server finds the same definition).
-    /// </summary>
-    private bool LeavesCurrentDefinition => !IsNew && (Mode == EditMode.Picked || (Mode == EditMode.NewCode && !SameAsCurrent()));
-
-    private bool SameAsCurrent()
-        => Kb.Index.GetDetails(Id!.Value)?.Alarm is { } a
-           && string.Equals(a.AlarmCode?.Trim(), _form.AlarmCode?.Trim(), StringComparison.OrdinalIgnoreCase)
-           && AlarmIndex.NormaliseText(a.Title) == AlarmIndex.NormaliseText(_form.Title);
-
-    private async Task SubmitAsync()
-    {
-        _error = null;
-        if (Mode == EditMode.None)
-        {
-            _error = "Välj en larmkod i listan, eller ”Ny larmkod” om den inte finns.";
-            return;
-        }
-        if (Mode is EditMode.Current or EditMode.NewCode or EditMode.Plain && string.IsNullOrWhiteSpace(_form.Title))
-        {
-            _error = "Ange larmtexten.";
-            return;
-        }
-        // Moving to another code: the solutions belong to the old one, so ask first.
-        if (LeavesCurrentDefinition && Kb.Index.GetDetails(Id!.Value)?.Solutions.Count > 0)
-        {
-            _confirmMove = true;
-            return;
-        }
-        await SaveAsync();
-    }
-
-    private async Task ConfirmMoveAsync()
-    {
-        _confirmMove = false;
-        await SaveAsync();
-    }
-
-    private string MoveMessage()
-    {
-        if (IsNew || Kb.Index.GetDetails(Id!.Value) is not { } details) return "";
-        var oldCode = details.Alarm.AlarmCode ?? $"”{details.Alarm.Title}”";
-        var count = details.Solutions.Count;
-        var solutions = count == 1 ? "Lösningen" : $"De {count} lösningarna";
-        var target = Mode == EditMode.Picked && Kb.Index.GetDefinition(_pickedId!.Value) is { } d
-            ? $"{d.AlarmCode} ”{d.Title}”"
-            : $"den nya larmkoden {_form.AlarmCode}";
-        var others = Kb.Index.SameDefinition(Id!.Value).Select(a => a.Equipment.Title).Distinct().ToList();
-        var fate = others.Count > 0
-            ? $"följer inte med, men finns kvar på {string.Join(", ", others)}."
-            : $"följer inte med och tas bort, eftersom ingen annan enhet har {oldCode}.";
-        return $"{details.Equipment.Title} byter till {target}. {solutions} för {oldCode} {fate} Det går inte att ångra.";
     }
 
     private async Task SaveAsync()
     {
         _saving = true;
         _error = null;
-        var request = Mode == EditMode.Picked && Kb.Index.GetDefinition(_pickedId!.Value) is { } picked
-            ? new SaveAlarmRequest(picked.Title, picked.AlarmCode, picked.Severity, picked.Description, _form.EquipmentId,
-                AlarmDefinitionId: picked.Id)
-            : new SaveAlarmRequest(
-                _form.Title.Trim(),
-                string.IsNullOrWhiteSpace(_form.AlarmCode) ? null : _form.AlarmCode.Trim(),
-                _form.Severity,
-                string.IsNullOrWhiteSpace(_form.Description) ? null : _form.Description.Trim(),
-                _form.EquipmentId,
-                NewDefinition: !IsNew && Mode == EditMode.NewCode);
+        var request = new SaveAlarmRequest(
+            _form.Title.Trim(),
+            string.IsNullOrWhiteSpace(_form.AlarmCode) ? null : _form.AlarmCode.Trim(),
+            _form.Severity,
+            string.IsNullOrWhiteSpace(_form.Description) ? null : _form.Description.Trim(),
+            _form.EquipmentId);
         try
         {
             var id = IsNew
@@ -329,6 +133,7 @@ else
 
     private sealed class AlarmForm
     {
+        [Required(ErrorMessage = "Ange en titel.")]
         [MaxLength(300, ErrorMessage = "Högst 300 tecken.")]
         public string Title { get; set; } = "";
 
