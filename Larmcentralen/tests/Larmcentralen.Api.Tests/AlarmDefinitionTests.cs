@@ -190,6 +190,53 @@ public sealed class AlarmDefinitionTests(ApiFactory factory) : IClassFixture<Api
     }
 
     [Fact]
+    public async Task Untyped_units_that_get_the_same_type_merge_into_one_definition_keeping_solutions()
+    {
+        using var c = Admin();
+        var area = await PostAsync(c, "api/areas", new { title = $"Area {Guid.NewGuid():N}" });
+        var u1 = await PostAsync(c, "api/equipment", new { title = "U1", areaId = area });
+        var u2 = await PostAsync(c, "api/equipment", new { title = "U2", areaId = area });
+        var a1 = await AlarmAsync(c, u1, "M1.0", "Larm ett");
+        var a2 = await AlarmAsync(c, u2, "M1.0", "Larm ett");
+        var s1 = await PostAsync(c, "api/solutions", new { title = "S1", sortOrder = 10, alarmIds = new[] { a1 } });
+        var s2 = await PostAsync(c, "api/solutions", new { title = "S2", sortOrder = 20, alarmIds = new[] { a2 } });
+        Assert.NotEqual((await GetAlarmAsync(c, a1)).AlarmDefinitionId, (await GetAlarmAsync(c, a2)).AlarmDefinitionId);
+
+        // No type → "Övrigt" is the same definition: nothing to move.
+        (await c.PutAsJsonAsync($"api/equipment/{u1}", new { title = "U1", areaId = area, equipmentType = "Övrigt" }, Ct)).EnsureSuccessStatusCode();
+        Assert.Equal([s1], (await GetAlarmAsync(c, a1)).Solutions.Select(s => s.Id));
+
+        var type = $"Ugn {Guid.NewGuid():N}";
+        foreach (var (unit, title) in new[] { (u1, "U1"), (u2, "U2") })
+            (await c.PutAsJsonAsync($"api/equipment/{unit}", new { title, areaId = area, equipmentType = type }, Ct)).EnsureSuccessStatusCode();
+
+        var x = await GetAlarmAsync(c, a1);
+        var y = await GetAlarmAsync(c, a2);
+        Assert.Equal(x.AlarmDefinitionId, y.AlarmDefinitionId);
+        Assert.Equal([s1, s2], y.Solutions.Select(s => s.Id));
+    }
+
+    [Fact]
+    public async Task Moving_an_alarm_to_another_unit_gives_it_that_units_definition_and_keeps_its_solutions()
+    {
+        using var c = Admin();
+        var p = await SeedAsync(c);
+        var t101 = await AlarmAsync(c, p.T101, "M200.1", "Temperatur elskåp");
+        var a03 = await AlarmAsync(c, p.A03, "M300.0", "Gasflöde");
+        var solution = await PostAsync(c, "api/solutions", new { title = "S", sortOrder = 10, alarmIds = new[] { a03 } });
+        var before = (await GetAlarmAsync(c, a03)).AlarmDefinitionId;
+
+        // To T102: same type as T101, so it joins T101's definition (and its old one, now unused, goes).
+        (await c.PutAsJsonAsync($"api/alarms/{a03}",
+            new { title = "Temperatur elskåp", alarmCode = "M200.1", severity = "Hög", equipmentId = p.T102 }, Ct)).EnsureSuccessStatusCode();
+
+        var moved = await GetAlarmAsync(c, a03);
+        Assert.Equal((await GetAlarmAsync(c, t101)).AlarmDefinitionId, moved.AlarmDefinitionId);
+        Assert.NotEqual(before, moved.AlarmDefinitionId);
+        Assert.Equal([solution], (await GetAlarmAsync(c, t101)).Solutions.Select(s => s.Id));
+    }
+
+    [Fact]
     public async Task A_duplicate_alarm_on_the_same_unit_is_409()
     {
         using var c = Admin();
