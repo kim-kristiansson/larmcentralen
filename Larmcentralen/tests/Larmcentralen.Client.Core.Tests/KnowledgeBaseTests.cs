@@ -102,7 +102,61 @@ public sealed class KnowledgeBaseTests : IDisposable
             : JsonResponse(TestData.Snapshot());
         await kb.WriteAsync((api, ct) => api.DeleteAlarmAsync(100, ct), TestContext.Current.CancellationToken);
 
-        Assert.Equal(["DELETE api/alarms/100", "GET api/sync"], _handler.Requests);
+        Assert.Equal(["DELETE api/alarms/100", "GET api/sync", "GET api/me"], _handler.Requests);
+    }
+
+    [Fact]
+    public async Task Edit_access_comes_from_the_api_and_is_remembered_offline()
+    {
+        _handler.Respond = req => req.RequestUri!.AbsolutePath == "/api/me"
+            ? JsonResponse(new AccessInfo("Admin", true))
+            : JsonResponse(TestData.Snapshot());
+
+        await using (var kb = Create())
+        {
+            await kb.InitializeAsync(TestContext.Current.CancellationToken);
+            Assert.False(kb.CanEdit);
+            await kb.SyncAsync(TestContext.Current.CancellationToken);
+            Assert.True(kb.CanEdit);
+        }
+
+        _network.HasNetwork = false;
+        await using var offline = Create();
+        await offline.InitializeAsync(TestContext.Current.CancellationToken);
+        Assert.True(offline.CanEdit);
+    }
+
+    [Fact]
+    public async Task Read_only_key_never_shows_edit()
+    {
+        _handler.Respond = req => req.RequestUri!.AbsolutePath == "/api/me"
+            ? JsonResponse(new AccessInfo("User", false))
+            : JsonResponse(TestData.Snapshot());
+        await using var kb = Create();
+        await kb.InitializeAsync(TestContext.Current.CancellationToken);
+        await kb.SyncAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(kb.CanEdit);
+    }
+
+    [Fact]
+    public async Task Forbidden_write_hides_edit_and_says_why()
+    {
+        _handler.Respond = req => req.RequestUri!.AbsolutePath == "/api/me"
+            ? JsonResponse(new AccessInfo("Admin", true))
+            : JsonResponse(TestData.Snapshot());
+        await using var kb = Create();
+        await kb.InitializeAsync(TestContext.Current.CancellationToken);
+        await kb.SyncAsync(TestContext.Current.CancellationToken);
+        Assert.True(kb.CanEdit);
+
+        // The admin key was swapped for a read key since the last sync.
+        _handler.Respond = _ => new HttpResponseMessage(HttpStatusCode.Forbidden);
+        await Assert.ThrowsAsync<NotAllowedException>(() =>
+            kb.WriteAsync((api, ct) => api.DeleteAlarmAsync(100, ct), TestContext.Current.CancellationToken));
+
+        Assert.False(kb.CanEdit);
+        Assert.True(kb.IsOnline);
     }
 
     [Fact]

@@ -22,12 +22,12 @@
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiPackageVersion)" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="$(DotNetPackageVersion)" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="$(DotNetPackageVersion)" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="$(DotNetPackageVersion)" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="$(DotNetPackageVersion)" />
     <PackageVersion Include="Microsoft.Maui.Controls" Version="$(MauiPackageVersion)" />
   </ItemGroup>
 
   <ItemGroup Label="Tests">
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="$(DotNetPackageVersion)" />
     <PackageVersion Include="xunit.v3" Version="4.0.3" />
   </ItemGroup>
 </Project>

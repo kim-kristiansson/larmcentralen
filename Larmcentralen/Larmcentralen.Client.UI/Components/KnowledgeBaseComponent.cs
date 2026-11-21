@@ -13,6 +13,9 @@ public abstract class KnowledgeBaseComponent : ComponentBase, IDisposable
 
     protected bool IsOnline => Kb.IsOnline;
 
+    /// <summary>Admins can edit; everyone else only reads. Hide edit features when false.</summary>
+    protected bool CanEdit => Kb.CanEdit;
+
     protected override void OnInitialized()
     {
         Kb.Changed += OnKbChanged;

@@ -10,7 +10,8 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers()
+// Anything that isn't a read needs the Admin role, see RequireAdminForWritesConvention.
+builder.Services.AddControllers(o => o.Conventions.Add(new RequireAdminForWritesConvention()))
     .AddJsonOptions(o =>
     {
         o.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
@@ -46,8 +47,9 @@ builder.Services.Configure<EmailOptions>(
     builder.Configuration.GetSection("Email"));
 builder.Services.Configure<SharePointOptions>(
     builder.Configuration.GetSection("SharePoint"));
-builder.Services.Configure<SecurityOptions>(
-    builder.Configuration.GetSection("Security"));
+
+// API keys: the read key gives the User role, the admin key the Admin role.
+builder.Services.AddApiKeySecurity(builder.Configuration);
 
 var app = builder.Build();
 
@@ -64,7 +66,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseApiKeys();
+app.UseApiKeySecurity();
 app.MapControllers();
 
 app.Run();
+
+// Lets the API tests start the app with WebApplicationFactory.
+public partial class Program { }

@@ -74,35 +74,43 @@ App Service's environment variables.
 
 Everything under `/api` requires a key:
 
-- The app sends `Security:ApiKey` in the `X-Api-Key` header on every call.
+- The app sends a key in the `X-Api-Key` header on every call. There are two keys, and they must differ:
+  - `Security:ApiKey` is the read key for operators (role User): search and read only.
+  - `Security:AdminApiKey` is the admin key (role Admin): can also create, edit and delete.
+    Every endpoint that changes data requires it.
 - The 46elks SMS webhook can't send headers, so it uses its own secret in the URL:
   `https://<api-host>/api/webhooks/sms?secret=<Security:SmsWebhookSecret>`.
 
 In Development the API runs without keys if none are set (it logs a warning). In any other
-environment it refuses to start until both are set.
+environment it refuses to start until all three (`Security:ApiKey`, `Security:AdminApiKey`,
+`Security:SmsWebhookSecret`) are set. It also refuses to start if the two API keys are the same.
 
 ```bash
-# Generate two keys (PowerShell: [Convert]::ToBase64String((1..32 | % { Get-Random -Max 256 })))
+# Generate three keys (PowerShell: [Convert]::ToBase64String((1..32 | % { Get-Random -Max 256 })))
 openssl rand -base64 32
 
 # Local API: store them in user-secrets
 cd Larmcentralen/Larmcentralen.Api
-dotnet user-secrets set "Security:ApiKey" "<key>"
+dotnet user-secrets set "Security:ApiKey" "<read key>"
+dotnet user-secrets set "Security:AdminApiKey" "<admin key>"
 dotnet user-secrets set "Security:SmsWebhookSecret" "<webhook secret>"
 dotnet user-secrets set "SharePoint:ClientSecret" "<secret>"      # and the other SharePoint values
 dotnet user-secrets set "Email:ElksPassword" "<46elks password>"  # and ElksUsername, AlertRecipient
 ```
 
 On Azure App Service, add the same settings as environment variables with `__` for `:`
-(`Security__ApiKey`, `Security__SmsWebhookSecret`, `SharePoint__ClientSecret`, ...).
+(`Security__ApiKey`, `Security__AdminApiKey`, `Security__SmsWebhookSecret`, `SharePoint__ClientSecret`, ...).
 
-Each PC running the app needs the API key as a user environment variable, then a restart of the app:
+Each PC running the app needs a key as a user environment variable, then a restart of the app:
+the read key (`Security:ApiKey`) on operator PCs, the admin key (`Security:AdminApiKey`) on admin PCs.
+The app asks the API for its role (`GET /api/me`), remembers it offline and hides edit features for users.
 
 ```powershell
-setx LARMCENTRALEN_API_KEY "<key>"
+setx LARMCENTRALEN_API_KEY "<read key or admin key>"
 ```
 
-If a key leaks, generate a new one, update the API setting and every PC's `LARMCENTRALEN_API_KEY`.
+If a key leaks, generate a new one, update the API setting and `LARMCENTRALEN_API_KEY` on every PC
+that uses that key.
 
 A GitHub Actions check (`.github/workflows/secret-scan.yml`, gitleaks) fails any push or pull
 request that adds something that looks like a secret. To catch it before committing, install

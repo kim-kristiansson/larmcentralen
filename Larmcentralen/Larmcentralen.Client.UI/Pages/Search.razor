@@ -50,7 +50,10 @@
         <button type="button" class="btn btn-link" @onclick="ClearFilters">Rensa filter</button>
     }
     <span class="spacer"></span>
-    <OnlineButton Class="btn" OnClick="@(() => Nav.NavigateTo("larm/ny"))">Nytt larm</OnlineButton>
+    @if (CanEdit)
+    {
+        <OnlineButton Class="btn" OnClick="@(() => Nav.NavigateTo("larm/ny"))">Nytt larm</OnlineButton>
+    }
 </div>
 
 @if (!Kb.HasLocalData)

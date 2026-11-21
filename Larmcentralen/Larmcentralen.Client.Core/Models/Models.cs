@@ -76,3 +76,6 @@ public record CreateSolutionRequest(string Title, string? Content, int SortOrder
 public record UpdateSolutionRequest(string Title, string? Content, int SortOrder, string? EstimatedTime);
 
 public record CreatedEntity(int Id);
+
+/// <summary>Response of GET /api/me: what this app's API key may do. Only admins can edit.</summary>
+public record AccessInfo(string Role, bool CanEdit);

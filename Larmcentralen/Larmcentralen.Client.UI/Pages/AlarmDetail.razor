@@ -35,9 +35,15 @@ else
                 <p class="alarm-description">@alarm.Description</p>
             }
             <div class="actions">
-                <OnlineButton OnClick="@(() => Nav.NavigateTo($"larm/{Id}/redigera"))">Redigera larm</OnlineButton>
+                @if (CanEdit)
+                {
+                    <OnlineButton OnClick="@(() => Nav.NavigateTo($"larm/{Id}/redigera"))">Redigera larm</OnlineButton>
+                }
                 <OnlineButton OnClick="ExportAsync" Disabled="_busy">Exportera till Word</OnlineButton>
-                <OnlineButton Class="btn btn-danger-outline" OnClick="@(() => _confirmDeleteAlarm = true)">Ta bort larm</OnlineButton>
+                @if (CanEdit)
+                {
+                    <OnlineButton Class="btn btn-danger-outline" OnClick="@(() => _confirmDeleteAlarm = true)">Ta bort larm</OnlineButton>
+                }
             </div>
             @if (_message is not null)
             {
@@ -48,7 +54,10 @@ else
         <section class="solutions">
             <div class="section-head">
                 <h2 class="section-title">Lösningar</h2>
-                <OnlineButton Class="btn btn-primary" OnClick="@(() => Nav.NavigateTo($"larm/{Id}/losning/ny"))">Ny lösning</OnlineButton>
+                @if (CanEdit)
+                {
+                    <OnlineButton Class="btn btn-primary" OnClick="@(() => Nav.NavigateTo($"larm/{Id}/losning/ny"))">Ny lösning</OnlineButton>
+                }
             </div>
 
             @if (_details.Solutions.Count == 0)
@@ -72,10 +81,13 @@ else
                         }
                     </header>
                     <RichContent Html="@solution.Content" />
-                    <footer class="actions">
-                        <OnlineButton Class="btn btn-small" OnClick="@(() => Nav.NavigateTo($"losning/{solution.Id}/redigera"))">Redigera</OnlineButton>
-                        <OnlineButton Class="btn btn-small btn-danger-outline" OnClick="@(() => _solutionToDelete = solution)">Ta bort</OnlineButton>
-                    </footer>
+                    @if (CanEdit)
+                    {
+                        <footer class="actions">
+                            <OnlineButton Class="btn btn-small" OnClick="@(() => Nav.NavigateTo($"losning/{solution.Id}/redigera"))">Redigera</OnlineButton>
+                            <OnlineButton Class="btn btn-small btn-danger-outline" OnClick="@(() => _solutionToDelete = solution)">Ta bort</OnlineButton>
+                        </footer>
+                    }
                 </section>
             }
         </section>

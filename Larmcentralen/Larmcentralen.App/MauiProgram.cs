@@ -50,7 +50,8 @@ public static class MauiProgram
 /// Where the API lives. Read from appsettings.json in the app package, and overridable with the
 /// LARMCENTRALEN_API_URL environment variable so a pilot PC can point at Azure without a rebuild.
 /// The API key only comes from the LARMCENTRALEN_API_KEY environment variable: appsettings.json is
-/// in git and ships inside the app, so a key must never go there.
+/// in git and ships inside the app, so a key must never go there. Operators' PCs get the read key;
+/// admins get the admin key, which also shows the edit buttons.
 /// </summary>
 internal sealed record AppSettings(Uri ApiBaseAddress, string? ApiKey)
 {

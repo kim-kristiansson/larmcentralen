@@ -8,7 +8,11 @@
 <p class="back"><a href="@(IsNew ? "" : $"larm/{Id}")">← Avbryt</a></p>
 <h1>@(IsNew ? "Nytt larm" : "Redigera larm")</h1>
 
-@if (!IsNew && !_found)
+@if (!CanEdit)
+{
+    <NoEditAccess />
+}
+else if (!IsNew && !_found)
 {
     <p class="muted">Larmet finns inte.</p>
 }
