@@ -2,6 +2,7 @@
 
     <PropertyGroup>
         <TargetFramework>$(LarmTargetFramework)</TargetFramework>
+        <UserSecretsId>larmcentralen-api</UserSecretsId>
     </PropertyGroup>
 
     <ItemGroup>

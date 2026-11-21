@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Larmcentralen.Api.Security;
 using Larmcentralen.Api.Services;
 using Larmcentralen.Application.Interfaces;
 using Larmcentralen.Application.Services;
@@ -45,6 +46,8 @@ builder.Services.Configure<EmailOptions>(
     builder.Configuration.GetSection("Email"));
 builder.Services.Configure<SharePointOptions>(
     builder.Configuration.GetSection("SharePoint"));
+builder.Services.Configure<SecurityOptions>(
+    builder.Configuration.GetSection("Security"));
 
 var app = builder.Build();
 
@@ -61,6 +64,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseApiKeys();
 app.MapControllers();
 
 app.Run();
