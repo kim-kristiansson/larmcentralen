@@ -1,6 +1,9 @@
 using System.Text.Json;
+using Larmcentralen.Application.DTOs;
+using Larmcentralen.Application.Services;
 using Larmcentralen.Domain.Entities;
 using Larmcentralen.Infrastructure.Data;
+using Larmcentralen.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 // Imports an alarm list (JSON) into a Larmcentralen SQLite database.
@@ -11,9 +14,14 @@ using Microsoft.EntityFrameworkCore;
 //       [--types <types.json>] [--remove <unit>[,<unit>...]] [--dry-run]
 //
 // --types sets each unit's EquipmentType from a file like { "Härdugn": ["T101", "T102"], "Tvätt": ["W1"] }.
-//         Keep it next to the alarm list, outside the repository.
-// --remove skips these units in the alarm list and deletes them from the database with their alarms
-//          and the solutions only their alarms use (shared solutions stay for the other alarms).
+//         Keep it next to the alarm list, outside the repository. Applied before the alarms, because
+//         alarm definitions are shared per type.
+// --remove skips these units in the alarm list and deletes them from the database with their alarms,
+//          and the definitions and solutions only those alarms had.
+// --dry-run does everything in a transaction and rolls it back.
+//
+// Alarms join an alarm definition by the app's own rule: units of the same type with the same code and the
+// same text (ignoring case, accents, spacing and punctuation) share one, "Övrigt" units each have their own.
 //
 // JSON shape: [ { "equipment": "T101", "alarms": [ { "code": "M200.0", "text": "...", "type": "Type 1" } ] } ]
 // Running it again is safe: existing areas, equipment and alarms are matched and left as they are.
@@ -31,6 +39,12 @@ if (options is null)
 var units = JsonSerializer.Deserialize<List<UnitRow>>(
     await File.ReadAllTextAsync(options.JsonPath),
     new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [];
+var types = options.TypesPath is null
+    ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    : (JsonSerializer.Deserialize<Dictionary<string, List<string>>>(await File.ReadAllTextAsync(options.TypesPath)) ?? [])
+        .SelectMany(kv => kv.Value.Select(unit => (unit, type: kv.Key)))
+        .ToDictionary(x => x.unit, x => x.type, StringComparer.OrdinalIgnoreCase);
+var remove = options.Remove.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
 var dbOptions = new DbContextOptionsBuilder<AppDbContext>()
     .UseSqlite($"Data Source={options.DbPath}")
@@ -39,33 +53,66 @@ var dbOptions = new DbContextOptionsBuilder<AppDbContext>()
 await using var db = new AppDbContext(dbOptions);
 await SqliteSetup.InitialiseAsync(db);
 
-var area = await db.Areas.Include(a => a.Equipment).ThenInclude(e => e.Alarms).ThenInclude(a => a.Solutions).ThenInclude(s => s.Alarms)
-    .FirstOrDefaultAsync(a => a.Title == options.AreaTitle);
+// The app's own services, so definitions follow exactly the same rules as edits in the app.
+var alarmRepo = new AlarmRepository(db);
+var equipmentRepo = new EquipmentRepository(db);
+var definitionRepo = new AlarmDefinitionRepository(db);
+var solutionRepo = new SolutionRepository(db);
+var equipmentService = new EquipmentService(equipmentRepo, alarmRepo, definitionRepo, solutionRepo);
+var alarmService = new AlarmService(alarmRepo, definitionRepo, equipmentRepo, solutionRepo);
+
+Console.WriteLine($"Before: {await CountsAsync()}");
+await using var tx = await db.Database.BeginTransactionAsync();
+
+var area = await db.Areas.FirstOrDefaultAsync(a => a.Title == options.AreaTitle);
 if (area is null)
 {
     area = new Area { Title = options.AreaTitle, Description = "Larm från OCSS-systemet." };
     db.Areas.Add(area);
+    await db.SaveChangesAsync();
     Console.WriteLine($"+ area   {area.Title}");
 }
 
-var types = options.TypesPath is null
-    ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-    : (JsonSerializer.Deserialize<Dictionary<string, List<string>>>(await File.ReadAllTextAsync(options.TypesPath)) ?? [])
-        .SelectMany(kv => kv.Value.Select(unit => (unit, type: kv.Key)))
-        .ToDictionary(x => x.unit, x => x.type, StringComparer.OrdinalIgnoreCase);
-var remove = options.Remove.ToHashSet(StringComparer.OrdinalIgnoreCase);
+int addedEquipment = 0, addedAlarms = 0, skipped = 0, existing = 0, typed = 0, removedUnits = 0, removedAlarms = 0;
 
-int addedEquipment = 0, addedAlarms = 0, skipped = 0, existing = 0;
+// 1. Types first: a unit that changes type takes its alarms (and their solutions) to definitions of the new type.
+foreach (var equipment in await db.Equipment.Where(e => e.AreaId == area.Id).ToListAsync())
+{
+    if (!types.TryGetValue(equipment.Title, out var type) || equipment.EquipmentType == type) continue;
+    await equipmentService.UpdateAsync(equipment.Id, new UpdateEquipmentDto(
+        equipment.Title, equipment.DisplayName, equipment.Category, equipment.Description, equipment.AreaId, type));
+    typed++;
+    Console.WriteLine($"~ type   {equipment.Title} = {type}");
+}
 
+// 2. Units that no longer exist, with their alarms and what only they used.
+foreach (var equipment in await db.Equipment.Include(e => e.Alarms).Where(e => e.AreaId == area.Id).ToListAsync())
+{
+    if (!remove.Contains(equipment.Title)) continue;
+    var alarmIds = equipment.Alarms.Select(a => a.Id).ToList();
+    foreach (var id in alarmIds) await alarmService.DeleteAsync(id);
+    await equipmentService.DeleteAsync(equipment.Id);
+    removedUnits++;
+    removedAlarms += alarmIds.Count;
+    Console.WriteLine($"- unit   {equipment.Title} ({alarmIds.Count} alarms)");
+}
+
+// 3. The alarm list.
 foreach (var unit in units)
 {
     if (remove.Contains(unit.Equipment)) continue;
 
-    var equipment = area.Equipment.FirstOrDefault(e => e.Title == unit.Equipment);
+    var equipment = await db.Equipment.Include(e => e.Alarms).ThenInclude(a => a.Definition)
+        .FirstOrDefaultAsync(e => e.AreaId == area.Id && e.Title == unit.Equipment);
     if (equipment is null)
     {
-        equipment = new Equipment { Title = unit.Equipment, Category = "OCSS" };
-        area.Equipment.Add(equipment);
+        equipment = new Equipment
+        {
+            Title = unit.Equipment, Category = "OCSS", AreaId = area.Id,
+            EquipmentType = types.GetValueOrDefault(unit.Equipment)
+        };
+        db.Equipment.Add(equipment);
+        await db.SaveChangesAsync();
         addedEquipment++;
         Console.WriteLine($"+ unit   {unit.Equipment}");
     }
@@ -80,64 +127,48 @@ foreach (var unit in units)
             continue;
         }
 
-        var code = string.IsNullOrWhiteSpace(row.Code) ? null : row.Code.Trim();
+        var code = AlarmDefinition.NormaliseCode(row.Code);
+        var key = AlarmDefinition.NormaliseTitle(text);
         var match = equipment.Alarms.FirstOrDefault(a =>
-            code is not null ? a.AlarmCode == code : a.AlarmCode is null && a.Title == text);
+            code is not null ? a.Definition.AlarmCode == code : a.Definition.AlarmCode is null && a.Definition.NormalizedTitle == key);
         if (match is not null)
         {
             existing++;
             continue;
         }
 
-        equipment.Alarms.Add(new Alarm
+        var result = await alarmService.CreateAsync(new CreateAlarmDto(
+            text, code, "Låg", row.Type is null ? null : $"Störtyp i OCSS: {row.Type}.", equipment.Id));
+        if (result.Status != WriteStatus.Ok)
         {
-            Title = text,
-            AlarmCode = code,
-            Description = row.Type is null ? null : $"Störtyp i OCSS: {row.Type}.",
-        });
+            Console.WriteLine($"! alarm  {unit.Equipment} {code ?? "-"} {text}: {result.Error}");
+            continue;
+        }
         addedAlarms++;
         Console.WriteLine($"+ alarm  {unit.Equipment} {code ?? "-"} {text}");
     }
 }
 
-int typed = 0, removedUnits = 0, removedAlarms = 0, removedSolutions = 0;
-foreach (var equipment in area.Equipment)
-{
-    if (!types.TryGetValue(equipment.Title, out var type) || equipment.EquipmentType == type) continue;
-    equipment.EquipmentType = type;
-    equipment.UpdatedAt = DateTime.UtcNow;
-    typed++;
-    Console.WriteLine($"~ type   {equipment.Title} = {type}");
-}
-
-foreach (var equipment in area.Equipment.Where(e => remove.Contains(e.Title)).ToList())
-{
-    var alarmIds = equipment.Alarms.Select(a => a.Id).ToHashSet();
-    // A solution always has an alarm: delete the ones only this unit's alarms use.
-    var orphans = equipment.Alarms.SelectMany(a => a.Solutions).Distinct()
-        .Where(s => s.Alarms.All(a => alarmIds.Contains(a.Id))).ToList();
-    db.Solutions.RemoveRange(orphans);
-    db.Alarms.RemoveRange(equipment.Alarms);
-    db.Equipment.Remove(equipment);
-    removedUnits++;
-    removedAlarms += equipment.Alarms.Count;
-    removedSolutions += orphans.Count;
-    Console.WriteLine($"- unit   {equipment.Title} ({equipment.Alarms.Count} alarms, {orphans.Count} solutions)");
-}
-
 Console.WriteLine();
 Console.WriteLine($"New units: {addedEquipment}, new alarms: {addedAlarms}, already there: {existing}, skipped rows: {skipped}");
-Console.WriteLine($"Types set: {typed}, removed units: {removedUnits}, removed alarms: {removedAlarms}, removed solutions: {removedSolutions}");
+Console.WriteLine($"Types set: {typed}, removed units: {removedUnits}, removed alarms: {removedAlarms}");
+Console.WriteLine($"After:  {await CountsAsync()}");
 
 if (options.DryRun)
 {
-    Console.WriteLine("Dry run: nothing was saved.");
+    await tx.RollbackAsync();
+    Console.WriteLine("Dry run: rolled back, nothing was saved.");
     return 0;
 }
 
-await db.SaveChangesAsync();
+await tx.CommitAsync();
 Console.WriteLine($"Saved to {Path.GetFullPath(options.DbPath)}");
 return 0;
+
+async Task<string> CountsAsync() =>
+    $"units {await db.Equipment.CountAsync()}, alarms {await db.Alarms.CountAsync()}, " +
+    $"definitions {await db.AlarmDefinitions.CountAsync()}, solutions {await db.Solutions.CountAsync()}, " +
+    $"links {await db.DefinitionSolutions.CountAsync()}";
 
 internal sealed record UnitRow(string Equipment, List<AlarmRow> Alarms);
 
