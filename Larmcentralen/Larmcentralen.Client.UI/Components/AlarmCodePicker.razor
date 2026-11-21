@@ -1,0 +1,234 @@
+@inherits KnowledgeBaseComponent
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@*
+    Searchable list of alarm definitions to pick an alarm code from (a combobox). Typing filters by code or text;
+    the list shows definitions of the unit's type unless "Visa alla typer" is ticked. Arrow keys move, Enter picks,
+    Esc closes. The last row, "Ny larmkod", is for a code that is not in the list yet.
+*@
+
+<div class="code-picker">
+    <label class="code-picker-label" for="code-picker-input">Larmkod</label>
+    <div class="code-picker-field">
+        <input id="code-picker-input" @ref="_input" type="text" autocomplete="off" spellcheck="false"
+               role="combobox" aria-autocomplete="list" aria-expanded="@(_open ? "true" : "false")"
+               aria-controls="code-picker-list" aria-activedescendant="@(_open ? OptionId(_active) : null)"
+               placeholder="@(EquipmentId == 0 ? "Välj utrustning först" : "Sök kod eller text, t.ex. M200.1")"
+               disabled="@(EquipmentId == 0)"
+               value="@_query" @oninput="OnInput" @onkeydown="OnKeyDown" @onfocus="Open" @onblur="OnBlur" />
+        <label class="code-picker-toggle">
+            <input type="checkbox" checked="@_allTypes" @onchange="OnAllTypesChanged" disabled="@(EquipmentId == 0)" />
+            <span>Visa alla typer</span>
+        </label>
+    </div>
+
+    @if (_open && EquipmentId != 0)
+    {
+        <ul id="code-picker-list" class="code-picker-list" role="listbox" aria-label="Larmkoder">
+            @if (_options.Count == 0)
+            {
+                <li class="code-picker-empty" role="presentation">
+                    @(_allTypes ? "Inga larmkoder matchar." : $"Inga larmkoder för {TypeName} matchar. Prova ”Visa alla typer”.")
+                </li>
+            }
+            @for (var i = 0; i < _options.Count; i++)
+            {
+                var index = i;
+                var option = _options[i];
+                var d = option.Definition;
+                <li id="@OptionId(index)" role="option" aria-selected="@(index == _active ? "true" : "false")"
+                    aria-disabled="@(option.Disabled ? "true" : "false")"
+                    class="code-option @(index == _active ? "active" : "") @(option.Disabled ? "disabled" : "") @(d.Id == SelectedDefinitionId ? "current" : "")"
+                    @onmousedown="() => PickAsync(index)" @onmousedown:preventDefault="true">
+                    <span class="code-option-main">
+                        <code class="alarm-code">@(d.AlarmCode ?? "–")</code>
+                        <span class="code-option-title">@d.Title</span>
+                        <span class="code-option-type">@d.EquipmentType</span>
+                    </span>
+                    <span class="code-option-meta">
+                        @if (option.Disabled)
+                        {
+                            @option.DisabledReason
+                        }
+                        else if (option.Alarms.Count > 0)
+                        {
+                            @($"Används på: {string.Join(", ", option.Units)}")
+                        }
+                        else
+                        {
+                            @("Används inte på någon enhet än")
+                        }
+                    </span>
+                </li>
+            }
+            <li id="@OptionId(_options.Count)" role="option" aria-selected="@(_active == _options.Count ? "true" : "false")"
+                class="code-option code-option-new @(_active == _options.Count ? "active" : "")"
+                @onmousedown="() => PickAsync(_options.Count)" @onmousedown:preventDefault="true">
+                <span class="code-option-main"><strong>+ Ny larmkod</strong></span>
+                <span class="code-option-meta">Skriv kod och larmtext själv när ingen i listan passar</span>
+            </li>
+        </ul>
+    }
+</div>
+
+@code {
+    /// <summary>The unit the alarm is on. 0 when none is chosen yet.</summary>
+    [Parameter] public int EquipmentId { get; set; }
+
+    /// <summary>The alarm being edited, so its own definition is not reported as already used on the unit.</summary>
+    [Parameter] public int? EditingAlarmId { get; set; }
+
+    [Parameter] public int? SelectedDefinitionId { get; set; }
+
+    /// <summary>True when "Ny larmkod" is chosen: the input then shows nothing picked.</summary>
+    [Parameter] public bool NewCode { get; set; }
+
+    [Parameter] public EventCallback<AlarmDefinition> OnPick { get; set; }
+    [Parameter] public EventCallback OnNewCode { get; set; }
+
+    private ElementReference _input;
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _keys;
+    private string _query = "";
+    private bool _open;
+    private bool _allTypes;
+    private int _active;
+    private int _shownFor = -1;
+    private int? _shownDefinition;
+    private bool _shownNew;
+    private IReadOnlyList<DefinitionOption> _options = [];
+
+    private string TypeName => Kb.Index.Equipment.FirstOrDefault(e => e.Id == EquipmentId) is { } unit
+        ? (AlarmIndex.TypeOf(unit) ?? AlarmIndex.OtherType).ToLowerInvariant()
+        : "enheten";
+
+    private static string OptionId(int index) => $"code-option-{index}";
+
+    protected override void OnParametersSet()
+    {
+        // Show the picked code in the box when the selection changes from outside.
+        if (_shownDefinition != SelectedDefinitionId || _shownNew != NewCode || _shownFor != EquipmentId)
+        {
+            _shownDefinition = SelectedDefinitionId;
+            _shownNew = NewCode;
+            _shownFor = EquipmentId;
+            _query = SelectedDefinitionId is { } id && Kb.Index.GetDefinition(id) is { } d ? Label(d) : "";
+            Refresh();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Without the script the picker still works; only Enter and the arrows would also act on the page.
+        try
+        {
+            if (firstRender)
+            {
+                _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/Larmcentralen.Client.UI/js/combobox.js");
+                _keys = await _module.InvokeAsync<IJSObjectReference>("attach", _input);
+            }
+            if (_open && _module is not null)
+                await _module.InvokeVoidAsync("scrollIntoView", OptionId(_active));
+        }
+        catch (JSException) { }
+        catch (JSDisconnectedException) { }
+    }
+
+    private static string Label(AlarmDefinition d) => d.AlarmCode is null ? d.Title : $"{d.AlarmCode} · {d.Title}";
+
+    private void Refresh()
+    {
+        // While the box shows the picked code, list everything; once the user types, filter by what they typed.
+        var picked = SelectedDefinitionId is { } id && Kb.Index.GetDefinition(id) is { } d && _query == Label(d);
+        _options = EquipmentId == 0 ? [] : Kb.Index.SearchDefinitions(picked ? null : _query, EquipmentId, _allTypes, EditingAlarmId);
+        var current = _options.ToList().FindIndex(o => o.Definition.Id == SelectedDefinitionId);
+        _active = current >= 0 ? current : FirstEnabled(0, +1);
+    }
+
+    private int FirstEnabled(int from, int step)
+    {
+        // The "Ny larmkod" row (index _options.Count) is always enabled.
+        for (var i = from; i >= 0 && i <= _options.Count; i += step)
+            if (i == _options.Count || !_options[i].Disabled) return i;
+        return _options.Count;
+    }
+
+    private void Open()
+    {
+        if (EquipmentId == 0) return;
+        _open = true;
+        Refresh();
+    }
+
+    private void OnInput(ChangeEventArgs e)
+    {
+        _query = e.Value?.ToString() ?? "";
+        _open = true;
+        Refresh();
+    }
+
+    private void OnAllTypesChanged(ChangeEventArgs e)
+    {
+        _allTypes = e.Value is true;
+        _open = true;
+        Refresh();
+    }
+
+    private void OnBlur()
+    {
+        _open = false;
+        // Put the picked code back if the user typed without picking.
+        _query = SelectedDefinitionId is { } id && Kb.Index.GetDefinition(id) is { } d ? Label(d) : (NewCode ? "" : _query);
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                if (!_open) { Open(); break; }
+                _active = _active >= _options.Count ? _active : FirstEnabled(_active + 1, +1);
+                break;
+            case "ArrowUp":
+                if (!_open) { Open(); break; }
+                var up = _active - 1;
+                while (up >= 0 && _options[up].Disabled) up--;
+                if (up >= 0) _active = up;
+                break;
+            case "Enter":
+                if (_open) await PickAsync(_active);
+                else Open();
+                break;
+            case "Escape":
+                OnBlur();
+                break;
+        }
+    }
+
+    private async Task PickAsync(int index)
+    {
+        if (index == _options.Count)
+        {
+            _open = false;
+            _query = "";
+            await OnNewCode.InvokeAsync();
+            return;
+        }
+        if (index < 0 || index > _options.Count || _options[index].Disabled) return;
+        var d = _options[index].Definition;
+        _open = false;
+        _query = Label(d);
+        await OnPick.InvokeAsync(d);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        base.Dispose();
+        try
+        {
+            if (_keys is not null) { await _keys.InvokeVoidAsync("dispose"); await _keys.DisposeAsync(); }
+            if (_module is not null) await _module.DisposeAsync();
+        }
+        catch (JSDisconnectedException) { }
+    }
+}
