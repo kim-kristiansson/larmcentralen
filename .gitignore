@@ -525,3 +525,18 @@ $RECYCLE.BIN/
 *.db
 *.db-shm
 *.db-wal
+
+# Secrets and local config (added by security audit 2026-11-21)
+.env.*
+!.env.example
+secrets.json
+local.settings.json
+*.p12
+*.pem
+*.key
+*.cer
+*.crt
+*.snk
+*.sqlite
+*.sqlite3
+*.db-journal
