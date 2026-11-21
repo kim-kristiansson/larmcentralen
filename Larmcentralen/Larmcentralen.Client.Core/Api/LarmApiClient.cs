@@ -58,6 +58,22 @@ public class LarmApiClient(HttpClient http)
         await EnsureSuccessAsync(response, ct);
     }
 
+    /// <summary>Removes a shared solution from one alarm; the other alarms keep it. The API refuses (409) the last link.</summary>
+    public async Task UnlinkSolutionAsync(int alarmId, int solutionId, CancellationToken ct = default)
+    {
+        using var response = await http.DeleteAsync($"api/alarms/{alarmId}/solutions/{solutionId}", ct);
+        await EnsureSuccessAsync(response, ct);
+    }
+
+    /// <summary>Gives one alarm its own copy of a shared solution. Returns the copy's id.</summary>
+    public async Task<int> DetachSolutionAsync(int alarmId, int solutionId, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync($"api/alarms/{alarmId}/solutions/{solutionId}/detach", null, ct);
+        await EnsureSuccessAsync(response, ct);
+        var copy = await response.Content.ReadFromJsonAsync<CreatedEntity>(ct);
+        return copy?.Id ?? throw new InvalidOperationException("The API did not return the copy's id.");
+    }
+
     /// <summary>Downloads the alarm and its solutions as a .docx.</summary>
     public async Task<(byte[] Bytes, string FileName)> ExportAlarmAsync(int alarmId, CancellationToken ct = default)
     {
