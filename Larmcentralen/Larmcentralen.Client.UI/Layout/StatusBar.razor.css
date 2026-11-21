@@ -1,0 +1,5 @@
+.status { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; background: #4ADE80; box-shadow: 0 0 0 2px rgba(255,255,255,0.6); }
+.status-offline .status-dot { background: #FACC15; }
+.status-offline .status-text { font-weight: 700; }
+.status-detail { opacity: 0.9; font-weight: 400; }

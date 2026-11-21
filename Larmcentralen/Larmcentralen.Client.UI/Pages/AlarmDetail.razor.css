@@ -1,0 +1,13 @@
+.alarm-header { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+.alarm-header-top { display: flex; gap: 12px; align-items: center; }
+.alarm-code-large { font-size: 1.05rem; padding: 2px 8px; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px 32px; margin: 0; }
+.facts dt { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.facts dd { margin: 0; font-weight: 600; }
+.alarm-description { margin: 14px 0 0; color: var(--ink-soft); }
+.section-head { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; }
+.solution-card { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--brand); border-radius: var(--radius); padding: 18px 20px; margin-top: 12px; }
+.solution-card > header { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-bottom: 8px; }
+.solution-number { color: var(--brand); margin-right: 4px; }
+.estimate { color: var(--ink-soft); font-size: 0.9rem; white-space: nowrap; }
+.solution-card footer.actions { margin-top: 12px; }

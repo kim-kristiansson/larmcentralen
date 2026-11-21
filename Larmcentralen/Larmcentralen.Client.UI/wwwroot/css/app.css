@@ -1,5 +1,10 @@
-/* Larmcentralen: one stylesheet for every page. Built for speed and readability on a
-   shared workstation: large text, strong contrast, big click targets. */
+/* Larmcentralen: the shared stylesheet. Built for speed and readability on a
+   shared workstation: large text, strong contrast, big click targets.
+
+   This file holds what more than one component uses: design tokens, base element
+   styles, layout, buttons, forms, messages and rich text. Styles that belong to a
+   single component live next to it in Component.razor.css (CSS isolation) and reach
+   the app through the scoped bundle, Larmcentralen.App.styles.css. */
 
 :root {
   --brand: #DD042B;          /* Aalberts red */
@@ -43,19 +48,11 @@ code { font-family: Consolas, "Cascadia Mono", monospace; }
 .muted { color: var(--muted); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
+/* Blazor shows this itself (it sets display: block) when an unhandled error happens. */
+#blazor-error-ui { display: none; }
+
 /* One container sets page width for every page. */
 .content-container { width: 100%; max-width: var(--content-width); margin: 0 auto; padding: 0 20px; }
-main { padding: 20px 0 48px; }
-
-/* Top bar */
-.topbar { background: var(--brand); color: #fff; }
-.topbar-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 56px; flex-wrap: wrap; }
-.brand { color: #fff; font-weight: 700; font-size: 1.2rem; text-decoration: none; letter-spacing: 0.02em; }
-.status { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }
-.status-dot { width: 10px; height: 10px; border-radius: 50%; background: #4ADE80; box-shadow: 0 0 0 2px rgba(255,255,255,0.6); }
-.status-offline .status-dot { background: #FACC15; }
-.status-offline .status-text { font-weight: 700; }
-.status-detail { opacity: 0.9; font-weight: 400; }
 
 /* Buttons */
 .btn {
@@ -77,58 +74,15 @@ main { padding: 20px 0 48px; }
 .btn-wide { width: 100%; margin-top: 12px; }
 .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
 
-/* Search */
-.search-box { margin-top: 8px; }
-.search-input {
-  width: 100%; min-height: 60px; padding: 0 20px; font: inherit; font-size: 1.25rem;
-  border: 2px solid var(--border); border-radius: var(--radius); background: var(--surface);
-}
-.search-input:focus { border-color: var(--brand); outline: none; box-shadow: 0 0 0 3px rgba(221, 4, 43, 0.15); }
-.filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin: 14px 0 18px; }
-.filters label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--ink-soft); font-weight: 600; }
-.filters select { min-height: 40px; min-width: 170px; font: inherit; font-size: 0.95rem; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
-.filters .spacer { flex: 1; }
-.result-count { color: var(--ink-soft); font-size: 0.9rem; margin: 0 0 8px; }
-.section-title { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); margin: 18px 0 8px; }
-.hint { margin-top: 24px; text-align: center; }
-
-.alarm-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.alarm-row {
-  display: flex; align-items: center; gap: 14px; padding: 14px 16px; min-height: 64px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  color: inherit; text-decoration: none;
-}
-.alarm-row:hover { border-color: var(--brand); }
-.alarm-main { display: flex; flex-direction: column; min-width: 0; }
-.alarm-title { font-weight: 700; }
-.alarm-meta { display: flex; flex-wrap: wrap; gap: 6px; color: var(--ink-soft); font-size: 0.92rem; }
-.alarm-code { background: #EEF0F3; padding: 1px 6px; border-radius: 4px; font-size: 0.9em; color: var(--ink); }
-.alarm-code-large { font-size: 1.05rem; padding: 2px 8px; }
-
-/* Severity: colour + shape + text */
-.severity { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 0.85rem; font-weight: 700; white-space: nowrap; min-width: 92px; justify-content: center; }
-.severity-low { color: var(--sev-low); background: var(--sev-low-bg); }
-.severity-medium { color: var(--sev-medium); background: var(--sev-medium-bg); }
-.severity-high { color: var(--sev-high); background: var(--sev-high-bg); border: 1px solid #FDBA74; }
-.severity-critical { color: var(--sev-critical); background: var(--sev-critical-bg); }
-
-/* Alarm detail */
+/* Page parts used on several pages */
 .back { margin: 0 0 8px; }
 .back a { text-decoration: none; font-weight: 600; }
-.alarm-header { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
-.alarm-header-top { display: flex; gap: 12px; align-items: center; }
-.facts { display: flex; flex-wrap: wrap; gap: 8px 32px; margin: 0; }
-.facts dt { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
-.facts dd { margin: 0; font-weight: 600; }
-.alarm-description { margin: 14px 0 0; color: var(--ink-soft); }
-.section-head { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; }
-.solution-card { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--brand); border-radius: var(--radius); padding: 18px 20px; margin-top: 12px; }
-.solution-card > header { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-bottom: 8px; }
-.solution-number { color: var(--brand); margin-right: 4px; }
-.estimate { color: var(--ink-soft); font-size: 0.9rem; white-space: nowrap; }
-.solution-card footer.actions { margin-top: 12px; }
+.section-title { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); margin: 18px 0 8px; }
+.alarm-code { background: #EEF0F3; padding: 1px 6px; border-radius: 4px; font-size: 0.9em; color: var(--ink); }
 
-/* Rich text, the same in reading and editing */
+/* Rich text, the same in reading (RichContent, HTML via MarkupString) and editing
+   (Quill's .ql-editor, built in JS). Kept global: neither is Razor markup, and these
+   rules must compete with quill.snow.css on equal terms. */
 .rich-content { line-height: 1.6; overflow-wrap: anywhere; }
 .rich-content h2, .ql-editor h2 { font-size: 1.2rem; margin: 1em 0 0.4em; }
 .rich-content h3, .ql-editor h3 { font-size: 1.05rem; margin: 0.9em 0 0.3em; }
@@ -143,7 +97,7 @@ main { padding: 20px 0 48px; }
 .rich-content table { border-collapse: collapse; width: 100%; margin: 0.8em 0; }
 .rich-content td, .rich-content th { border: 1px solid var(--border); padding: 8px; text-align: left; }
 
-/* Forms */
+/* Forms. Global because EditForm and the Input* components render the elements. */
 .form { display: grid; gap: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
 .form label, .form .field { display: flex; flex-direction: column; gap: 6px; }
 .form label > span, .field-label { font-weight: 700; font-size: 0.95rem; }
@@ -152,31 +106,17 @@ main { padding: 20px 0 48px; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .validation-message { color: var(--error); font-size: 0.9rem; }
 .invalid { border-color: var(--error) !important; }
-.quill-editor { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-.quill-editor .ql-toolbar.ql-snow { border: none; border-bottom: 1px solid var(--border); background: #F8FAFC; }
-.quill-editor .ql-container.ql-snow { border: none; font: inherit; }
-.quill-editor .ql-editor { min-height: 320px; font-size: 1rem; line-height: 1.6; }
 
 /* Messages */
 .notice { background: #FFFBEB; border: 1px solid #FCD34D; border-radius: var(--radius); padding: 12px 16px; margin: 12px 0; }
 .error { color: var(--error); font-weight: 600; }
 .success { color: var(--success); font-weight: 600; }
 
-/* Dialog */
-.dialog-backdrop { position: fixed; inset: 0; background: rgba(17, 24, 39, 0.5); display: grid; place-items: center; z-index: 10; padding: 20px; }
-.dialog { background: var(--surface); border-radius: 12px; padding: 24px; max-width: 480px; width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
-.dialog h2 { margin-top: 0; }
-
-/* Start-up */
-.startup { min-height: 100vh; display: grid; place-content: center; text-align: center; gap: 8px; }
-.brand-mark { font-size: 2rem; font-weight: 700; color: var(--brand); }
-
 @media (max-width: 640px) {
   .form-row { grid-template-columns: 1fr; }
-  .filters select { min-width: 140px; }
 }
 
-/* Swedish labels for Quill's heading picker. */
+/* Swedish labels for Quill's heading picker. Global: Quill builds the picker in JS. */
 .ql-snow .ql-picker.ql-header .ql-picker-label::before,
 .ql-snow .ql-picker.ql-header .ql-picker-item::before { content: "Brödtext"; }
 .ql-snow .ql-picker.ql-header .ql-picker-label[data-value="2"]::before,
