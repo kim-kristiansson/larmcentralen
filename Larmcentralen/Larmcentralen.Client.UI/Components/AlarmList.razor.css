@@ -9,8 +9,8 @@
 .alarm-row.sev-medium { border-left-color: var(--sev-medium-edge); }
 .alarm-row.sev-high { border-left-color: var(--sev-high-edge); }
 .alarm-row.sev-critical { border-left-color: var(--sev-critical-edge); }
-.alarm-row:hover { background: var(--surface-hover); border-top-color: var(--accent); border-right-color: var(--accent); border-bottom-color: var(--accent); }
+.alarm-row:hover { background: var(--surface-hover); border-top-color: var(--ink); border-right-color: var(--ink); border-bottom-color: var(--ink); }
 .alarm-row::after { content: "›" / ""; margin-left: auto; padding-left: var(--space-2); font-size: var(--text-2xl); line-height: 1; color: var(--muted); }
 .alarm-main { display: flex; flex-direction: column; min-width: 0; }
-.alarm-title { font-size: var(--text-lg); font-weight: 700; }
+.alarm-title { font-size: var(--text-lg); font-weight: 600; }
 .alarm-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--ink-soft); font-size: var(--text-sm); }

@@ -9,17 +9,17 @@
 
 @if (!CanEdit)
 {
-    <h1>@(IsNew ? "Ny lösning" : "Redigera lösning")</h1>
+    <h1 class="page-title">@(IsNew ? "Ny lösning" : "Redigera lösning")</h1>
     <NoEditAccess />
 }
 else if (_alarm is null)
 {
-    <h1>@(IsNew ? "Ny lösning" : "Redigera lösning")</h1>
+    <h1 class="page-title">@(IsNew ? "Ny lösning" : "Redigera lösning")</h1>
     <p class="muted">@(IsNew ? "Larmet finns inte." : "Lösningen finns inte.")</p>
 }
 else
 {
-    <h1>@(IsNew ? "Ny lösning" : "Redigera lösning")</h1>
+    <h1 class="page-title">@(IsNew ? "Ny lösning" : "Redigera lösning")</h1>
     <p class="muted">För larm <strong>@(_alarm.AlarmCode is null ? "" : $"{_alarm.AlarmCode} · ")@_alarm.Title</strong></p>
 
     @if (!IsOnline)

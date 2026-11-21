@@ -6,7 +6,7 @@
 <PageTitle>@(IsNew ? "Nytt larm" : "Redigera larm") · Larmcentralen</PageTitle>
 
 <p class="back"><a href="@(IsNew ? "" : $"larm/{Id}")">← @(IsNew ? "Tillbaka till sökningen" : "Tillbaka till larmet")</a></p>
-<h1>@(IsNew ? "Nytt larm" : "Redigera larm")</h1>
+<h1 class="page-title">@(IsNew ? "Nytt larm" : "Redigera larm")</h1>
 
 @if (!CanEdit)
 {

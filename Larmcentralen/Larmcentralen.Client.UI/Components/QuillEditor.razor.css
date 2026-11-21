@@ -17,10 +17,10 @@
   width: var(--control-h-sm); height: var(--control-h-sm); padding: 10px; border-radius: var(--radius-sm); color: var(--ink-soft);
 }
 .quill-editor ::deep .ql-toolbar.ql-snow button:hover { background: var(--surface); }
-.quill-editor ::deep .ql-toolbar.ql-snow button.ql-active { background: var(--accent-soft); }
+.quill-editor ::deep .ql-toolbar.ql-snow button.ql-active { background: var(--surface); box-shadow: inset 0 0 0 2px var(--ink); }
 .quill-editor ::deep .ql-toolbar.ql-snow .ql-picker { color: var(--ink-soft); font-size: var(--text-md); height: var(--control-h-sm); }
 .quill-editor ::deep .ql-toolbar.ql-snow :is(button:hover, button:focus, button.ql-active, .ql-picker-label:hover, .ql-picker-label.ql-active, .ql-picker-item:hover, .ql-picker-item.ql-selected),
-.quill-editor ::deep .ql-toolbar.ql-snow .ql-picker.ql-expanded .ql-picker-label { color: var(--accent); }
+.quill-editor ::deep .ql-toolbar.ql-snow .ql-picker.ql-expanded .ql-picker-label { color: var(--ink); }
 /* .ql-formats raises specificity above Quill's hover/expanded stroke rules. */
 .quill-editor ::deep .ql-toolbar.ql-snow .ql-formats :is(.ql-stroke, .ql-stroke-miter) { stroke: currentColor; }
 .quill-editor ::deep .ql-toolbar.ql-snow .ql-formats :is(.ql-fill, .ql-stroke.ql-fill):not(.ql-empty) { fill: currentColor; }
@@ -42,7 +42,7 @@
   display: flex; align-items: center; min-height: var(--control-h-sm); padding: 0 var(--space-3); border-radius: var(--radius-sm); color: var(--ink);
 }
 .quill-editor ::deep .ql-toolbar.ql-snow .ql-picker-options .ql-picker-item:hover { background: var(--surface-2); }
-.quill-editor ::deep .ql-toolbar.ql-snow .ql-picker-options .ql-picker-item.ql-selected { background: var(--accent-soft); color: var(--accent); }
+.quill-editor ::deep .ql-toolbar.ql-snow .ql-picker-options .ql-picker-item.ql-selected { background: var(--surface-2); color: var(--ink); font-weight: 600; }
 
 /* Swedish heading picker. Root cause of the old "Normal" label: these rules used to sit in app.css
    at the same specificity as Quill's own English ones, and Quill's stylesheet is loaded later. */
@@ -53,8 +53,8 @@
 .quill-editor ::deep .ql-toolbar.ql-snow .ql-picker.ql-header .ql-picker-item[data-value="2"]::before { content: "Rubrik"; }
 .quill-editor ::deep .ql-toolbar.ql-snow .ql-picker.ql-header .ql-picker-label[data-value="3"]::before,
 .quill-editor ::deep .ql-toolbar.ql-snow .ql-picker.ql-header .ql-picker-item[data-value="3"]::before { content: "Underrubrik"; }
-.quill-editor ::deep .ql-toolbar.ql-snow .ql-picker.ql-header .ql-picker-item[data-value="2"]::before { font-size: 1.2em; font-weight: 700; }
-.quill-editor ::deep .ql-toolbar.ql-snow .ql-picker.ql-header .ql-picker-item[data-value="3"]::before { font-size: 1.05em; font-weight: 700; }
+.quill-editor ::deep .ql-toolbar.ql-snow .ql-picker.ql-header .ql-picker-item[data-value="2"]::before { font-size: 1.2em; font-weight: 600; }
+.quill-editor ::deep .ql-toolbar.ql-snow .ql-picker.ql-header .ql-picker-item[data-value="3"]::before { font-size: 1.05em; font-weight: 600; }
 
 /* Editing area, matching .rich-content (app.css) */
 .quill-editor ::deep .ql-container.ql-snow { border: none; font: inherit; }
@@ -67,7 +67,7 @@
 .quill-editor ::deep .ql-editor h3 { font-size: 1.05rem; margin: 0.9em 0 0.3em; }
 .quill-editor ::deep .ql-editor li { margin: 0.6em 0; }
 .quill-editor ::deep .ql-editor li > .ql-ui::before { font-weight: 700; }
-.quill-editor ::deep .ql-editor a { color: var(--accent); }
+.quill-editor ::deep .ql-editor a { color: var(--ink); text-decoration: underline; text-decoration-thickness: 0.08em; text-underline-offset: 0.18em; }
 .quill-editor ::deep .ql-editor blockquote {
   border-left: 6px solid var(--warn-edge); background: var(--warn-bg); color: var(--warn);
   margin: 0.8em 0; padding: 10px 16px; border-radius: 0 6px 6px 0; font-weight: 600;
@@ -88,7 +88,7 @@
 }
 .quill-editor ::deep .ql-snow .ql-tooltip::before { content: "Öppna länk:"; line-height: var(--control-h-sm); margin-right: var(--space-2); }
 .quill-editor ::deep .ql-snow .ql-tooltip[data-mode="link"]::before { content: "Ange länk:"; }
-.quill-editor ::deep .ql-snow .ql-tooltip a { color: var(--accent); line-height: var(--control-h-sm); }
+.quill-editor ::deep .ql-snow .ql-tooltip a { color: var(--ink); text-decoration: underline; text-underline-offset: 0.18em; line-height: var(--control-h-sm); }
 .quill-editor ::deep .ql-snow .ql-tooltip a.ql-action::after { content: "Ändra"; border-right: 1px solid var(--border); margin-left: var(--space-3); padding-right: var(--space-2); }
 .quill-editor ::deep .ql-snow .ql-tooltip a.ql-remove::before { content: "Ta bort"; margin-left: var(--space-2); }
 .quill-editor ::deep .ql-snow .ql-tooltip.ql-editing a.ql-action::after { content: "Spara"; border-right: 0; padding-right: 0; }

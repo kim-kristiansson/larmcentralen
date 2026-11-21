@@ -3,6 +3,6 @@
   min-height: var(--control-h-sm); padding: 0 var(--space-2); font: inherit; font-size: var(--text-md); font-weight: 600;
   color: var(--ink); background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius); cursor: pointer;
 }
-.theme-switch select:hover { border-color: var(--accent); }
+.theme-switch select:hover { border-color: var(--ink); }
 /* The popup list follows color-scheme; system colours keep it readable in every mode. */
 .theme-switch option { background: Canvas; color: CanvasText; }
