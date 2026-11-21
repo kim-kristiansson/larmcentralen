@@ -29,25 +29,35 @@ public record AlarmListDto(
     string AreaTitle
 );
 
-/// <summary>A new alarm on a unit. It joins the definition with the same code and text on units of its type, or starts one.</summary>
+/// <summary>
+/// A new alarm on a unit. With <see cref="AlarmDefinitionId"/> it uses that existing definition (picked from the list;
+/// the text fields are then ignored). Without, it joins the definition with the same code and text on units of its
+/// type, or starts one.
+/// </summary>
 public record CreateAlarmDto(
     string Title,
     string? AlarmCode,
     string Severity,
     string? Description,
-    int EquipmentId
+    int EquipmentId,
+    int? AlarmDefinitionId = null
 );
 
 /// <summary>
 /// Changes an alarm. Title, code, severity and description belong to the definition, so they change
 /// for every unit that shares it. Moving it to another unit gives it that unit's definition instead.
+/// <see cref="AlarmDefinitionId"/> set to another definition moves the alarm there (its old definition's solutions
+/// stay with that definition). <see cref="NewDefinition"/> gives it the definition for the code and text sent,
+/// a new one when none fits.
 /// </summary>
 public record UpdateAlarmDto(
     string Title,
     string? AlarmCode,
     string Severity,
     string? Description,
-    int EquipmentId
+    int EquipmentId,
+    int? AlarmDefinitionId = null,
+    bool NewDefinition = false
 );
 
 public record AlarmWriteResult(WriteStatus Status, AlarmDto? Alarm = null, string? Error = null)

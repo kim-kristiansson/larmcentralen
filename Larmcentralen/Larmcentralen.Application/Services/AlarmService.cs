@@ -27,11 +27,21 @@ public class AlarmService(
     {
         var unit = await equipment.GetByIdAsync(dto.EquipmentId);
         if (unit is null) return AlarmWriteResult.Invalid("Utrustningen finns inte.");
-        if (string.IsNullOrWhiteSpace(dto.Title)) return AlarmWriteResult.Invalid("Ange larmtexten.");
 
-        var definition = await AlarmDefinitions.ResolveAsync(definitions, unit, dto.AlarmCode, dto.Title, dto.Severity, dto.Description);
-        if (definition.Id != 0 && await repo.ExistsAsync(definition.Id, unit.Id))
-            return AlarmWriteResult.Conflict("Larmet finns redan på den här enheten.");
+        AlarmDefinition definition;
+        if (dto.AlarmDefinitionId is { } picked)
+        {
+            var (found, error) = await PickAsync(picked, unit, exceptAlarmId: null);
+            if (error is not null) return error;
+            definition = found!;
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(dto.Title)) return AlarmWriteResult.Invalid("Ange larmtexten.");
+            definition = await AlarmDefinitions.ResolveAsync(definitions, unit, dto.AlarmCode, dto.Title, dto.Severity, dto.Description);
+            if (definition.Id != 0 && await repo.ExistsAsync(definition.Id, unit.Id))
+                return AlarmWriteResult.Conflict("Larmet finns redan på den här enheten.");
+        }
 
         var alarm = new Alarm { EquipmentId = unit.Id, Definition = definition };
         await repo.AddAsync(alarm);
@@ -44,11 +54,39 @@ public class AlarmService(
     {
         var alarm = await repo.GetForUpdateAsync(id);
         if (alarm is null) return AlarmWriteResult.NotFound();
-        if (string.IsNullOrWhiteSpace(dto.Title)) return AlarmWriteResult.Invalid("Ange larmtexten.");
 
         var old = alarm.Definition;
 
-        if (dto.EquipmentId != alarm.EquipmentId)
+        if (dto.AlarmDefinitionId is { } picked && picked != old.Id)
+        {
+            // Another code picked from the list: the alarm now means that. The old definition's solutions stay
+            // with it, and it goes (with the solutions only it had) when no other unit uses it.
+            var unit = dto.EquipmentId == alarm.EquipmentId ? alarm.Equipment : await equipment.GetByIdAsync(dto.EquipmentId);
+            if (unit is null) return AlarmWriteResult.Invalid("Utrustningen finns inte.");
+            var (target, error) = await PickAsync(picked, unit, exceptAlarmId: alarm.Id);
+            if (error is not null) return error;
+            MoveTo(alarm, unit, target!, old);
+        }
+        else if (dto.NewDefinition)
+        {
+            // "Ny larmkod": the definition for the code and text typed (a new one unless one already has them).
+            if (string.IsNullOrWhiteSpace(dto.Title)) return AlarmWriteResult.Invalid("Ange larmtexten.");
+            var unit = dto.EquipmentId == alarm.EquipmentId ? alarm.Equipment : await equipment.GetByIdAsync(dto.EquipmentId);
+            if (unit is null) return AlarmWriteResult.Invalid("Utrustningen finns inte.");
+            var target = await AlarmDefinitions.ResolveAsync(definitions, unit, dto.AlarmCode, dto.Title, dto.Severity, dto.Description);
+            if (target != old)
+            {
+                if (target.Id != 0 && (await definitions.GetByIdWithDetailsAsync(target.Id))!.Alarms.Any(a => a.EquipmentId == unit.Id && a.Id != alarm.Id))
+                    return AlarmWriteResult.Conflict("Larmet finns redan på den här enheten.");
+                MoveTo(alarm, unit, target, old);
+            }
+            else alarm.EquipmentId = unit.Id;
+        }
+        else if (string.IsNullOrWhiteSpace(dto.Title))
+        {
+            return AlarmWriteResult.Invalid("Ange larmtexten.");
+        }
+        else if (dto.EquipmentId != alarm.EquipmentId)
         {
             // Moving to another unit: the alarm takes that unit's definition for this code and text.
             var unit = await equipment.GetByIdAsync(dto.EquipmentId);
@@ -138,6 +176,31 @@ public class AlarmService(
         }
 
         return new AlarmWriteResult(WriteStatus.Ok, ToDto((await repo.GetByIdWithDetailsAsync(id))!));
+    }
+
+    /// <summary>
+    /// Checks that <paramref name="unit"/> may use a definition picked from the list: it exists, it is not owned by
+    /// another unit, and the unit has no other alarm with it yet.
+    /// </summary>
+    private async Task<(AlarmDefinition? Definition, AlarmWriteResult? Error)> PickAsync(int definitionId, Equipment unit, int? exceptAlarmId)
+    {
+        var definition = await definitions.GetByIdWithDetailsAsync(definitionId);
+        if (definition is null)
+            return (null, AlarmWriteResult.Invalid("Larmkoden finns inte."));
+        if (definition.ScopeEquipmentId != 0 && definition.ScopeEquipmentId != unit.Id)
+            return (null, AlarmWriteResult.Invalid("Larmkoden gäller bara en annan enhet."));
+        if (definition.Alarms.Any(a => a.EquipmentId == unit.Id && a.Id != exceptAlarmId))
+            return (null, AlarmWriteResult.Conflict("Larmet finns redan på den här enheten."));
+        return (definition, null);
+    }
+
+    /// <summary>Points the alarm at another definition. Solutions stay with the definitions they belong to.</summary>
+    private void MoveTo(Alarm alarm, Equipment unit, AlarmDefinition target, AlarmDefinition old)
+    {
+        alarm.EquipmentId = unit.Id;
+        alarm.Definition = target;
+        alarm.UpdatedAt = DateTime.UtcNow;
+        AlarmDefinitions.RemoveIfUnused(old, alarm, definitions, solutions);
     }
 
     public async Task<List<AlarmListDto>> GetByIdsAsync(List<int> ids)

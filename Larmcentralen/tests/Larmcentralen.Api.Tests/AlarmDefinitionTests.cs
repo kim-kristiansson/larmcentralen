@@ -237,6 +237,92 @@ public sealed class AlarmDefinitionTests(ApiFactory factory) : IClassFixture<Api
     }
 
     [Fact]
+    public async Task Creating_with_a_picked_code_uses_that_definition_and_refuses_what_the_unit_cannot_use()
+    {
+        using var c = Admin();
+        var p = await SeedAsync(c);
+        var t101 = await AlarmAsync(c, p.T101, "M200.1", "Temperatur elskåp", "Kritisk");
+        var main = await AlarmAsync(c, p.Main, "M200.0", "Nödstopp");
+        var definition = (await GetAlarmAsync(c, t101)).AlarmDefinitionId;
+        var mainDefinition = (await GetAlarmAsync(c, main)).AlarmDefinitionId;
+
+        // Text fields are ignored when a definition is picked.
+        var t102 = await PostAsync(c, "api/alarms", new { title = "", severity = "Låg", equipmentId = p.T102, alarmDefinitionId = definition });
+        var picked = await GetAlarmAsync(c, t102);
+        Assert.Equal((definition, "Temperatur elskåp", "Kritisk"), (picked.AlarmDefinitionId, picked.Title, picked.Severity));
+
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync("api/alarms",
+            new { title = "", severity = "Låg", equipmentId = p.T102, alarmDefinitionId = definition }, Ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("api/alarms",
+            new { title = "", severity = "Låg", equipmentId = p.N1, alarmDefinitionId = mainDefinition }, Ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("api/alarms",
+            new { title = "", severity = "Låg", equipmentId = p.N1, alarmDefinitionId = 987654 }, Ct)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Picking_another_code_moves_the_alarm_and_removes_a_definition_left_unused()
+    {
+        using var c = Admin();
+        var p = await SeedAsync(c);
+        var t101 = await AlarmAsync(c, p.T101, "M200.1", "Temperatur elskåp");
+        var t102 = await AlarmAsync(c, p.T102, "M200.9", "Felskrivet larm");
+        var shared = (await GetAlarmAsync(c, t101)).AlarmDefinitionId;
+        var wrong = (await GetAlarmAsync(c, t102)).AlarmDefinitionId;
+        var onShared = await PostAsync(c, "api/solutions", new { title = "Delad", sortOrder = 10, alarmIds = new[] { t101 } });
+        var onWrong = await PostAsync(c, "api/solutions", new { title = "Fel", sortOrder = 10, alarmIds = new[] { t102 } });
+
+        (await c.PutAsJsonAsync($"api/alarms/{t102}",
+            new { title = "", severity = "Låg", equipmentId = p.T102, alarmDefinitionId = shared }, Ct)).EnsureSuccessStatusCode();
+
+        var moved = await GetAlarmAsync(c, t102);
+        Assert.Equal(t102, moved.Id);
+        Assert.Equal(shared, moved.AlarmDefinitionId);
+        Assert.Equal([onShared], moved.Solutions.Select(s => s.Id));
+        // The old definition had no other unit: it is gone, with the solution only it had.
+        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync($"api/solutions/{onWrong}", Ct)).StatusCode);
+        var snapshot = (await c.GetFromJsonAsync<Snapshot>("api/sync", Json, Ct))!;
+        Assert.DoesNotContain(snapshot.AlarmDefinitions, d => d.Id == wrong);
+    }
+
+    [Fact]
+    public async Task Picking_another_code_keeps_the_old_definition_for_the_other_units()
+    {
+        using var c = Admin();
+        var p = await SeedAsync(c);
+        var t101 = await AlarmAsync(c, p.T101, "M200.1", "Temperatur elskåp");
+        var t102 = await AlarmAsync(c, p.T102, "M200.1", "Temperatur elskåp");
+        var other = await AlarmAsync(c, p.T101, "M200.2", "Fläkt stoppad");
+        var solution = await PostAsync(c, "api/solutions", new { title = "S", sortOrder = 10, alarmIds = new[] { t101 } });
+        var target = (await GetAlarmAsync(c, other)).AlarmDefinitionId;
+
+        (await c.PutAsJsonAsync($"api/alarms/{t102}",
+            new { title = "", severity = "Låg", equipmentId = p.T102, alarmDefinitionId = target }, Ct)).EnsureSuccessStatusCode();
+
+        Assert.Equal(target, (await GetAlarmAsync(c, t102)).AlarmDefinitionId);
+        Assert.Empty((await GetAlarmAsync(c, t102)).Solutions);
+        Assert.Equal([solution], (await GetAlarmAsync(c, t101)).Solutions.Select(s => s.Id));
+        Assert.Empty((await GetAlarmAsync(c, t101)).SameDefinitionUnits);
+    }
+
+    [Fact]
+    public async Task New_code_on_an_existing_alarm_gives_it_a_definition_of_its_own()
+    {
+        using var c = Admin();
+        var p = await SeedAsync(c);
+        var t101 = await AlarmAsync(c, p.T101, "M200.1", "Temperatur elskåp");
+        var t102 = await AlarmAsync(c, p.T102, "M200.1", "Temperatur elskåp");
+        var shared = (await GetAlarmAsync(c, t101)).AlarmDefinitionId;
+
+        (await c.PutAsJsonAsync($"api/alarms/{t102}",
+            new { title = "Elskåp, ny givare", alarmCode = "M200.8", severity = "Medel", equipmentId = p.T102, newDefinition = true }, Ct)).EnsureSuccessStatusCode();
+
+        var moved = await GetAlarmAsync(c, t102);
+        Assert.NotEqual(shared, moved.AlarmDefinitionId);
+        Assert.Equal(("M200.8", "Elskåp, ny givare"), (moved.AlarmCode, moved.Title));
+        Assert.Equal("Temperatur elskåp", (await GetAlarmAsync(c, t101)).Title);
+    }
+
+    [Fact]
     public async Task A_duplicate_alarm_on_the_same_unit_is_409()
     {
         using var c = Admin();
