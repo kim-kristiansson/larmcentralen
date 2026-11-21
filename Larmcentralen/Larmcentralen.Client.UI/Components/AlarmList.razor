@@ -1,0 +1,29 @@
+<ul class="alarm-list">
+    @foreach (var item in Items)
+    {
+        <li @key="item.Alarm.Id">
+            <a class="alarm-row" href="larm/@item.Alarm.Id">
+                <SeverityBadge Value="@item.Alarm.Severity" />
+                <span class="alarm-main">
+                    <span class="alarm-title">@item.Alarm.Title</span>
+                    <span class="alarm-meta">
+                        @if (!string.IsNullOrEmpty(item.Alarm.AlarmCode))
+                        {
+                            <code class="alarm-code">@item.Alarm.AlarmCode</code>
+                        }
+                        <span>@item.Equipment.Title</span>
+                        @if (!string.IsNullOrWhiteSpace(item.Equipment.DisplayName))
+                        {
+                            <span class="muted">· @item.Equipment.DisplayName</span>
+                        }
+                        <span class="muted">· @item.Area.Name</span>
+                    </span>
+                </span>
+            </a>
+        </li>
+    }
+</ul>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<AlarmView> Items { get; set; } = [];
+}

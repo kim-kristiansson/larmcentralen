@@ -1,0 +1,147 @@
+@page "/larm/ny"
+@page "/larm/{Id:int}/redigera"
+@inherits KnowledgeBaseComponent
+@inject NavigationManager Nav
+
+<PageTitle>@(IsNew ? "Nytt larm" : "Redigera larm") · Larmcentralen</PageTitle>
+
+<p class="back"><a href="@(IsNew ? "" : $"larm/{Id}")">← Avbryt</a></p>
+<h1>@(IsNew ? "Nytt larm" : "Redigera larm")</h1>
+
+@if (!IsNew && !_found)
+{
+    <p class="muted">Larmet finns inte.</p>
+}
+else
+{
+    @if (!IsOnline)
+    {
+        <p class="notice">Du är offline. Ändringar kan sparas när anslutningen är tillbaka.</p>
+    }
+
+    <EditForm Model="_form" OnValidSubmit="SaveAsync" class="form">
+        <DataAnnotationsValidator />
+
+        <label>
+            <span>Titel</span>
+            <InputText @bind-Value="_form.Title" placeholder="Det som står i larmlistan, t.ex. ”Temperatur för hög”" />
+            <ValidationMessage For="() => _form.Title" />
+        </label>
+
+        <div class="form-row">
+            <label>
+                <span>Larmkod</span>
+                <InputText @bind-Value="_form.AlarmCode" placeholder="t.ex. M200.4" />
+            </label>
+            <label>
+                <span>Allvarlighet</span>
+                <InputSelect @bind-Value="_form.Severity">
+                    @foreach (var s in Severity.All)
+                    {
+                        <option value="@s">@s</option>
+                    }
+                </InputSelect>
+            </label>
+        </div>
+
+        <label>
+            <span>Utrustning</span>
+            <InputSelect @bind-Value="_form.EquipmentId">
+                <option value="0">Välj utrustning…</option>
+                @foreach (var area in Kb.Index.Areas)
+                {
+                    <optgroup label="@area.Name">
+                        @foreach (var eq in Kb.Index.EquipmentInArea(area.Id))
+                        {
+                            <option value="@eq.Id">@eq.Title@(string.IsNullOrWhiteSpace(eq.DisplayName) ? "" : $" ({eq.DisplayName})")</option>
+                        }
+                    </optgroup>
+                }
+            </InputSelect>
+            <ValidationMessage For="() => _form.EquipmentId" />
+        </label>
+
+        <label>
+            <span>Beskrivning</span>
+            <InputTextArea @bind-Value="_form.Description" rows="4" placeholder="Vad larmet betyder, kort" />
+        </label>
+
+        @if (_error is not null)
+        {
+            <p class="error" role="alert">@_error</p>
+        }
+
+        <div class="actions">
+            <OnlineButton Type="submit" Class="btn btn-primary" Disabled="_saving">@(_saving ? "Sparar…" : "Spara")</OnlineButton>
+            <a class="btn" href="@(IsNew ? "" : $"larm/{Id}")">Avbryt</a>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private bool IsNew => Id is null;
+    private readonly AlarmForm _form = new();
+    private bool _found;
+    private bool _saving;
+    private string? _error;
+
+    protected override void OnParametersSet()
+    {
+        if (IsNew || _found) return;
+        var details = Kb.Index.GetDetails(Id!.Value);
+        if (details is null) return;
+        _found = true;
+        _form.Title = details.Alarm.Title;
+        _form.AlarmCode = details.Alarm.AlarmCode;
+        _form.Severity = details.Alarm.Severity;
+        _form.Description = details.Alarm.Description;
+        _form.EquipmentId = details.Alarm.EquipmentId;
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        var request = new SaveAlarmRequest(
+            _form.Title.Trim(),
+            string.IsNullOrWhiteSpace(_form.AlarmCode) ? null : _form.AlarmCode.Trim(),
+            _form.Severity,
+            string.IsNullOrWhiteSpace(_form.Description) ? null : _form.Description.Trim(),
+            _form.EquipmentId);
+        try
+        {
+            var id = IsNew
+                ? await Kb.WriteAsync((api, ct) => api.CreateAlarmAsync(request, ct))
+                : await Kb.WriteAsync(async (api, ct) => { await api.UpdateAlarmAsync(Id!.Value, request, ct); return Id!.Value; });
+            Nav.NavigateTo($"larm/{id}");
+        }
+        catch (Exception ex)
+        {
+            _error = $"Larmet kunde inte sparas. {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private sealed class AlarmForm
+    {
+        [Required(ErrorMessage = "Ange en titel.")]
+        [MaxLength(300, ErrorMessage = "Högst 300 tecken.")]
+        public string Title { get; set; } = "";
+
+        [MaxLength(50, ErrorMessage = "Högst 50 tecken.")]
+        public string? AlarmCode { get; set; }
+
+        // Imported and new alarms start as Medel until someone rates them.
+        public string Severity { get; set; } = global::Larmcentralen.Client.Core.Models.Severity.Medium;
+
+        public string? Description { get; set; }
+
+        [Range(1, int.MaxValue, ErrorMessage = "Välj utrustning.")]
+        public int EquipmentId { get; set; }
+    }
+}

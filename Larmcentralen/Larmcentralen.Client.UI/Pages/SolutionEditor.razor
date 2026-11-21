@@ -1,0 +1,145 @@
+@page "/larm/{AlarmId:int}/losning/ny"
+@page "/losning/{Id:int}/redigera"
+@inherits KnowledgeBaseComponent
+@inject NavigationManager Nav
+
+<PageTitle>@(IsNew ? "Ny lösning" : "Redigera lösning") · Larmcentralen</PageTitle>
+
+<p class="back"><a href="@BackUrl">← Avbryt</a></p>
+
+@if (_alarm is null)
+{
+    <h1>@(IsNew ? "Ny lösning" : "Redigera lösning")</h1>
+    <p class="muted">@(IsNew ? "Larmet finns inte." : "Lösningen finns inte.")</p>
+}
+else
+{
+    <h1>@(IsNew ? "Ny lösning" : "Redigera lösning")</h1>
+    <p class="muted">För larm <strong>@(_alarm.AlarmCode is null ? "" : $"{_alarm.AlarmCode} · ")@_alarm.Title</strong></p>
+
+    @if (!IsOnline)
+    {
+        <p class="notice">Du är offline. Ändringar kan sparas när anslutningen är tillbaka.</p>
+    }
+
+    <EditForm Model="_form" OnValidSubmit="SaveAsync" class="form">
+        <DataAnnotationsValidator />
+
+        <label>
+            <span>Titel</span>
+            <InputText @bind-Value="_form.Title" placeholder="t.ex. ”Byt termoelement”" />
+            <ValidationMessage For="() => _form.Title" />
+        </label>
+
+        <div class="form-row">
+            <label>
+                <span>Uppskattad tid</span>
+                <InputText @bind-Value="_form.EstimatedTime" placeholder="t.ex. 15 min" />
+            </label>
+            <label>
+                <span>Ordning</span>
+                <InputNumber @bind-Value="_form.SortOrder" />
+            </label>
+        </div>
+
+        <div class="field">
+            <span class="field-label">Lösning, steg för steg</span>
+            <QuillEditor @ref="_editor" InitialHtml="@_initialHtml" />
+        </div>
+
+        @if (_error is not null)
+        {
+            <p class="error" role="alert">@_error</p>
+        }
+
+        <div class="actions">
+            <OnlineButton Type="submit" Class="btn btn-primary" Disabled="_saving">@(_saving ? "Sparar…" : "Spara")</OnlineButton>
+            <a class="btn" href="@BackUrl">Avbryt</a>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int? AlarmId { get; set; }
+    [Parameter] public int? Id { get; set; }
+
+    private bool IsNew => Id is null;
+    private Alarm? _alarm;
+    private QuillEditor? _editor;
+    private string? _initialHtml;
+    private readonly SolutionForm _form = new();
+    private bool _loaded;
+    private bool _saving;
+    private string? _error;
+
+    private string BackUrl => _alarm is null ? "" : $"larm/{_alarm.Id}";
+
+    protected override void OnParametersSet()
+    {
+        // Load once: a background sync must not overwrite what the user is typing.
+        if (_loaded) return;
+        if (IsNew)
+        {
+            var details = Kb.Index.GetDetails(AlarmId!.Value);
+            _alarm = details?.Alarm;
+            // New solutions go last.
+            _form.SortOrder = details is null || details.Solutions.Count == 0 ? 10 : details.Solutions.Max(s => s.SortOrder) + 10;
+        }
+        else
+        {
+            var solution = Kb.Index.GetSolution(Id!.Value);
+            if (solution is not null)
+            {
+                _alarm = Kb.Index.GetDetails(solution.AlarmId)?.Alarm;
+                _form.Title = solution.Title;
+                _form.EstimatedTime = solution.EstimatedTime;
+                _form.SortOrder = solution.SortOrder;
+                _initialHtml = solution.Content;
+            }
+        }
+        _loaded = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_alarm is null || _editor is null) return;
+        _saving = true;
+        _error = null;
+        try
+        {
+            var html = await _editor.GetHtmlAsync();
+            var content = Format.IsEmptyHtml(html) ? null : html;
+            var title = _form.Title.Trim();
+            var time = string.IsNullOrWhiteSpace(_form.EstimatedTime) ? null : _form.EstimatedTime.Trim();
+
+            if (IsNew)
+                await Kb.WriteAsync((api, ct) => api.CreateSolutionAsync(
+                    new CreateSolutionRequest(title, content, _form.SortOrder, time, _alarm.Id), ct));
+            else
+                await Kb.WriteAsync((api, ct) => api.UpdateSolutionAsync(
+                    Id!.Value, new UpdateSolutionRequest(title, content, _form.SortOrder, time), ct));
+
+            Nav.NavigateTo($"larm/{_alarm.Id}");
+        }
+        catch (Exception ex)
+        {
+            _error = $"Lösningen kunde inte sparas. {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private sealed class SolutionForm
+    {
+        [Required(ErrorMessage = "Ange en titel.")]
+        [MaxLength(300, ErrorMessage = "Högst 300 tecken.")]
+        public string Title { get; set; } = "";
+
+        [MaxLength(50, ErrorMessage = "Högst 50 tecken.")]
+        public string? EstimatedTime { get; set; }
+
+        public int SortOrder { get; set; } = 10;
+    }
+}

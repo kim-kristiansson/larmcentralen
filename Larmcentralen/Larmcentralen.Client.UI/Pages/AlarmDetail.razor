@@ -1,0 +1,169 @@
+@page "/larm/{Id:int}"
+@inherits KnowledgeBaseComponent
+@inject RecentAlarms Recent
+@inject NavigationManager Nav
+@inject IFileSaveService FileSaver
+
+<PageTitle>@(_details?.Alarm.Title ?? "Larm") · Larmcentralen</PageTitle>
+
+<p class="back"><a href="">← Tillbaka till sökningen</a></p>
+
+@if (_details is null)
+{
+    <h1>Larmet finns inte</h1>
+    <p class="muted">Det kan ha tagits bort. Sök efter det igen.</p>
+}
+else
+{
+    var alarm = _details.Alarm;
+    <article class="alarm-detail">
+        <header class="alarm-header">
+            <div class="alarm-header-top">
+                <SeverityBadge Value="@alarm.Severity" />
+                @if (!string.IsNullOrEmpty(alarm.AlarmCode))
+                {
+                    <code class="alarm-code alarm-code-large">@alarm.AlarmCode</code>
+                }
+            </div>
+            <h1>@alarm.Title</h1>
+            <dl class="facts">
+                <div><dt>Utrustning</dt><dd>@_details.Equipment.Title@(string.IsNullOrWhiteSpace(_details.Equipment.DisplayName) ? "" : $" ({_details.Equipment.DisplayName})")</dd></div>
+                <div><dt>Område</dt><dd>@_details.Area.Name</dd></div>
+            </dl>
+            @if (!string.IsNullOrWhiteSpace(alarm.Description))
+            {
+                <p class="alarm-description">@alarm.Description</p>
+            }
+            <div class="actions">
+                <OnlineButton OnClick="@(() => Nav.NavigateTo($"larm/{Id}/redigera"))">Redigera larm</OnlineButton>
+                <OnlineButton OnClick="ExportAsync" Disabled="_busy">Exportera till Word</OnlineButton>
+                <OnlineButton Class="btn btn-danger-outline" OnClick="@(() => _confirmDeleteAlarm = true)">Ta bort larm</OnlineButton>
+            </div>
+            @if (_message is not null)
+            {
+                <p class="@(_messageIsError ? "error" : "success")" role="status">@_message</p>
+            }
+        </header>
+
+        <section class="solutions">
+            <div class="section-head">
+                <h2 class="section-title">Lösningar</h2>
+                <OnlineButton Class="btn btn-primary" OnClick="@(() => Nav.NavigateTo($"larm/{Id}/losning/ny"))">Ny lösning</OnlineButton>
+            </div>
+
+            @if (_details.Solutions.Count == 0)
+            {
+                <p class="muted">Ingen lösning är skriven för det här larmet ännu.</p>
+            }
+            @foreach (var (solution, index) in _details.Solutions.Select((s, i) => (s, i)))
+            {
+                <section class="solution-card" @key="solution.Id">
+                    <header>
+                        <h3>
+                            @if (_details.Solutions.Count > 1)
+                            {
+                                <span class="solution-number">@(index + 1).</span>
+                            }
+                            @solution.Title
+                        </h3>
+                        @if (!string.IsNullOrWhiteSpace(solution.EstimatedTime))
+                        {
+                            <span class="estimate" title="Uppskattad tid">⏱ @solution.EstimatedTime</span>
+                        }
+                    </header>
+                    <RichContent Html="@solution.Content" />
+                    <footer class="actions">
+                        <OnlineButton Class="btn btn-small" OnClick="@(() => Nav.NavigateTo($"losning/{solution.Id}/redigera"))">Redigera</OnlineButton>
+                        <OnlineButton Class="btn btn-small btn-danger-outline" OnClick="@(() => _solutionToDelete = solution)">Ta bort</OnlineButton>
+                    </footer>
+                </section>
+            }
+        </section>
+    </article>
+
+    <ConfirmDialog Open="_confirmDeleteAlarm"
+                   Title="Ta bort larmet?"
+                   Message="@($"”{alarm.Title}” och alla dess lösningar tas bort för alla användare. Det går inte att ångra.")"
+                   OnConfirm="DeleteAlarmAsync" OnCancel="@(() => _confirmDeleteAlarm = false)" />
+
+    <ConfirmDialog Open="@(_solutionToDelete is not null)"
+                   Title="Ta bort lösningen?"
+                   Message="@($"”{_solutionToDelete?.Title}” tas bort för alla användare. Det går inte att ångra.")"
+                   OnConfirm="DeleteSolutionAsync" OnCancel="@(() => _solutionToDelete = null)" />
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private AlarmDetails? _details;
+    private bool _confirmDeleteAlarm;
+    private Solution? _solutionToDelete;
+    private bool _busy;
+    private string? _message;
+    private bool _messageIsError;
+
+    protected override void Load() => _details = Kb.Index.GetDetails(Id);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Load();
+        _message = null;
+        if (_details is not null) await Recent.AddAsync(Id);
+    }
+
+    private async Task ExportAsync()
+    {
+        _busy = true;
+        try
+        {
+            var (bytes, fileName) = await Kb.CallApiAsync((api, ct) => api.ExportAlarmAsync(Id, ct));
+            var path = await FileSaver.SaveAsync(fileName, bytes);
+            if (path is not null) Show($"Sparad: {path}", error: false);
+        }
+        catch (Exception ex)
+        {
+            Show($"Exporten misslyckades. {ex.Message}", error: true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task DeleteAlarmAsync()
+    {
+        _confirmDeleteAlarm = false;
+        try
+        {
+            await Kb.WriteAsync((api, ct) => api.DeleteAlarmAsync(Id, ct));
+            await Recent.RemoveAsync(Id);
+            Nav.NavigateTo("");
+        }
+        catch (Exception ex)
+        {
+            Show($"Larmet kunde inte tas bort. {ex.Message}", error: true);
+        }
+    }
+
+    private async Task DeleteSolutionAsync()
+    {
+        var solution = _solutionToDelete;
+        _solutionToDelete = null;
+        if (solution is null) return;
+        try
+        {
+            await Kb.WriteAsync((api, ct) => api.DeleteSolutionAsync(solution.Id, ct));
+            Show("Lösningen är borttagen.", error: false);
+        }
+        catch (Exception ex)
+        {
+            Show($"Lösningen kunde inte tas bort. {ex.Message}", error: true);
+        }
+    }
+
+    private void Show(string message, bool error)
+    {
+        _message = message;
+        _messageIsError = error;
+    }
+}

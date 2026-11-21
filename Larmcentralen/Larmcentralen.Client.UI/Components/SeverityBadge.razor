@@ -1,0 +1,25 @@
+@* Colour, shape and text together, so severity reads without relying on colour alone. *@
+<span class="severity severity-@CssKey" title="Allvarlighet: @Value">
+    <span class="severity-shape" aria-hidden="true">@Shape</span>
+    <span class="severity-text">@Value</span>
+</span>
+
+@code {
+    [Parameter, EditorRequired] public string Value { get; set; } = Severity.Medium;
+
+    private string CssKey => Value switch
+    {
+        Severity.Low => "low",
+        Severity.High => "high",
+        Severity.Critical => "critical",
+        _ => "medium"
+    };
+
+    private string Shape => Value switch
+    {
+        Severity.Low => "●",
+        Severity.High => "◆",
+        Severity.Critical => "■",
+        _ => "▲"
+    };
+}
