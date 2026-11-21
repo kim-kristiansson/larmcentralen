@@ -120,18 +120,28 @@ public sealed class KnowledgeBase(
         }
     }
 
-    /// <summary>Syncs now and then every <paramref name="interval"/> until disposed.</summary>
-    public void StartBackgroundSync(TimeSpan interval)
+    /// <summary>How soon to try again after a failed sync, so the app comes back online soon after the server does.</summary>
+    public static readonly TimeSpan DefaultRetryInterval = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Syncs now and then every <paramref name="interval"/> until disposed. After a failed sync it
+    /// tries again after <paramref name="retryInterval"/> (default 30 s) instead of waiting a full interval,
+    /// so an API that starts after the app, or restarts, is picked up quickly.
+    /// </summary>
+    public void StartBackgroundSync(TimeSpan interval, TimeSpan? retryInterval = null)
     {
         if (_backgroundTask is not null) return;
+        var retry = retryInterval ?? DefaultRetryInterval;
+        if (retry > interval) retry = interval;
         _backgroundCts = new CancellationTokenSource();
         var ct = _backgroundCts.Token;
         _backgroundTask = Task.Run(async () =>
         {
-            await SyncAsync(ct);
-            using var timer = new PeriodicTimer(interval);
-            while (await timer.WaitForNextTickAsync(ct))
-                await SyncAsync(ct);
+            while (!ct.IsCancellationRequested)
+            {
+                var ok = await SyncAsync(ct);
+                await Task.Delay(ok ? interval : retry, ct);
+            }
         }, ct);
     }
 

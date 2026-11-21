@@ -83,6 +83,27 @@ public sealed class KnowledgeBaseTests : IDisposable
     }
 
     [Fact]
+    public async Task Background_sync_retries_soon_after_a_failure_instead_of_waiting_a_full_interval()
+    {
+        // The API is down when the app starts and comes up right after.
+        var calls = 0;
+        _handler.Respond = _ => Interlocked.Increment(ref calls) == 1
+            ? throw new HttpRequestException("server not started yet")
+            : JsonResponse(TestData.Snapshot());
+        await using var kb = Create();
+        await kb.InitializeAsync(TestContext.Current.CancellationToken);
+
+        kb.StartBackgroundSync(interval: TimeSpan.FromHours(1), retryInterval: TimeSpan.FromMilliseconds(50));
+
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (kb.LastSyncedAt is null && DateTime.UtcNow < deadline)
+            await Task.Delay(20, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(kb.LastSyncedAt);
+        Assert.True(kb.IsOnline);
+    }
+
+    [Fact]
     public async Task Sync_replaces_deleted_items()
     {
         _handler.Respond = _ => JsonResponse(TestData.Snapshot());
