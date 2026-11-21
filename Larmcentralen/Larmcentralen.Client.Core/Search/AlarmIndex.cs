@@ -78,12 +78,18 @@ public sealed class AlarmIndex
     /// <summary>
     /// Searches the alarms. Every typed term must match the start of a word in the alarm's
     /// code, title, equipment (technical or everyday name), area or description.
-    /// An empty search returns nothing: filters only narrow a search, they never list everything.
+    /// Empty text with no filter returns nothing. Empty text with at least one filter lists every
+    /// matching alarm, ordered by alarm code (natural order), alarms without a code last, then title.
     /// </summary>
     public AlarmSearchResult Search(AlarmSearchQuery query)
     {
         var terms = Tokenize(query.Text);
-        if (terms.Count == 0) return AlarmSearchResult.Empty;
+        if (terms.Count == 0)
+        {
+            var hasFilter = query.AreaId is not null || query.EquipmentId is not null
+                || !string.IsNullOrEmpty(query.Severity);
+            return hasFilter ? ListFiltered(query) : AlarmSearchResult.Empty;
+        }
 
         var matches = new List<(IndexedAlarm Alarm, int Score)>();
         foreach (var alarm in _alarms.Values)
@@ -115,6 +121,59 @@ public sealed class AlarmIndex
             .ToList();
 
         return new AlarmSearchResult(ordered, matches.Count);
+    }
+
+    private AlarmSearchResult ListFiltered(AlarmSearchQuery query)
+    {
+        var matches = _alarms.Values
+            .Select(a => a.View)
+            .Where(v => query.AreaId is not { } areaId || v.Area.Id == areaId)
+            .Where(v => query.EquipmentId is not { } equipmentId || v.Equipment.Id == equipmentId)
+            .Where(v => string.IsNullOrEmpty(query.Severity) || v.Alarm.Severity == query.Severity)
+            .OrderBy(v => string.IsNullOrWhiteSpace(v.Alarm.AlarmCode) ? 1 : 0)
+            .ThenBy(v => v.Alarm.AlarmCode ?? "", NaturalComparer.Instance)
+            .ThenBy(v => v.Alarm.Title, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(v => v.Alarm.Id)
+            .ToList();
+
+        var page = matches.Skip(Math.Max(0, query.Skip)).Take(Math.Max(0, query.Take)).ToList();
+        return new AlarmSearchResult(page, matches.Count);
+    }
+
+    /// <summary>Compares strings so that digit runs are ordered by numeric value (M2.1 &lt; M10.1).</summary>
+    private sealed class NaturalComparer : IComparer<string>
+    {
+        public static readonly NaturalComparer Instance = new();
+
+        public int Compare(string? x, string? y)
+        {
+            x ??= ""; y ??= "";
+            int i = 0, j = 0;
+            while (i < x.Length && j < y.Length)
+            {
+                if (char.IsDigit(x[i]) && char.IsDigit(y[j]))
+                {
+                    var si = i; var sj = j;
+                    while (i < x.Length && char.IsDigit(x[i])) i++;
+                    while (j < y.Length && char.IsDigit(y[j])) j++;
+                    var a = x.AsSpan(si, i - si).TrimStart('0');
+                    var b = y.AsSpan(sj, j - sj).TrimStart('0');
+                    if (a.Length != b.Length) return a.Length.CompareTo(b.Length);
+                    var c = a.CompareTo(b, StringComparison.Ordinal);
+                    if (c != 0) return c;
+                    // Equal value: fewer leading zeros first, to keep the order deterministic.
+                    var lead = (i - si).CompareTo(j - sj);
+                    if (lead != 0) return lead;
+                }
+                else
+                {
+                    var c = char.ToUpperInvariant(x[i]).CompareTo(char.ToUpperInvariant(y[j]));
+                    if (c != 0) return c;
+                    i++; j++;
+                }
+            }
+            return (x.Length - i).CompareTo(y.Length - j);
+        }
     }
 
     internal static List<string> Tokenize(string? text)

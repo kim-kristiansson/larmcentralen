@@ -69,13 +69,9 @@
         }
     </div>
 }
-else if (string.IsNullOrWhiteSpace(State.Text))
+else if (string.IsNullOrWhiteSpace(State.Text) && !HasFilters)
 {
-    @if (HasFilters)
-    {
-        <p class="muted hint">Skriv i sökrutan för att söka i det valda filtret.</p>
-    }
-    else if (_recent.Count > 0)
+    @if (_recent.Count > 0)
     {
         <h2 class="section-title">Senast visade</h2>
         <AlarmList Items="_recent" />
