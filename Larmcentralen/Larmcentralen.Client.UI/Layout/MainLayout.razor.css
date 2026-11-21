@@ -1,16 +1,12 @@
-/* Top bar and page frame. Graphite in light mode, a surface with a bottom border in dark (--bar-* tokens). */
-.topbar { background: var(--bar-bg); color: var(--bar-ink); border-bottom: 1px solid var(--bar-border); }
+/* Top bar and page frame. A plain surface that follows the theme, so the bar never competes with severity colours. */
+.topbar { background: var(--surface); color: var(--ink); border-bottom: 1px solid var(--border); box-shadow: var(--shadow-1); }
 .topbar-inner { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); min-height: 64px; padding-top: var(--space-2); padding-bottom: var(--space-2); flex-wrap: wrap; }
 .topbar-tools { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-4); flex-wrap: wrap; }
-/* The red wordmark tile is the one place the brand colour appears in the app. */
+/* Wordmark in the normal text colour with a small steel-blue mark. Red is kept for Kritisk and destructive actions. */
 .brand {
-  display: inline-flex; align-items: center; min-height: var(--control-h-sm); padding: 0 var(--space-3);
-  background: var(--brand); color: var(--on-brand); border-radius: var(--radius);
-  font-weight: 700; font-size: var(--text-lg); text-decoration: none; letter-spacing: 0.02em;
+  display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--control-h-sm);
+  color: var(--ink); font-weight: 700; font-size: var(--text-lg); text-decoration: none; letter-spacing: 0.02em;
 }
-.brand:hover { background: var(--brand-dark); color: var(--on-brand); }
+.brand::before { content: ""; width: 6px; height: 1.4em; border-radius: var(--radius-sm); background: var(--accent); }
+.brand:hover { color: var(--accent); }
 main { padding: var(--space-5) 0 var(--space-7); }
-
-@media (forced-colors: active) {
-  .brand { border: 1px solid CanvasText; }
-}

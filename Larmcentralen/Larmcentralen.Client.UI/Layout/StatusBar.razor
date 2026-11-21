@@ -20,7 +20,7 @@
             · @(Kb.CanEdit ? "admin" : "läsbehörighet")
         </span>
     </div>
-    <button type="button" class="btn btn-small btn-on-dark" disabled="@Kb.IsSyncing" @onclick="SyncNow"
+    <button type="button" class="btn btn-small" disabled="@Kb.IsSyncing" @onclick="SyncNow"
             title="Hämta senaste versionen från servern">
         Synka nu
     </button>
