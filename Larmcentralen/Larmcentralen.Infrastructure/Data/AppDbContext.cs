@@ -1,5 +1,6 @@
 ﻿using Larmcentralen.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Larmcentralen.Infrastructure.Data;
 
@@ -9,6 +10,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Equipment> Equipment => Set<Equipment>();
     public DbSet<Alarm> Alarms => Set<Alarm>();
     public DbSet<Solution> Solutions => Set<Solution>();
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        // SQLite stores dates as text without a time zone. Every date in this app is written
+        // as UTC, so mark them as UTC when read back and the API keeps sending "Z" times.
+        configurationBuilder.Properties<DateTime>().HaveConversion<UtcDateTimeConverter>();
+        configurationBuilder.Properties<DateTime?>().HaveConversion<NullableUtcDateTimeConverter>();
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -55,3 +64,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         });
     }
 }
+
+internal sealed class UtcDateTimeConverter() : ValueConverter<DateTime, DateTime>(
+    v => v.Kind == DateTimeKind.Utc ? v : v.ToUniversalTime(),
+    v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+
+internal sealed class NullableUtcDateTimeConverter() : ValueConverter<DateTime?, DateTime?>(
+    v => v.HasValue ? (v.Value.Kind == DateTimeKind.Utc ? v.Value : v.Value.ToUniversalTime()) : v,
+    v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
