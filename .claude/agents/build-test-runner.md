@@ -18,7 +18,7 @@ Commands (run from `Larmcentralen/`):
 The solution targets .NET 11 (`global.json` pins SDK 11.0.100). If only a .NET 10 SDK is
 available (for example in a cloud sandbox), do a compile check instead by moving `global.json`
 aside temporarily and passing
-`-p:LarmTargetFramework=net10.0 -p:DotNetPackageVersion=10.0.5 -p:NpgsqlPackageVersion=10.0.1`.
+`-p:LarmTargetFramework=net10.0 -p:DotNetPackageVersion=10.0.5`.
 Put `global.json` back afterwards and say in the report that it was a .NET 10 check;
 GitHub Actions (`.github/workflows/build.yml`) is the real .NET 11 check.
 

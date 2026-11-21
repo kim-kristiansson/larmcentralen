@@ -44,20 +44,6 @@ On start-up the API creates the file if needed, applies migrations and turns on 
 - Search is case-insensitive for å, ä and ö: the API replaces SQLite's ASCII-only `lower()` with
   .NET's on every connection (`Infrastructure/Data/SqliteSetup.cs`).
 
-### Moving data from the old PostgreSQL database
-
-`tools/Larmcentralen.PostgresImport` copies every area, equipment, alarm and solution (ids kept)
-into a new, empty SQLite file. Stop the API first, then run:
-
-```bash
-cd Larmcentralen
-dotnet run --project tools/Larmcentralen.PostgresImport -- \
-  "Host=localhost;Database=larm;Username=larm;Password=..." \
-  "Data Source=Larmcentralen.Api/data/larmcentralen.db"
-```
-
-It refuses to run if the SQLite file already holds data.
-
 ## Running locally
 
 Requirements: .NET 11 SDK, and on Windows the MAUI workload

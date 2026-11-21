@@ -28,7 +28,7 @@ Things that commonly bite in this codebase:
   `InvokeAsync(StateHasChanged)`.
 - Quill interop: the editor element must exist before JS init, and references must be disposed.
 - The solution targets .NET 11. If only a .NET 10 SDK is available, compile-check with
-  `-p:LarmTargetFramework=net10.0 -p:DotNetPackageVersion=10.0.5 -p:NpgsqlPackageVersion=10.0.1`
+  `-p:LarmTargetFramework=net10.0 -p:DotNetPackageVersion=10.0.5`
   and `global.json` moved aside (put it back). CI on GitHub is the real check.
 
 Never disable or skip a test to get green.

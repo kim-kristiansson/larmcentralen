@@ -22,8 +22,6 @@ jobs:
           global-json-file: Larmcentralen/global.json
       - name: Build API
         run: dotnet build Larmcentralen.Api
-      - name: Build Postgres import tool
-        run: dotnet build tools/Larmcentralen.PostgresImport
       - name: Build shared Razor UI
         run: dotnet build Larmcentralen.Client.UI
       - name: Test client core (search, sync, offline store)
