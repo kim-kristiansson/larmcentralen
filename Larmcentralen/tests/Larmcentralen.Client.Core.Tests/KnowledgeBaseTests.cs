@@ -67,6 +67,21 @@ public sealed class KnowledgeBaseTests : IDisposable
         Assert.Equal(6, kb.Index.AlarmCount);
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task Rejected_key_is_reported_as_a_key_problem_not_offline(HttpStatusCode status)
+    {
+        _handler.Respond = _ => new HttpResponseMessage(status);
+        await using var kb = Create();
+        await kb.InitializeAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(await kb.SyncAsync(TestContext.Current.CancellationToken));
+
+        Assert.True(kb.IsOnline);
+        Assert.Equal(KnowledgeBase.MissingKeyError, kb.LastSyncError);
+    }
+
     [Fact]
     public async Task Sync_replaces_deleted_items()
     {

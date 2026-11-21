@@ -1,3 +1,4 @@
+using System.Net;
 using Larmcentralen.Client.Core.Api;
 using Larmcentralen.Client.Core.Models;
 using Larmcentralen.Client.Core.Search;
@@ -42,6 +43,9 @@ public sealed class KnowledgeBase(
     public bool CanEdit { get; private set; }
 
     private const string CanEditSetting = "CanEdit";
+
+    /// <summary>Shown when the API answers 401/403 to a sync: reachable, but this PC's key is missing or wrong.</summary>
+    public const string MissingKeyError = "API-nyckeln saknas eller är fel. Be en administratör om en nyckel.";
 
     private bool _apiReachable = true;
 
@@ -89,6 +93,14 @@ public sealed class KnowledgeBase(
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             throw;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            // The server answered, so we are online: the key is missing or wrong. Say so instead of "offline".
+            logger.LogWarning(ex, "Sync refused by the API ({Status}): API key missing or invalid", ex.StatusCode);
+            _apiReachable = true;
+            LastSyncError = MissingKeyError;
+            return false;
         }
         catch (Exception ex)
         {
