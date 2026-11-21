@@ -12,6 +12,7 @@ public class AlarmRepository(AppDbContext db) : Repository<Alarm>(db), IAlarmRep
         var query = Db.Alarms
             .Include(a => a.Equipment)
             .ThenInclude(e => e.Area)
+            .Include(a => a.Definition)
             .AsQueryable();
 
         if (areaId.HasValue)
@@ -32,10 +33,10 @@ public class AlarmRepository(AppDbContext db) : Repository<Alarm>(db), IAlarmRep
                 var wordStartsWith = $"% {escaped}%";
 
                 query = query.Where(a =>
-                    EF.Functions.Like(a.Title.ToLower(), startsWith, "\\") ||
-                    EF.Functions.Like(a.Title.ToLower(), wordStartsWith, "\\") ||
-                    (a.AlarmCode != null && (EF.Functions.Like(a.AlarmCode.ToLower(), startsWith, "\\") || EF.Functions.Like(a.AlarmCode.ToLower(), wordStartsWith, "\\"))) ||
-                    (a.Description != null && (EF.Functions.Like(a.Description.ToLower(), startsWith, "\\") || EF.Functions.Like(a.Description.ToLower(), wordStartsWith, "\\"))) ||
+                    EF.Functions.Like(a.Definition.Title.ToLower(), startsWith, "\\") ||
+                    EF.Functions.Like(a.Definition.Title.ToLower(), wordStartsWith, "\\") ||
+                    (a.Definition.AlarmCode != null && (EF.Functions.Like(a.Definition.AlarmCode.ToLower(), startsWith, "\\") || EF.Functions.Like(a.Definition.AlarmCode.ToLower(), wordStartsWith, "\\"))) ||
+                    (a.Definition.Description != null && (EF.Functions.Like(a.Definition.Description.ToLower(), startsWith, "\\") || EF.Functions.Like(a.Definition.Description.ToLower(), wordStartsWith, "\\"))) ||
                     EF.Functions.Like(a.Equipment.Title.ToLower(), startsWith, "\\") ||
                     EF.Functions.Like(a.Equipment.Title.ToLower(), wordStartsWith, "\\") ||
                     (a.Equipment.DisplayName != null && (EF.Functions.Like(a.Equipment.DisplayName.ToLower(), startsWith, "\\") || EF.Functions.Like(a.Equipment.DisplayName.ToLower(), wordStartsWith, "\\"))) ||
@@ -45,7 +46,7 @@ public class AlarmRepository(AppDbContext db) : Repository<Alarm>(db), IAlarmRep
         }
         
         if (!string.IsNullOrWhiteSpace(severity))
-            query = query.Where(a => a.Severity == severity);
+            query = query.Where(a => a.Definition.Severity == severity);
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -53,14 +54,14 @@ public class AlarmRepository(AppDbContext db) : Repository<Alarm>(db), IAlarmRep
             var startsWithPattern = $"{EscapeLike(firstTerm)}%";
 
             return await query
-                .OrderByDescending(a => EF.Functions.Like(a.Title.ToLower(), startsWithPattern, "\\"))
-                .ThenBy(a => a.Title)
+                .OrderByDescending(a => EF.Functions.Like(a.Definition.Title.ToLower(), startsWithPattern, "\\"))
+                .ThenBy(a => a.Definition.Title)
                 .Skip(skip)
                 .Take(take)
                 .ToListAsync();
         }
 
-        return await query.OrderBy(a => a.Title).Skip(skip).Take(take).ToListAsync();
+        return await query.OrderBy(a => a.Definition.Title).Skip(skip).Take(take).ToListAsync();
     }
 
     public async Task<Alarm?> GetByIdWithDetailsAsync(int id)
@@ -68,15 +69,24 @@ public class AlarmRepository(AppDbContext db) : Repository<Alarm>(db), IAlarmRep
         return await Db.Alarms
             .Include(a => a.Equipment)
             .ThenInclude(e => e.Area)
-            .Include(a => a.Solutions.OrderBy(s => s.SortOrder))
-            .ThenInclude(s => s.Alarms)
+            .Include(a => a.Definition).ThenInclude(d => d.Alarms).ThenInclude(x => x.Equipment)
+            .Include(a => a.Definition).ThenInclude(d => d.Solutions).ThenInclude(s => s.Definitions).ThenInclude(d => d.Alarms)
             .FirstOrDefaultAsync(a => a.Id == id);
     }
 
-    public async Task<bool> ExistsAsync(string alarmCode, int equipmentId)
+    public async Task<bool> ExistsAsync(int alarmDefinitionId, int equipmentId)
     {
         return await Db.Alarms
-            .AnyAsync(a => a.AlarmCode == alarmCode && a.EquipmentId == equipmentId);
+            .AnyAsync(a => a.AlarmDefinitionId == alarmDefinitionId && a.EquipmentId == equipmentId);
+    }
+
+    public async Task<Alarm?> GetForUpdateAsync(int id)
+    {
+        return await Db.Alarms
+            .Include(a => a.Equipment)
+            .Include(a => a.Definition).ThenInclude(d => d.Alarms)
+            .Include(a => a.Definition).ThenInclude(d => d.Solutions).ThenInclude(s => s.Definitions)
+            .FirstOrDefaultAsync(a => a.Id == id);
     }
     
     public async Task<List<Alarm>> GetByIdsAsync(List<int> ids)
@@ -84,6 +94,7 @@ public class AlarmRepository(AppDbContext db) : Repository<Alarm>(db), IAlarmRep
         return await Db.Alarms
             .Include(a => a.Equipment)
             .ThenInclude(e => e.Area)
+            .Include(a => a.Definition)
             .Where(a => ids.Contains(a.Id))
             .ToListAsync();
     }

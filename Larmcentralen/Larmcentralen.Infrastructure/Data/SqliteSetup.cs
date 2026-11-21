@@ -3,6 +3,8 @@ using System.Globalization;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace Larmcentralen.Infrastructure.Data;
 
@@ -47,8 +49,23 @@ public static class SqliteSetup
             Directory.CreateDirectory(folder);
 
         await BackupBeforeMigratingAsync(db, dataSource);
-        await db.Database.MigrateAsync();
+        await MigrateAsync(db);
         await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
+    }
+
+    /// <summary>
+    /// Applies pending migrations. Alarm definitions need a step in C# between their two migrations:
+    /// migrate up to AddAlarmDefinitions, group the alarms into definitions, then apply the rest.
+    /// </summary>
+    public static async Task MigrateAsync(AppDbContext db, CancellationToken ct = default)
+    {
+        var pending = (await db.Database.GetPendingMigrationsAsync(ct)).ToList();
+        if (pending.Contains(Migrations._20261121172920_MoveAlarmTextToDefinitions.Id))
+        {
+            await db.GetService<IMigrator>().MigrateAsync(Migrations._20261121172910_AddAlarmDefinitions.Id, ct);
+            await AlarmDefinitionBackfill.RunAsync(db, ct);
+        }
+        await db.Database.MigrateAsync(ct);
     }
 
     /// <summary>

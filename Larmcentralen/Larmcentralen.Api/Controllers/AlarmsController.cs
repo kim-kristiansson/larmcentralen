@@ -16,7 +16,7 @@ public class AlarmsController(IAlarmService service) : ControllerBase
         [FromServices] ISolutionService solutions, [FromServices] ISharePointSyncService sync)
     {
         var result = await solutions.UnlinkAsync(alarmId, solutionId);
-        if (result.Status != SolutionWriteStatus.Ok) return this.ToError(result);
+        if (result.Status != WriteStatus.Ok) return this.ToError(result);
         await this.SyncAlarmsAsync(sync, result);
         return NoContent();
     }
@@ -30,7 +30,7 @@ public class AlarmsController(IAlarmService service) : ControllerBase
         [FromServices] ISolutionService solutions, [FromServices] ISharePointSyncService sync)
     {
         var result = await solutions.DetachAsync(alarmId, solutionId);
-        if (result.Status != SolutionWriteStatus.Ok) return this.ToError(result);
+        if (result.Status != WriteStatus.Ok) return this.ToError(result);
         await this.SyncAlarmsAsync(sync, result);
         return Ok(result.Solution);
     }
@@ -52,16 +52,33 @@ public class AlarmsController(IAlarmService service) : ControllerBase
         return alarm is null ? NotFound() : Ok(alarm);
     }
 
+    /// <summary>The new alarm joins the definition with the same code and text on units of its type, or starts one.</summary>
     [HttpPost]
-    public async Task<ActionResult<AlarmDto>> Create(CreateAlarmDto dto)
+    public async Task<IActionResult> Create(CreateAlarmDto dto)
     {
-        var alarm = await service.CreateAsync(dto);
-        return CreatedAtAction(nameof(Get), new { id = alarm.Id }, alarm);
+        var result = await service.CreateAsync(dto);
+        if (result.Status != WriteStatus.Ok) return this.ToError(result.Status, result.Error);
+        return CreatedAtAction(nameof(Get), new { id = result.Alarm!.Id }, result.Alarm);
     }
 
+    /// <summary>
+    /// Text, code, severity and description belong to the alarm's definition: they change for every unit
+    /// that shares it. 409 when another definition of the same type already has that code and text.
+    /// </summary>
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, UpdateAlarmDto dto)
-        => await service.UpdateAsync(id, dto) ? NoContent() : NotFound();
+    {
+        var result = await service.UpdateAsync(id, dto);
+        return result.Status == WriteStatus.Ok ? NoContent() : this.ToError(result.Status, result.Error);
+    }
+
+    /// <summary>Gives this unit its own definition (a copy, with the same solutions), so it can be changed alone.</summary>
+    [HttpPost("{id:int}/own-definition")]
+    public async Task<IActionResult> Split(int id)
+    {
+        var result = await service.SplitAsync(id);
+        return result.Status == WriteStatus.Ok ? Ok(result.Alarm) : this.ToError(result.Status, result.Error);
+    }
 
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)

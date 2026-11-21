@@ -10,7 +10,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Equipment> Equipment => Set<Equipment>();
     public DbSet<Alarm> Alarms => Set<Alarm>();
     public DbSet<Solution> Solutions => Set<Solution>();
-    public DbSet<AlarmSolution> AlarmSolutions => Set<AlarmSolution>();
+    public DbSet<AlarmDefinition> AlarmDefinitions => Set<AlarmDefinition>();
+    public DbSet<DefinitionSolution> DefinitionSolutions => Set<DefinitionSolution>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -40,18 +41,30 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<AlarmDefinition>(e =>
+        {
+            e.ToTable("AlarmDefinitions");
+            e.Property(d => d.EquipmentType).HasMaxLength(50);
+            e.Property(d => d.AlarmCode).HasMaxLength(50);
+            e.Property(d => d.Title).HasMaxLength(300);
+            e.Property(d => d.NormalizedTitle).HasMaxLength(300);
+            e.Property(d => d.Severity).HasMaxLength(20);
+
+            // One definition per meaning: type, code and text (plus the owning unit for unit-only definitions).
+            e.HasIndex(d => new { d.EquipmentType, d.AlarmCode, d.NormalizedTitle, d.ScopeEquipmentId }).IsUnique();
+        });
+
         modelBuilder.Entity<Alarm>(e =>
         {
-            e.Property(a => a.Title).HasMaxLength(300);
-            e.Property(a => a.AlarmCode).HasMaxLength(50);
-            e.Property(a => a.Severity).HasMaxLength(20);
-
             e.HasOne(a => a.Equipment)
                 .WithMany(eq => eq.Alarms)
                 .HasForeignKey(a => a.EquipmentId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            e.HasIndex(a => new { a.AlarmCode, a.EquipmentId }).IsUnique();
+            e.HasOne(a => a.Definition)
+                .WithMany(d => d.Alarms)
+                .HasForeignKey(a => a.AlarmDefinitionId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Solution>(e =>
@@ -59,16 +72,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(s => s.Title).HasMaxLength(300);
             e.Property(s => s.EstimatedTime).HasMaxLength(50);
 
-            // Many-to-many: one solution can be shared by several alarms (the same fault on several units).
-            e.HasMany(s => s.Alarms)
-                .WithMany(a => a.Solutions)
-                .UsingEntity<AlarmSolution>(
-                    l => l.HasOne(x => x.Alarm).WithMany().HasForeignKey(x => x.AlarmId).OnDelete(DeleteBehavior.Cascade),
+            // Many-to-many: one solution can be shared by several alarm definitions.
+            e.HasMany(s => s.Definitions)
+                .WithMany(d => d.Solutions)
+                .UsingEntity<DefinitionSolution>(
+                    l => l.HasOne(x => x.Definition).WithMany().HasForeignKey(x => x.AlarmDefinitionId).OnDelete(DeleteBehavior.Cascade),
                     r => r.HasOne(x => x.Solution).WithMany().HasForeignKey(x => x.SolutionId).OnDelete(DeleteBehavior.Cascade),
                     j =>
                     {
-                        j.ToTable("AlarmSolutions");
-                        j.HasKey(x => new { x.AlarmId, x.SolutionId });
+                        j.ToTable("DefinitionSolutions");
+                        j.HasKey(x => new { x.AlarmDefinitionId, x.SolutionId });
                         j.HasIndex(x => x.SolutionId);
                     });
         });

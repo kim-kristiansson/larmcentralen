@@ -30,6 +30,7 @@ builder.Services.AddScoped<IAreaRepository, AreaRepository>();
 builder.Services.AddScoped<IEquipmentRepository, EquipmentRepository>();
 builder.Services.AddScoped<IAlarmRepository, AlarmRepository>();
 builder.Services.AddScoped<ISolutionRepository, SolutionRepository>();
+builder.Services.AddScoped<IAlarmDefinitionRepository, AlarmDefinitionRepository>();
 
 // Services
 builder.Services.AddScoped<IAreaService, AreaService>();

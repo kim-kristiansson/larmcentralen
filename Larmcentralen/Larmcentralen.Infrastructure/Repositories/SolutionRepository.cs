@@ -10,8 +10,8 @@ public class SolutionRepository(AppDbContext db) : Repository<Solution>(db), ISo
     public async Task<List<Solution>> GetByAlarmIdAsync(int alarmId)
     {
         return await Db.Solutions
-            .Include(s => s.Alarms)
-            .Where(s => s.Alarms.Any(a => a.Id == alarmId))
+            .Include(s => s.Definitions).ThenInclude(d => d.Alarms)
+            .Where(s => s.Definitions.Any(d => d.Alarms.Any(a => a.Id == alarmId)))
             .OrderBy(s => s.SortOrder)
             .ThenBy(s => s.Id)
             .ToListAsync();
@@ -20,16 +20,7 @@ public class SolutionRepository(AppDbContext db) : Repository<Solution>(db), ISo
     public async Task<Solution?> GetByIdWithDetailsAsync(int id)
     {
         return await Db.Solutions
-            .Include(s => s.Alarms)
+            .Include(s => s.Definitions).ThenInclude(d => d.Alarms)
             .FirstOrDefaultAsync(s => s.Id == id);
-    }
-
-    public async Task<List<AlarmSolution>> GetAllLinksAsync()
-    {
-        return await Db.AlarmSolutions
-            .AsNoTracking()
-            .OrderBy(l => l.SolutionId)
-            .ThenBy(l => l.AlarmId)
-            .ToListAsync();
     }
 }

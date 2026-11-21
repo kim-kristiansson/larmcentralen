@@ -5,7 +5,11 @@ using Larmcentralen.Domain.Interfaces;
 
 namespace Larmcentralen.Application.Services;
 
-public class EquipmentService(IEquipmentRepository repo) : IEquipmentService
+public class EquipmentService(
+    IEquipmentRepository repo,
+    IAlarmRepository alarms,
+    IAlarmDefinitionRepository definitions,
+    ISolutionRepository solutions) : IEquipmentService
 {
     public async Task<List<EquipmentDto>> GetAllAsync(int? areaId)
     {
@@ -62,10 +66,13 @@ public class EquipmentService(IEquipmentRepository repo) : IEquipmentService
         equipment.Category = dto.Category;
         equipment.Description = dto.Description;
         equipment.AreaId = dto.AreaId;
-        if (dto.EquipmentType is not null) equipment.EquipmentType = NormaliseType(dto.EquipmentType);
+        if (dto.EquipmentType is not null && NormaliseType(dto.EquipmentType) != equipment.EquipmentType)
+        {
+            equipment.EquipmentType = NormaliseType(dto.EquipmentType);
+            await MoveAlarmsToNewTypeAsync(equipment);
+        }
         equipment.UpdatedAt = DateTime.UtcNow;
 
-        repo.Update(equipment);
         await repo.SaveChangesAsync();
         return true;
     }
@@ -78,6 +85,43 @@ public class EquipmentService(IEquipmentRepository repo) : IEquipmentService
         repo.Remove(equipment);
         await repo.SaveChangesAsync();
         return true;
+    }
+
+    /// <summary>
+    /// After a unit changes type, files each of its alarms under a definition of the new type: one with the
+    /// same code and text if it exists, otherwise its own definition moves (or a copy when other units share it).
+    /// The alarms keep their solutions.
+    /// </summary>
+    private async Task MoveAlarmsToNewTypeAsync(Equipment unit)
+    {
+        var type = AlarmDefinition.TypeFor(unit);
+        foreach (var alarmId in (await repo.GetByIdWithDetailsAsync(unit.Id))!.Alarms.Select(a => a.Id).ToList())
+        {
+            var alarm = (await alarms.GetForUpdateAsync(alarmId))!;
+            var old = alarm.Definition;
+            var scope = old.ScopeEquipmentId == unit.Id ? unit.Id : AlarmDefinition.DefaultScopeFor(unit);
+            var target = await definitions.FindAsync(type, old.AlarmCode, old.NormalizedTitle, scope);
+            if (target is null && old.Alarms.Count == 1)
+            {
+                old.EquipmentType = type;
+                old.ScopeEquipmentId = scope;
+                old.UpdatedAt = DateTime.UtcNow;
+                continue;
+            }
+            if (target is null)
+            {
+                target = new AlarmDefinition
+                {
+                    EquipmentType = type, ScopeEquipmentId = scope, AlarmCode = old.AlarmCode, Title = old.Title,
+                    NormalizedTitle = old.NormalizedTitle, Severity = old.Severity, Description = old.Description
+                };
+                await definitions.AddAsync(target);
+            }
+            foreach (var s in old.Solutions.ToList()) AlarmDefinitions.Link(target, s);
+            old.Alarms.Remove(alarm);
+            alarm.Definition = target;
+            AlarmDefinitions.RemoveUnused([old], definitions, solutions);
+        }
     }
 
     private static string? NormaliseType(string? type) => string.IsNullOrWhiteSpace(type) ? null : type.Trim();

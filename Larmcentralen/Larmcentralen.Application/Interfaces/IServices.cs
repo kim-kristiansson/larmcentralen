@@ -24,8 +24,9 @@ public interface IAlarmService
 {
     Task<List<AlarmListDto>> SearchAsync(string? search, int? equipmentId, int? areaId, string? severity, int skip = 0, int take = 10);
     Task<AlarmDto?> GetByIdAsync(int id);
-    Task<AlarmDto> CreateAsync(CreateAlarmDto dto);
-    Task<bool> UpdateAsync(int id, UpdateAlarmDto dto);
+    Task<AlarmWriteResult> CreateAsync(CreateAlarmDto dto);
+    Task<AlarmWriteResult> UpdateAsync(int id, UpdateAlarmDto dto);
+    Task<AlarmWriteResult> SplitAsync(int id);
     Task<bool> DeleteAsync(int id);
     Task<List<AlarmListDto>> GetByIdsAsync(List<int> ids);
 }
@@ -39,6 +40,8 @@ public interface ISolutionService
     Task<SolutionWriteResult> DeleteAsync(int id);
     Task<SolutionWriteResult> UnlinkAsync(int alarmId, int solutionId);
     Task<SolutionWriteResult> DetachAsync(int alarmId, int solutionId);
+    Task<SolutionWriteResult> UnlinkDefinitionAsync(int definitionId, int solutionId);
+    Task<SolutionWriteResult> DetachDefinitionAsync(int definitionId, int solutionId);
 }
 public interface ISyncService
 {

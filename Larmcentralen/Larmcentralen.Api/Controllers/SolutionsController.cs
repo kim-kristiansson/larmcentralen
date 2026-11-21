@@ -29,7 +29,7 @@ public class SolutionsController(
     public async Task<IActionResult> Create(CreateSolutionDto dto)
     {
         var result = await service.CreateAsync(dto);
-        if (result.Status != SolutionWriteStatus.Ok) return this.ToError(result);
+        if (result.Status != WriteStatus.Ok) return this.ToError(result);
         await this.SyncAlarmsAsync(syncService, result);
         return CreatedAtAction(nameof(Get), new { id = result.Solution!.Id }, result.Solution);
     }
@@ -39,7 +39,7 @@ public class SolutionsController(
     public async Task<IActionResult> Update(int id, UpdateSolutionDto dto)
     {
         var result = await service.UpdateAsync(id, dto);
-        if (result.Status != SolutionWriteStatus.Ok) return this.ToError(result);
+        if (result.Status != WriteStatus.Ok) return this.ToError(result);
         await this.SyncAlarmsAsync(syncService, result);
         return NoContent();
     }
@@ -49,7 +49,7 @@ public class SolutionsController(
     public async Task<IActionResult> Delete(int id)
     {
         var result = await service.DeleteAsync(id);
-        if (result.Status != SolutionWriteStatus.Ok) return this.ToError(result);
+        if (result.Status != WriteStatus.Ok) return this.ToError(result);
         await this.SyncAlarmsAsync(syncService, result);
         return NoContent();
     }
@@ -57,11 +57,13 @@ public class SolutionsController(
 
 internal static class SolutionResultExtensions
 {
-    public static IActionResult ToError(this ControllerBase c, SolutionWriteResult result) => result.Status switch
+    public static IActionResult ToError(this ControllerBase c, SolutionWriteResult result) => c.ToError(result.Status, result.Error);
+
+    public static IActionResult ToError(this ControllerBase c, WriteStatus status, string? error) => status switch
     {
-        SolutionWriteStatus.NotFound => c.NotFound(),
-        SolutionWriteStatus.Invalid => c.Problem(result.Error, statusCode: StatusCodes.Status400BadRequest),
-        SolutionWriteStatus.Conflict => c.Problem(result.Error, statusCode: StatusCodes.Status409Conflict),
+        WriteStatus.NotFound => c.NotFound(),
+        WriteStatus.Invalid => c.Problem(error, statusCode: StatusCodes.Status400BadRequest),
+        WriteStatus.Conflict => c.Problem(error, statusCode: StatusCodes.Status409Conflict),
         _ => c.StatusCode(StatusCodes.Status500InternalServerError)
     };
 
