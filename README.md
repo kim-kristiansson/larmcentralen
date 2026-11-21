@@ -78,3 +78,26 @@ dotnet test --project tests/Larmcentralen.Client.Core.Tests
 The app calls `https://localhost:7094/` by default. Point it elsewhere (for example the pilot
 API on Azure) with the `LARMCENTRALEN_API_URL` environment variable, or by editing
 `Larmcentralen.App/Resources/Raw/appsettings.json`.
+
+## Claude Code agents
+
+`.claude/agents/` holds subagents for Claude Code, each on the cheapest model that does its job
+well, so simple work does not run on the most expensive model.
+
+| Agent | Model | Use it for |
+| --- | --- | --- |
+| `codebase-scout` | Haiku | Read-only lookups: where something lives, what touches it |
+| `build-test-runner` | Haiku | Build and test, report only the failures |
+| `swedish-ui-copy` | Haiku | Swedish text operators see in the app |
+| `feature-developer` | Sonnet | Backend and client-logic features across the layers, migrations |
+| `blazor-ui-developer` | Sonnet | Razor screens, components, Quill interop, MAUI host |
+| `test-writer` | Sonnet | New and extended tests |
+| `code-reviewer` | Sonnet | Read-only review of a diff before a PR |
+| `architect` | Opus | Sync/offline design, data model, hosting, big refactors (plans, no code) |
+| `debugger` | Opus | Hard bugs: sync, SQLite, EF Core, WebView/interop, CI-only failures |
+| `principal-architect` | Fable | Expensive escalation only: hard-to-undo calls such as sync/conflict handling or data model changes (plans, no code) |
+
+Claude picks one from its description, or ask for it by name ("use the architect agent to …").
+To change an agent's model, edit the `model:` line in its file (`haiku`, `sonnet`, `opus` or
+`fable`). Use `architect` for normal design work and escalate to `principal-architect` only
+for decisions that are expensive to get wrong.
