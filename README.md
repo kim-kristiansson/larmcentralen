@@ -65,6 +65,45 @@ The app calls `https://localhost:7094/` by default. Point it elsewhere (for exam
 API on Azure) with the `LARMCENTRALEN_API_URL` environment variable, or by editing
 `Larmcentralen.App/Resources/Raw/appsettings.json`.
 
+## API keys and secrets
+
+This repository is public. Real keys, passwords and phone numbers never go in a tracked file:
+`appsettings.json` only holds placeholders, and `Larmcentralen.App/Resources/Raw/appsettings.json`
+ships inside the app. Locally they live in user-secrets (stored outside the repo); on Azure in the
+App Service's environment variables.
+
+Everything under `/api` requires a key:
+
+- The app sends `Security:ApiKey` in the `X-Api-Key` header on every call.
+- The 46elks SMS webhook can't send headers, so it uses its own secret in the URL:
+  `https://<api-host>/api/webhooks/sms?secret=<Security:SmsWebhookSecret>`.
+
+In Development the API runs without keys if none are set (it logs a warning). In any other
+environment it refuses to start until both are set.
+
+```bash
+# Generate two keys (PowerShell: [Convert]::ToBase64String((1..32 | % { Get-Random -Max 256 })))
+openssl rand -base64 32
+
+# Local API: store them in user-secrets
+cd Larmcentralen/Larmcentralen.Api
+dotnet user-secrets set "Security:ApiKey" "<key>"
+dotnet user-secrets set "Security:SmsWebhookSecret" "<webhook secret>"
+dotnet user-secrets set "SharePoint:ClientSecret" "<secret>"      # and the other SharePoint values
+dotnet user-secrets set "Email:ElksPassword" "<46elks password>"  # and ElksUsername, AlertRecipient
+```
+
+On Azure App Service, add the same settings as environment variables with `__` for `:`
+(`Security__ApiKey`, `Security__SmsWebhookSecret`, `SharePoint__ClientSecret`, ...).
+
+Each PC running the app needs the API key as a user environment variable, then a restart of the app:
+
+```powershell
+setx LARMCENTRALEN_API_KEY "<key>"
+```
+
+If a key leaks, generate a new one, update the API setting and every PC's `LARMCENTRALEN_API_KEY`.
+
 ## Claude Code agents
 
 `.claude/agents/` holds subagents for Claude Code, each on the cheapest model that does its job
