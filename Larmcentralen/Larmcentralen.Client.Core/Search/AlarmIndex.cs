@@ -148,6 +148,63 @@ public sealed class AlarmIndex
             .ToList();
     }
 
+    /// <summary>
+    /// Alarm definitions to pick an alarm code from, for an alarm on <paramref name="equipmentId"/>. By default only
+    /// definitions of that unit's type (<paramref name="allTypes"/> widens it). Every word typed must appear in the
+    /// code or the text, ignoring case and accents. A definition the unit cannot use is listed with the reason:
+    /// owned by another unit, or the unit already has an alarm with it (other than <paramref name="editingAlarmId"/>).
+    /// Ordered by code (natural order), then text.
+    /// </summary>
+    public IReadOnlyList<DefinitionOption> SearchDefinitions(string? text, int equipmentId, bool allTypes = false,
+        int? editingAlarmId = null, int take = 50)
+    {
+        if (!_equipment.TryGetValue(equipmentId, out var unit)) return [];
+        var type = TypeOf(unit) ?? OtherType;
+        var terms = string.IsNullOrWhiteSpace(text)
+            ? []
+            : text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Select(SearchKey).ToList();
+
+        return _definitions.Values
+            .Where(d => allTypes || d.EquipmentType == type)
+            .Where(d =>
+            {
+                if (terms.Count == 0) return true;
+                var key = SearchKey($"{d.AlarmCode} {d.Title}");
+                return terms.All(t => key.Contains(t, StringComparison.Ordinal));
+            })
+            .OrderBy(d => d.AlarmCode ?? "￿", NaturalComparer.Instance)
+            .ThenBy(d => d.Title, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(d => d.Id)
+            .Take(Math.Max(0, take))
+            .Select(d =>
+            {
+                var alarms = ByUnit(_alarmIdsByDefinition[d.Id]);
+                string? reason = null;
+                if (d.ScopeEquipmentId != 0 && d.ScopeEquipmentId != equipmentId)
+                    reason = $"Gäller bara {(_equipment.TryGetValue(d.ScopeEquipmentId, out var owner) ? owner.Title : "en annan enhet")}";
+                else if (alarms.Any(a => a.Equipment.Id == equipmentId && a.Alarm.Id != editingAlarmId))
+                    reason = $"Finns redan på {unit.Title}";
+                return new DefinitionOption(d, alarms, reason);
+            })
+            .ToList();
+    }
+
+    public AlarmDefinition? GetDefinition(int definitionId) => _definitions.GetValueOrDefault(definitionId);
+
+    /// <summary>The alarms (units) that use a definition, ordered by unit.</summary>
+    public IReadOnlyList<AlarmView> AlarmsForDefinition(int definitionId) => ByUnit(_alarmIdsByDefinition[definitionId]);
+
+    /// <summary>Lower case without accents, punctuation kept, so "200.1" and "temperatur elskap" both match.</summary>
+    private static string SearchKey(string s)
+    {
+        var decomposed = s.Normalize(System.Text.NormalizationForm.FormD);
+        var sb = new System.Text.StringBuilder(decomposed.Length);
+        foreach (var ch in decomposed)
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch) != System.Globalization.UnicodeCategory.NonSpacingMark)
+                sb.Append(char.ToLowerInvariant(ch));
+        return sb.ToString();
+    }
+
     private IReadOnlyList<AlarmView> ByUnit(IEnumerable<int> alarmIds)
         => alarmIds.Select(id => _alarms.TryGetValue(id, out var a) ? a.View : null).OfType<AlarmView>()
             .OrderBy(v => v.Equipment.Title, NaturalComparer.Instance).ThenBy(v => v.Alarm.Id).ToList();
@@ -405,5 +462,12 @@ public sealed class AlarmIndex
 public sealed record SolutionTarget(int Key, int? DefinitionId, IReadOnlyList<AlarmView> Alarms)
 {
     public AlarmView First => Alarms[0];
+    public IEnumerable<string> Units => Alarms.Select(a => a.Equipment.Title).Distinct();
+}
+
+/// <summary>An alarm definition offered in the alarm code picker, with the units that use it.</summary>
+public sealed record DefinitionOption(AlarmDefinition Definition, IReadOnlyList<AlarmView> Alarms, string? DisabledReason)
+{
+    public bool Disabled => DisabledReason is not null;
     public IEnumerable<string> Units => Alarms.Select(a => a.Equipment.Title).Distinct();
 }

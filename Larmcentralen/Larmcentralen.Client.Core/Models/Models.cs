@@ -106,7 +106,12 @@ public record AlarmView(Alarm Alarm, Equipment Equipment, Area Area);
 public record AlarmDetails(Alarm Alarm, Equipment Equipment, Area Area, IReadOnlyList<Solution> Solutions);
 
 // Write contracts, matching the API's Create/Update DTOs.
-public record SaveAlarmRequest(string Title, string? AlarmCode, string Severity, string? Description, int EquipmentId);
+/// <summary>
+/// Create or change an alarm. <see cref="AlarmDefinitionId"/>: use that existing definition (picked from the list).
+/// <see cref="NewDefinition"/>: give an existing alarm the definition for the code and text sent ("Ny larmkod").
+/// </summary>
+public record SaveAlarmRequest(string Title, string? AlarmCode, string Severity, string? Description, int EquipmentId,
+    int? AlarmDefinitionId = null, bool NewDefinition = false);
 
 /// <summary><see cref="AlarmId"/> is for servers that predate shared solutions; newer ones use <see cref="AlarmIds"/>.</summary>
 public record CreateSolutionRequest(string Title, string? Content, int SortOrder, string? EstimatedTime, int AlarmId,

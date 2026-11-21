@@ -99,6 +99,50 @@ public sealed class AlarmDefinitionTests : IDisposable
     }
 
     [Fact]
+    public void Code_picker_lists_definitions_of_the_units_type_by_code()
+    {
+        var index = new AlarmIndex(Snapshot());
+
+        // T103 is a Härdugn: MAIN's (Övrigt) definition is not offered by default.
+        // By code, then text: M200.0 first, then the two M200.1 texts.
+        Assert.Equal([3, 2, 1], index.SearchDefinitions(null, equipmentId: 12).Select(o => o.Definition.Id));
+        Assert.Equal([2, 1], index.SearchDefinitions("200.1", equipmentId: 12).Select(o => o.Definition.Id));
+        Assert.Equal(["T101", "T102"], index.SearchDefinitions("200.1", equipmentId: 12).Single(o => o.Definition.Id == 1).Units);
+    }
+
+    [Theory]
+    [InlineData("elskap")]
+    [InlineData("ELSKÅP")]
+    [InlineData("temperatur elskåp")]
+    [InlineData("m200.1 temp")]
+    public void Code_picker_search_ignores_case_and_accents(string text)
+    {
+        var index = new AlarmIndex(Snapshot());
+
+        Assert.Equal([1, 2], index.SearchDefinitions(text, equipmentId: 12).Select(o => o.Definition.Id).Order());
+    }
+
+    [Fact]
+    public void Code_picker_disables_what_the_unit_cannot_use_and_says_why()
+    {
+        var index = new AlarmIndex(Snapshot());
+
+        var options = index.SearchDefinitions("200.1", equipmentId: 12);
+        Assert.Null(options.Single(o => o.Definition.Id == 1).DisabledReason);
+        Assert.Equal("Finns redan på T103", options.Single(o => o.Definition.Id == 2).DisabledReason);
+
+        // While editing T103's own alarm its current definition is not "already there".
+        Assert.Null(index.SearchDefinitions("200.1", equipmentId: 12, editingAlarmId: 102).Single(o => o.Definition.Id == 2).DisabledReason);
+
+        // "Visa alla typer" adds MAIN's definition, which only MAIN may use.
+        var all = index.SearchDefinitions("nödstopp", equipmentId: 12, allTypes: true);
+        Assert.Equal([3, 4], all.Select(o => o.Definition.Id));
+        Assert.Equal("Gäller bara MAIN", all.Single(o => o.Definition.Id == 4).DisabledReason);
+        Assert.Equal("Finns redan på MAIN", index.SearchDefinitions(null, equipmentId: 20).Single().DisabledReason);
+        Assert.Null(index.SearchDefinitions(null, equipmentId: 20, editingAlarmId: 105).Single().DisabledReason);
+    }
+
+    [Fact]
     public async Task Store_round_trips_definitions_and_their_links()
     {
         var store = new LocalStore(_dbPath);
