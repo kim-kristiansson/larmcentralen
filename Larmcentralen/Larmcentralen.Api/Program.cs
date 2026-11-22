@@ -50,6 +50,11 @@ builder.Services.AddScoped<SharePointUploadService>();
 builder.Services.AddScoped<ExportService>();
 builder.Services.AddScoped<SmsAlarmService>();
 builder.Services.AddHttpClient<IAlertSmsSender, ElksAlertSmsSender>();
+builder.Services.AddHttpClient<IElksSmsHistory, ElksSmsHistory>();
+builder.Services.AddSingleton<HandledSmsIds>();
+// Fetches new alarm SMS from 46elks, so the API needs no public address.
+builder.Services.AddSingleton<ElksSmsFetcher>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ElksSmsFetcher>());
 
 // Configurations
 builder.Services.Configure<EmailOptions>(

@@ -15,10 +15,18 @@ public partial class SmsAlarmService(
     IAlarmRepository alarmRepo,
     ISmsSettingsService settings,
     IAlertSmsSender alertSender,
+    HandledSmsIds handled,
     ILogger<SmsAlarmService> logger)
 {
-    public async Task ProcessSmsAsync(string? from, string? to, string? message)
+    /// <summary>Handles one SMS. <paramref name="id"/> is 46elks' id: an SMS seen before is skipped.</summary>
+    public async Task ProcessSmsAsync(string? from, string? to, string? message, string? id = null)
     {
+        if (!handled.TryMark(id))
+        {
+            logger.LogInformation("SMS {Id} already handled", id);
+            return;
+        }
+
         var check = await settings.CheckIncomingAsync(from, to);
         if (!check.Accepted)
         {

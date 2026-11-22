@@ -124,7 +124,11 @@ public record CreatedEntity(int Id);
 /// Settings for incoming alarm SMS (admin only, not synced): the 46elks number the alarm system sends to and the
 /// numbers it sends from, in international form (+46…). <see cref="LastSms"/> is null until an SMS has come in.
 /// </summary>
-public record SmsSettings(string? ElksNumber, List<string> SenderNumbers, LastSms? LastSms, DateTime? UpdatedAt);
+public record SmsSettings(string? ElksNumber, List<string> SenderNumbers, LastSms? LastSms, DateTime? UpdatedAt,
+    LastFetch? LastFetch = null);
+
+/// <summary>When the server last fetched new SMS from 46elks, and why it failed (in Swedish) when it did.</summary>
+public record LastFetch(DateTime At, string? Error);
 
 /// <summary>The last SMS the server got, and what happened to it (in Swedish).</summary>
 public record LastSms(DateTime ReceivedAt, string? From, bool Accepted, string Result);

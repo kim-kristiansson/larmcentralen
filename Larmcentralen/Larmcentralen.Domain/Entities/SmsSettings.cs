@@ -33,4 +33,16 @@ public class SmsSettings
 
     /// <summary>Whether it was accepted (from a known sender, to the right number).</summary>
     public bool LastSmsAccepted { get; set; }
+
+    /// <summary>
+    /// Fetching from 46elks' SMS history: incoming SMS created after this (UTC, 46elks' clock) are new. Null until
+    /// the first fetch, which only sets it, so old SMS in the history are never acted on.
+    /// </summary>
+    public DateTime? FetchedUntil { get; set; }
+
+    /// <summary>When the API last asked 46elks for new SMS.</summary>
+    public DateTime? LastFetchAt { get; set; }
+
+    /// <summary>Why the last fetch failed (Swedish), or null when it worked.</summary>
+    public string? LastFetchError { get; set; }
 }

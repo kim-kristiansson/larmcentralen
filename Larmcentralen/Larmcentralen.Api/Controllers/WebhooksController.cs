@@ -12,13 +12,13 @@ namespace Larmcentralen.Api.Controllers;
 public class WebhooksController(SmsAlarmService smsService) : ControllerBase
 {
     /// <summary>
-    /// 46elks posts each incoming SMS here (form fields from, to, message). Always an empty 200, also for SMS that
+    /// 46elks posts each incoming SMS here (form fields id, from, to, message). Always an empty 200, also for SMS that
     /// are turned away: 46elks would send any text in the response back to the sender as a reply SMS.
     /// </summary>
     [HttpPost("sms")]
-    public async Task<IActionResult> ReceiveSms([FromForm] string? from, [FromForm] string? to, [FromForm] string? message)
+    public async Task<IActionResult> ReceiveSms([FromForm] string? from, [FromForm] string? to, [FromForm] string? message, [FromForm] string? id)
     {
-        await smsService.ProcessSmsAsync(from, to, message);
+        await smsService.ProcessSmsAsync(from, to, message, id);
         return Ok();
     }
 }

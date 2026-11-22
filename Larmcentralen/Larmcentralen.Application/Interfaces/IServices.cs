@@ -83,4 +83,10 @@ public interface ISmsSettingsService
 
     /// <summary>Keeps what happened to the last SMS, for the admin page.</summary>
     Task RecordAsync(string? from, bool accepted, string result, DateTime? now = null);
+
+    /// <summary>The 46elks number and where fetching from 46elks' SMS history stopped last time.</summary>
+    Task<SmsFetchState> GetFetchStateAsync();
+
+    /// <summary>Keeps when 46elks was last asked and how it went; moves the fetch mark forward (never back).</summary>
+    Task RecordFetchAsync(DateTime at, DateTime? fetchedUntil, string? error);
 }

@@ -101,15 +101,27 @@ else
             {
                 <p class="muted">Inget SMS har kommit in ännu.</p>
             }
+            @if (_settings.LastFetch is { } fetch)
+            {
+                @if (fetch.Error is not null)
+                {
+                    <p class="error" role="alert">@fetch.Error</p>
+                }
+                <p class="muted">Hämtade från 46elks @Format.When(new DateTimeOffset(DateTime.SpecifyKind(fetch.At, DateTimeKind.Utc))).</p>
+            }
         </section>
 
         <section class="card setup" aria-labelledby="setup-title">
             <h2 id="setup-title">Koppla 46elks</h2>
             <p class="muted">
-                I 46elks, ange den här adressen som webhook för inkommande SMS (<em>sms_url</em>) på numret.
-                Hemligheten finns i serverns inställning <code>Security:SmsWebhookSecret</code>.
+                Servern hämtar nya SMS från 46elks av sig själv, med 46elks-kontot i serverns inställningar
+                (<code>Email:ElksUsername</code> och <code>Email:ElksPassword</code>). Ingen publik adress behövs,
+                och numret ska inte ha någon webhook (<em>sms_url</em>) i 46elks.
             </p>
-            <code class="url">https://&lt;serverns adress&gt;/api/webhooks/sms?secret=&lt;hemligheten&gt;</code>
+            <p class="muted">
+                Har servern en publik adress kan 46elks i stället skicka SMS direkt till
+                <code class="url">https://&lt;serverns adress&gt;/api/webhooks/sms?secret=&lt;Security:SmsWebhookSecret&gt;</code>
+            </p>
         </section>
     }
 }

@@ -77,6 +77,22 @@ public class SmsSettingsService(ISmsSettingsRepository repo) : ISmsSettingsServi
         await repo.SaveChangesAsync();
     }
 
+    public async Task<SmsFetchState> GetFetchStateAsync()
+    {
+        var settings = await repo.GetAsync();
+        return new SmsFetchState(settings.ElksNumber, settings.FetchedUntil);
+    }
+
+    public async Task RecordFetchAsync(DateTime at, DateTime? fetchedUntil, string? error)
+    {
+        var settings = await repo.GetAsync();
+        settings.LastFetchAt = at;
+        settings.LastFetchError = Truncate(error, 500);
+        if (fetchedUntil is { } until && (settings.FetchedUntil is null || until > settings.FetchedUntil))
+            settings.FetchedUntil = until;
+        await repo.SaveChangesAsync();
+    }
+
     private static string Show(string? number) => string.IsNullOrWhiteSpace(number) ? "okänt nummer" : number.Trim();
 
     private static string? Truncate(string? value, int max)
@@ -86,5 +102,6 @@ public class SmsSettingsService(ISmsSettingsRepository repo) : ISmsSettingsServi
         s.ElksNumber,
         [.. s.SenderNumbers],
         s.LastSmsAt is { } at ? new LastSmsDto(at, s.LastSmsFrom, s.LastSmsAccepted, s.LastSmsResult ?? "") : null,
-        s.UpdatedAt);
+        s.UpdatedAt,
+        s.LastFetchAt is { } fetched ? new LastFetchDto(fetched, s.LastFetchError) : null);
 }

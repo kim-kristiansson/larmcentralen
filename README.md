@@ -84,19 +84,22 @@ Everything under `/api` requires a key:
 
 ### Alarm SMS (46elks)
 
-The plant's alarm system (OCSS) sends alarms by SMS to a 46elks number. 46elks posts each one to the
-webhook above (set it as the number's `sms_url` in 46elks). The API acts only on SMS **from** one of the
+The plant's alarm system (OCSS) sends alarms by SMS to a 46elks number. The API fetches new SMS from
+46elks' SMS history (`GET https://api.46elks.com/a1/sms`) every `Email:FetchIntervalSeconds` seconds
+(default 15), with the 46elks account below. It only calls out, so it needs **no public address**, and
+the number needs no `sms_url`. The first fetch only marks where the history ends, so older SMS are never
+acted on. If the API does get a public address, 46elks can post to the webhook above instead (set it as
+the number's `sms_url`, and `Email:FetchIntervalSeconds` to 0 if you like). An SMS that arrives both ways is
+handled once. The API acts only on SMS **from** one of the
 alarm system's numbers **to** the 46elks number. Admins set both in the app under
 Inställningar → SMS-larm (`GET/PUT /api/settings/sms`, admin key). Until both are set every SMS is turned
 away. Numbers can be typed any Swedish way (`070-123 45 67`, `+46 70 123 45 67`) and are stored as `+4670…`.
 
 An accepted SMS is matched to an alarm by unit and code (`… Line : T102 : M206.6 …`); for a Hög or
 Kritisk alarm an alert SMS goes to `Email:AlertRecipient` through the 46elks account
-(`Email:ElksUsername`, `Email:ElksPassword`). Leave those empty to receive without sending alerts. The
-page shows the last SMS and what happened to it; nothing else is logged. The webhook always answers an
-empty 200, because 46elks sends any text in the response back to the sender as a reply.
-
-46elks must be able to reach the webhook from the internet over HTTPS, so the API needs a public address.
+(`Email:ElksUsername`, `Email:ElksPassword`, both needed for fetching too). The page shows the last SMS,
+what happened to it and the last fetch (or why it failed); nothing else is logged. The webhook always
+answers an empty 200, because 46elks sends any text in the response back to the sender as a reply.
 
 In Development the API runs without keys if none are set (it logs a warning). In any other
 environment it refuses to start until all three (`Security:ApiKey`, `Security:AdminApiKey`,

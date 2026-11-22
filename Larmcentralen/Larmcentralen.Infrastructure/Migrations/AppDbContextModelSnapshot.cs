@@ -15,7 +15,7 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261122031240_AddSmsSettings";
+    public override string LastMigrationId => "20261122033621_AddSmsFetch";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -200,6 +200,16 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
 
                 b.Property<string>("ElksNumber")
                     .HasMaxLength(20)
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTime?>("FetchedUntil")
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTime?>("LastFetchAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("LastFetchError")
+                    .HasMaxLength(500)
                     .HasColumnType("TEXT");
 
                 b.Property<bool>("LastSmsAccepted")

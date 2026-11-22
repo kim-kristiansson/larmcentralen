@@ -13,6 +13,9 @@ public class EmailOptions
 
     /// <summary>Who gets the alert SMS for Hög and Kritisk alarms (+46…).</summary>
     public string AlertRecipient { get; set; } = "";
+
+    /// <summary>How often new SMS are fetched from 46elks' SMS history, in seconds. 0 turns fetching off (webhook only).</summary>
+    public int FetchIntervalSeconds { get; set; } = 15;
 }
 
 /// <summary>Sends the alert SMS for a serious alarm. Replaced in tests.</summary>
