@@ -70,3 +70,17 @@ public interface IAlarmCodeService
     Task<List<AlarmCodeDto>> GetAllAsync();
     Task<(WriteStatus Status, AlarmCodeDto? Code, string? Error)> CreateAsync(CreateAlarmCodeDto dto);
 }
+
+public interface ISmsSettingsService
+{
+    Task<SmsSettingsDto> GetAsync();
+
+    /// <summary>Normalises and saves the numbers. Invalid (with a Swedish reason) for a number that isn't Swedish.</summary>
+    Task<WriteResult<SmsSettingsDto>> UpdateAsync(UpdateSmsSettingsDto dto, DateTime? now = null);
+
+    /// <summary>Accepted only from a configured sender to the configured 46elks number.</summary>
+    Task<SmsCheck> CheckIncomingAsync(string? from, string? to);
+
+    /// <summary>Keeps what happened to the last SMS, for the admin page.</summary>
+    Task RecordAsync(string? from, bool accepted, string result, DateTime? now = null);
+}

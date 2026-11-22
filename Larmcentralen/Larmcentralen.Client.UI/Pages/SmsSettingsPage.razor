@@ -1,0 +1,190 @@
+@page "/installningar/sms"
+@inherits KnowledgeBaseComponent
+@using Larmcentralen.Client.Core.Api
+
+<PageTitle>SMS-larm · Larmcentralen</PageTitle>
+
+<p class="back"><a href="installningar">← Tillbaka till inställningar</a></p>
+<h1 class="page-title">SMS-larm</h1>
+
+@if (!CanEdit)
+{
+    <NoEditAccess />
+}
+else
+{
+    <p class="muted intro">
+        Larmsystemet (OCSS på SQ-linjen) skickar sina larm som SMS till ett nummer hos 46elks, som skickar dem vidare
+        till servern. Servern tar bara emot SMS från avsändarna nedan till 46elks-numret. Alla andra SMS avvisas.
+    </p>
+
+    @if (!IsOnline)
+    {
+        <p class="notice">SMS-inställningarna kräver anslutning till servern.</p>
+    }
+    else if (_settings is null)
+    {
+        @if (_error is not null)
+        {
+            <p class="error" role="alert">@_error</p>
+        }
+        else
+        {
+            <p class="muted">Hämtar SMS-inställningarna…</p>
+        }
+    }
+    else
+    {
+        @if (_settings.ElksNumber is null || _settings.SenderNumbers.Count == 0)
+        {
+            <p class="notice">Inga SMS tas emot förrän både 46elks-numret och minst en avsändare är inställda.</p>
+        }
+
+        <form class="form" @onsubmit="SaveAsync" @onsubmit:preventDefault>
+            <label>
+                <span>46elks-nummer</span>
+                <input @bind="_elksNumber" @bind:event="oninput" placeholder="t.ex. 0766-86 10 00" inputmode="tel" autocomplete="off" />
+                <span class="muted hint">Numret hos 46elks som larmsystemet skickar sina SMS till.</span>
+            </label>
+
+            <div class="field">
+                <span class="field-label">Avsändare</span>
+                <span class="muted hint">Numren som larmsystemet skickar från. Skriv som 070-123 45 67 eller +46 70 123 45 67.</span>
+                @if (_senders.Count == 0)
+                {
+                    <p class="muted empty">Inga avsändare ännu.</p>
+                }
+                <ul class="senders">
+                    @foreach (var sender in _senders)
+                    {
+                        <li class="sender">
+                            <input @bind="sender.Number" @bind:event="oninput" placeholder="t.ex. 070-123 45 67"
+                                   inputmode="tel" autocomplete="off" aria-label="Avsändarens nummer" />
+                            <button type="button" class="btn btn-small btn-danger-outline" disabled="@_saving"
+                                    @onclick="@(() => _senders.Remove(sender))">Ta bort</button>
+                        </li>
+                    }
+                </ul>
+                <div>
+                    <button type="button" class="btn btn-small" disabled="@_saving" @onclick="AddSender">Lägg till avsändare</button>
+                </div>
+            </div>
+
+            @if (_error is not null)
+            {
+                <p class="error" role="alert">@_error</p>
+            }
+            @if (_message is not null)
+            {
+                <p class="success" role="status">@_message</p>
+            }
+            <div class="form-actions">
+                <OnlineButton Type="submit" Class="btn btn-primary" Disabled="_saving">@(_saving ? "Sparar…" : "Spara")</OnlineButton>
+            </div>
+        </form>
+
+        <section class="card last" aria-labelledby="last-title">
+            <div class="last-head">
+                <h2 id="last-title">Senaste SMS</h2>
+                <button type="button" class="btn btn-small" disabled="@_saving" @onclick="RefreshAsync">Uppdatera</button>
+            </div>
+            @if (_settings.LastSms is { } last)
+            {
+                <p class="last-state">
+                    <span class="dot @(last.Accepted ? "ok" : "off")" aria-hidden="true"></span>
+                    <strong>@(last.Accepted ? "Mottaget" : "Avvisat")</strong>
+                    <span class="muted">· @Format.When(new DateTimeOffset(DateTime.SpecifyKind(last.ReceivedAt, DateTimeKind.Utc))) från @(last.From ?? "okänt nummer")</span>
+                </p>
+                <p class="last-result">@last.Result</p>
+            }
+            else
+            {
+                <p class="muted">Inget SMS har kommit in ännu.</p>
+            }
+        </section>
+
+        <section class="card setup" aria-labelledby="setup-title">
+            <h2 id="setup-title">Koppla 46elks</h2>
+            <p class="muted">
+                I 46elks, ange den här adressen som webhook för inkommande SMS (<em>sms_url</em>) på numret.
+                Hemligheten finns i serverns inställning <code>Security:SmsWebhookSecret</code>.
+            </p>
+            <code class="url">https://&lt;serverns adress&gt;/api/webhooks/sms?secret=&lt;hemligheten&gt;</code>
+        </section>
+    }
+}
+
+@code {
+    private sealed class SenderRow
+    {
+        public string Number { get; set; } = "";
+    }
+
+    private SmsSettings? _settings;
+    private string _elksNumber = "";
+    private List<SenderRow> _senders = [];
+    private bool _saving;
+    private bool _loadedOnline;
+    private string? _message;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await RefreshAsync();
+
+    /// <summary>Loads the settings the first time the server can be reached (the page may open offline).</summary>
+    protected override void Load()
+    {
+        if (CanEdit && IsOnline && !_loadedOnline && _settings is null && !_saving) _ = InvokeAsync(RefreshAsync);
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (!CanEdit || !IsOnline) return;
+        try
+        {
+            var settings = await Kb.CallApiAsync((api, ct) => api.GetSmsSettingsAsync(ct));
+            // Keep what the admin is typing: only fill the form the first time.
+            if (_settings is null) Fill(settings);
+            else _settings = _settings with { LastSms = settings.LastSms };
+            _loadedOnline = true;
+            _error = null;
+        }
+        catch (Exception ex)
+        {
+            _error = $"SMS-inställningarna kunde inte hämtas. {Reason(ex)}";
+        }
+        StateHasChanged();
+    }
+
+    private void Fill(SmsSettings settings)
+    {
+        _settings = settings;
+        _elksNumber = settings.ElksNumber ?? "";
+        _senders = settings.SenderNumbers.Select(n => new SenderRow { Number = n }).ToList();
+    }
+
+    private void AddSender() => _senders.Add(new SenderRow());
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _message = _error = null;
+        try
+        {
+            var request = new SmsSettingsRequest(
+                _elksNumber.Trim(),
+                _senders.Select(s => s.Number.Trim()).Where(n => n.Length > 0).ToList());
+            Fill(await Kb.CallApiAsync((api, ct) => api.UpdateSmsSettingsAsync(request, ct)));
+            _message = "SMS-inställningarna är sparade.";
+        }
+        catch (Exception ex)
+        {
+            _error = $"SMS-inställningarna kunde inte sparas. {Reason(ex)}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private static string Reason(Exception ex) => ex is ApiException { Detail: { } detail } ? detail : ex.Message;
+}

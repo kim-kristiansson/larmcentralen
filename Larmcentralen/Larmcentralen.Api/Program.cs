@@ -32,6 +32,7 @@ builder.Services.AddScoped<IAlarmRepository, AlarmRepository>();
 builder.Services.AddScoped<ISolutionRepository, SolutionRepository>();
 builder.Services.AddScoped<IAlarmCodeRepository, AlarmCodeRepository>();
 builder.Services.AddScoped<ITrashRepository, TrashRepository>();
+builder.Services.AddScoped<ISmsSettingsRepository, SmsSettingsRepository>();
 
 // Services
 builder.Services.AddScoped<IAreaService, AreaService>();
@@ -41,12 +42,14 @@ builder.Services.AddScoped<ISolutionService, SolutionService>();
 builder.Services.AddScoped<IAlarmCodeService, AlarmCodeService>();
 builder.Services.AddScoped<ISyncService, SyncService>();
 builder.Services.AddScoped<ITrashService, TrashService>();
+builder.Services.AddScoped<ISmsSettingsService, SmsSettingsService>();
 // Erases what has been in the bin (Papperskorg) longer than 30 days.
 builder.Services.AddHostedService<TrashEraseService>();
 builder.Services.AddScoped<ISharePointSyncService, SharePointSyncService>();
 builder.Services.AddScoped<SharePointUploadService>();
 builder.Services.AddScoped<ExportService>();
 builder.Services.AddScoped<SmsAlarmService>();
+builder.Services.AddHttpClient<IAlertSmsSender, ElksAlertSmsSender>();
 
 // Configurations
 builder.Services.Configure<EmailOptions>(

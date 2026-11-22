@@ -15,7 +15,7 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261122024237_AddTrash";
+    public override string LastMigrationId => "20261122031240_AddSmsSettings";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -191,6 +191,41 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                 b.HasIndex("TrashBatchId");
 
                 b.ToTable("Equipment");
+            });
+
+        modelBuilder.Entity("Larmcentralen.Domain.Entities.SmsSettings", b =>
+            {
+                b.Property<int>("Id")
+                    .HasColumnType("INTEGER");
+
+                b.Property<string>("ElksNumber")
+                    .HasMaxLength(20)
+                    .HasColumnType("TEXT");
+
+                b.Property<bool>("LastSmsAccepted")
+                    .HasColumnType("INTEGER");
+
+                b.Property<DateTime?>("LastSmsAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("LastSmsFrom")
+                    .HasMaxLength(50)
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("LastSmsResult")
+                    .HasMaxLength(500)
+                    .HasColumnType("TEXT");
+
+                b.PrimitiveCollection<string>("SenderNumbers")
+                    .IsRequired()
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTime?>("UpdatedAt")
+                    .HasColumnType("TEXT");
+
+                b.HasKey("Id");
+
+                b.ToTable("SmsSettings");
             });
 
         modelBuilder.Entity("Larmcentralen.Domain.Entities.Solution", b =>

@@ -91,6 +91,20 @@ public class AlarmRepository(AppDbContext db) : Repository<Alarm>(db), IAlarmRep
             .ToListAsync();
     }
 
+    public async Task<Alarm?> FindByCodeAsync(string equipmentTitle, string code)
+    {
+        var normalisedCode = AlarmText.NormaliseCode(code);
+        var unit = equipmentTitle.Trim().ToLowerInvariant();
+        if (normalisedCode is null || unit.Length == 0) return null;
+
+        return await Db.Alarms
+            .Include(a => a.Equipment)
+            .ThenInclude(e => e.Area)
+            .Include(a => a.AlarmCode)
+            .FirstOrDefaultAsync(a => a.AlarmCode != null && a.AlarmCode.Code == normalisedCode
+                                      && a.Equipment.Title.ToLower() == unit);
+    }
+
     private static string EscapeLike(string term) =>
         term.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
 }

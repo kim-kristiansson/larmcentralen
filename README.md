@@ -82,6 +82,22 @@ Everything under `/api` requires a key:
 - The 46elks SMS webhook can't send headers, so it uses its own secret in the URL:
   `https://<api-host>/api/webhooks/sms?secret=<Security:SmsWebhookSecret>`.
 
+### Alarm SMS (46elks)
+
+The plant's alarm system (OCSS) sends alarms by SMS to a 46elks number. 46elks posts each one to the
+webhook above (set it as the number's `sms_url` in 46elks). The API acts only on SMS **from** one of the
+alarm system's numbers **to** the 46elks number. Admins set both in the app under
+Inställningar → SMS-larm (`GET/PUT /api/settings/sms`, admin key). Until both are set every SMS is turned
+away. Numbers can be typed any Swedish way (`070-123 45 67`, `+46 70 123 45 67`) and are stored as `+4670…`.
+
+An accepted SMS is matched to an alarm by unit and code (`… Line : T102 : M206.6 …`); for a Hög or
+Kritisk alarm an alert SMS goes to `Email:AlertRecipient` through the 46elks account
+(`Email:ElksUsername`, `Email:ElksPassword`). Leave those empty to receive without sending alerts. The
+page shows the last SMS and what happened to it; nothing else is logged. The webhook always answers an
+empty 200, because 46elks sends any text in the response back to the sender as a reply.
+
+46elks must be able to reach the webhook from the internet over HTTPS, so the API needs a public address.
+
 In Development the API runs without keys if none are set (it logs a warning). In any other
 environment it refuses to start until all three (`Security:ApiKey`, `Security:AdminApiKey`,
 `Security:SmsWebhookSecret`) are set. It also refuses to start if the two API keys are the same.

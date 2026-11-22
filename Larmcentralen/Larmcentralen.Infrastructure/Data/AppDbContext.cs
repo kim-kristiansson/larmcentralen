@@ -13,6 +13,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AlarmSolution> AlarmSolutions => Set<AlarmSolution>();
     public DbSet<AlarmCode> AlarmCodes => Set<AlarmCode>();
     public DbSet<TrashBatch> TrashBatches => Set<TrashBatch>();
+    public DbSet<SmsSettings> SmsSettings => Set<SmsSettings>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -24,6 +25,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // One row: the numbers incoming alarm SMS must come from and go to. Not part of the sync (admin only).
+        modelBuilder.Entity<SmsSettings>(e =>
+        {
+            e.ToTable("SmsSettings");
+            e.Property(s => s.Id).ValueGeneratedNever();
+            e.Property(s => s.ElksNumber).HasMaxLength(20);
+            e.Property(s => s.LastSmsFrom).HasMaxLength(50);
+            e.Property(s => s.LastSmsResult).HasMaxLength(500);
+            // Stored as a JSON array.
+            e.PrimitiveCollection(s => s.SenderNumbers);
+        });
+
         // The bin (Papperskorg): rows marked with a TrashBatchId are hidden from every query, so the API, the sync
         // snapshot (and with it every offline PC) and search all leave them out. Only TrashRepository looks past
         // the filters, with IgnoreQueryFilters().

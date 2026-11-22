@@ -1,90 +1,81 @@
 ﻿using System.Text.RegularExpressions;
-using Larmcentralen.Application.Services;
+using Larmcentralen.Application.Interfaces;
+using Larmcentralen.Domain.Entities;
 using Larmcentralen.Domain.Interfaces;
-using Microsoft.Extensions.Options;
+
 namespace Larmcentralen.Api.Services;
 
-public class EmailOptions
-{
-    public string ElksUsername { get; set; } = "";
-    public string ElksPassword { get; set; } = "";
-    public string AlertRecipient { get; set; } = "";
-}
-
-public class SmsAlarmService(
+/// <summary>
+/// Handles an alarm SMS from the plant's alarm system (OCSS), passed on by 46elks. Only SMS from a configured sender
+/// to the configured 46elks number count (Inställningar, SMS-larm). The alarm is looked up in the knowledge base by
+/// unit and code; for a Hög or Kritisk alarm an alert SMS goes to <see cref="EmailOptions.AlertRecipient"/>.
+/// What happened to the last SMS is kept for the admin page.
+/// </summary>
+public partial class SmsAlarmService(
     IAlarmRepository alarmRepo,
-    IOptions<EmailOptions> emailOptions,
-    IOptions<SharePointOptions> spOptions,
+    ISmsSettingsService settings,
+    IAlertSmsSender alertSender,
     ILogger<SmsAlarmService> logger)
 {
-    private readonly EmailOptions _email = emailOptions.Value;
-    private readonly SharePointOptions _sp = spOptions.Value;
-
-    public async Task ProcessSmsAsync(string from, string message)
+    public async Task ProcessSmsAsync(string? from, string? to, string? message)
     {
-        logger.LogInformation("SMS received from {From}: {Message}", from, message);
-
-        var parsed = ParseSms(message);
-        if (parsed is null)
+        var check = await settings.CheckIncomingAsync(from, to);
+        if (!check.Accepted)
         {
-            logger.LogWarning("Could not parse SMS: {Message}", message);
+            logger.LogWarning("SMS from {From} to {To} turned away: {Reason}", from, to, check.Reason);
+            await settings.RecordAsync(from, false, check.Reason!);
             return;
         }
 
-        var (equipment, alarmCode, description) = parsed.Value;
+        logger.LogInformation("SMS received from {From}: {Message}", from, message);
+        await settings.RecordAsync(from, true, await HandleAsync(message));
+    }
 
-        // Look up alarm in database
-        var alarms = await alarmRepo.SearchAsync(alarmCode, null, null, null, 0, 5);
-        var alarm = alarms.FirstOrDefault(a =>
-            a.AlarmCode?.Code == alarmCode &&
-            a.Equipment.Title.Equals(equipment, StringComparison.OrdinalIgnoreCase));
+    /// <summary>What happened, in Swedish, for the admin page.</summary>
+    private async Task<string> HandleAsync(string? message)
+    {
+        if (ParseSms(message) is not var (equipment, alarmCode, description))
+        {
+            logger.LogWarning("Could not parse SMS: {Message}", message);
+            return "Texten känns inte igen som ett larm (väntade \"… Line : T102 : M206.6 …\").";
+        }
 
+        var alarm = await alarmRepo.FindByCodeAsync(equipment, alarmCode);
         if (alarm is null)
         {
             logger.LogInformation("Alarm {Code} on {Equipment} not found in database", alarmCode, equipment);
-            return;
+            return $"{alarmCode} på {equipment} finns inte i larmcentralen.";
         }
 
-        if (alarm.Severity is not ("Hög" or "Kritisk"))
+        var code = alarm.AlarmCode!.Code;
+        var unit = alarm.Equipment.Title;
+        if (AlarmText.SeverityRank(alarm.Severity) < AlarmText.SeverityRank("Hög"))
         {
-            logger.LogInformation("Alarm {Code} on {Equipment} is {Severity} — ignoring", alarmCode, equipment, alarm.Severity);
-            return;
+            logger.LogInformation("Alarm {Code} on {Equipment} is {Severity}, no alert", code, unit, alarm.Severity);
+            return $"{code} på {unit} ({alarm.Severity}). Ingen avisering för den nivån.";
         }
 
-        // Send alert email
-        await SendAlertSmsAsync(alarm.Equipment.Title, alarm.AlarmCode!.Code, alarm.Title, alarm.Severity, description);
-        logger.LogInformation("Alert email sent for {Severity} alarm: {Code} on {Equipment}", alarm.Severity, alarmCode, equipment);
+        var text = $"🚨 {alarm.Severity}: {code} på {unit}\n{alarm.Title}\n{description}".TrimEnd();
+        var sent = await alertSender.SendAsync(text);
+        logger.LogInformation("Alert for {Severity} alarm {Code} on {Equipment} sent: {Sent}", alarm.Severity, code, unit, sent);
+        return sent
+            ? $"{code} på {unit} ({alarm.Severity}). Avisering skickad."
+            : $"{code} på {unit} ({alarm.Severity}). Aviseringen kunde inte skickas, se serverns logg.";
     }
 
-    private static (string Equipment, string AlarmCode, string Description)? ParseSms(string message)
+    /// <summary>
+    /// The unit, the code and the rest of the text. OCSS writes them as
+    /// "06:56 / T10-T7 Line : T102 : M206.6 Ingen svarssignal tandbrännare ytterlucka".
+    /// </summary>
+    public static (string Equipment, string AlarmCode, string Description)? ParseSms(string? message)
     {
-        // Format: "06:56 / T10-T7 Line : T102 : M206.6 Ingen svarssignal tandbrännare ytterlucka"
-        var match = Regex.Match(message, @"Line\s*:\s*(\w+)\s*:\s*(\S+)\s*(.*)");
+        if (string.IsNullOrWhiteSpace(message)) return null;
+        var match = AlarmPattern().Match(message);
         if (!match.Success) return null;
 
-        return (
-            match.Groups[1].Value.Trim(),
-            match.Groups[2].Value.Trim(),
-            match.Groups[3].Value.Trim()
-        );
+        return (match.Groups[1].Value.Trim(), match.Groups[2].Value.Trim(), match.Groups[3].Value.Trim());
     }
 
-    private async Task SendAlertSmsAsync(string equipment, string alarmCode, string title, string severity, string description)
-    {
-        using var client = new HttpClient();
-        var auth = Convert.ToBase64String(
-            System.Text.Encoding.UTF8.GetBytes($"{_email.ElksUsername}:{_email.ElksPassword}"));
-
-        var content = new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            { "from", "Larmcentral" },
-            { "to", _email.AlertRecipient },
-            { "message", $"🚨 {severity}: {alarmCode} på {equipment}\n{title}\n{description}" }
-        });
-
-        client.DefaultRequestHeaders.Add("Authorization", $"Basic {auth}");
-        var response = await client.PostAsync("https://api.46elks.com/a1/sms", content);
-        var body = await response.Content.ReadAsStringAsync();
-        logger.LogInformation("46elks response: {Status} {Body}", response.StatusCode, body);
-    }
+    [GeneratedRegex(@"Line\s*:\s*(\w+)\s*:\s*(\S+)\s*(.*)", RegexOptions.Singleline)]
+    private static partial Regex AlarmPattern();
 }

@@ -168,6 +168,20 @@ public class LarmApiClient(HttpClient http)
         await EnsureSuccessAsync(response, ct);
     }
 
+    /// <summary>Settings for incoming alarm SMS (admin only). Not part of the sync: it needs a connection.</summary>
+    public async Task<SmsSettings> GetSmsSettingsAsync(CancellationToken ct = default)
+        => await http.GetFromJsonAsync<SmsSettings>("api/settings/sms", ct)
+           ?? throw new InvalidOperationException("The API returned empty SMS settings.");
+
+    /// <summary>Saves them. 400 (with a reason) when a number isn't a Swedish phone number.</summary>
+    public async Task<SmsSettings> UpdateSmsSettingsAsync(SmsSettingsRequest request, CancellationToken ct = default)
+    {
+        using var response = await http.PutAsJsonAsync("api/settings/sms", request, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<SmsSettings>(ct)
+               ?? throw new InvalidOperationException("The API returned empty SMS settings.");
+    }
+
     /// <summary>Downloads the alarm and its solutions as a .docx.</summary>
     public async Task<(byte[] Bytes, string FileName)> ExportAlarmAsync(int alarmId, CancellationToken ct = default)
     {

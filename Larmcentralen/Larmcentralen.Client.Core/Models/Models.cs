@@ -120,5 +120,17 @@ public record TrashItem(int Id, string Kind, int ItemId, string Title, string? A
 
 public record CreatedEntity(int Id);
 
+/// <summary>
+/// Settings for incoming alarm SMS (admin only, not synced): the 46elks number the alarm system sends to and the
+/// numbers it sends from, in international form (+46…). <see cref="LastSms"/> is null until an SMS has come in.
+/// </summary>
+public record SmsSettings(string? ElksNumber, List<string> SenderNumbers, LastSms? LastSms, DateTime? UpdatedAt);
+
+/// <summary>The last SMS the server got, and what happened to it (in Swedish).</summary>
+public record LastSms(DateTime ReceivedAt, string? From, bool Accepted, string Result);
+
+/// <summary>A change to the SMS settings. Numbers may be written any Swedish way; the server normalises them.</summary>
+public record SmsSettingsRequest(string ElksNumber, List<string> SenderNumbers);
+
 /// <summary>Response of GET /api/me: what this app's API key may do. Only admins can edit.</summary>
 public record AccessInfo(string Role, bool CanEdit);
