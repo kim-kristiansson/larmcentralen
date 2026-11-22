@@ -3,24 +3,24 @@
 @inherits KnowledgeBaseComponent
 @inject NavigationManager Nav
 
-<PageTitle>@(IsNew ? "Ny lösning" : "Redigera lösning") · Larmcentralen</PageTitle>
+<PageTitle>@(IsNew ? "Ny åtgärd" : "Redigera åtgärd") · Larmcentralen</PageTitle>
 
 <p class="back"><a href="@BackUrl">← @(_alarm is null ? "Tillbaka till sökningen" : "Tillbaka till larmet")</a></p>
 
 @if (!CanEdit)
 {
-    <h1 class="page-title">@(IsNew ? "Ny lösning" : "Redigera lösning")</h1>
+    <h1 class="page-title">@(IsNew ? "Ny åtgärd" : "Redigera åtgärd")</h1>
     <NoEditAccess />
 }
 else if (_alarm is null || (!IsNew && !_solutionFound))
 {
-    <h1 class="page-title">@(IsNew ? "Ny lösning" : "Redigera lösning")</h1>
-    <p class="muted">@(_alarm is null ? "Larmet finns inte." : "Lösningen finns inte.")</p>
+    <h1 class="page-title">@(IsNew ? "Ny åtgärd" : "Redigera åtgärd")</h1>
+    <p class="muted">@(_alarm is null ? "Larmet finns inte." : "Åtgärden finns inte.")</p>
 }
 else
 {
     var current = _alarm;
-    <h1 class="page-title">@(IsNew ? "Ny lösning" : "Redigera lösning")</h1>
+    <h1 class="page-title">@(IsNew ? "Ny åtgärd" : "Redigera åtgärd")</h1>
     <p class="muted">För larm <strong>@(current.Alarm.AlarmCode is null ? "" : $"{current.Alarm.AlarmCode} · ")@current.Alarm.Title</strong> på @UnitLabel(current)</p>
 
     @if (!IsOnline)
@@ -36,7 +36,7 @@ else
             {
                 <p>
                     <OnlineButton Class="btn btn-small" OnClick="DetachAsync" Disabled="_saving"
-                                  Title="Kopierar lösningen till bara det här larmet. De andra enheterna behåller originalet.">Gör en egen kopia för den här enheten</OnlineButton>
+                                  Title="Kopierar åtgärden till bara det här larmet. De andra enheterna behåller originalet.">Gör en egen kopia för den här enheten</OnlineButton>
                 </p>
             }
         </div>
@@ -63,7 +63,7 @@ else
         </div>
 
         <div class="field">
-            <span class="field-label">Lösning, steg för steg</span>
+            <span class="field-label">Åtgärd, steg för steg</span>
             <QuillEditor @ref="_editor" InitialHtml="@_initialHtml" />
         </div>
 
@@ -71,7 +71,7 @@ else
         {
             <fieldset class="also-for">
                 <legend>Gäller även</legend>
-                <p class="muted hint">Bocka i andra larm som har samma fel. Lösningen visas då på alla, och en ändring gäller alla.</p>
+                <p class="muted hint">Bocka i andra larm som har samma fel. Åtgärden visas då på alla, och en ändring gäller alla.</p>
 
                 @if (SameCodeSiblings() is { Count: > 0 } sameCode)
                 {
@@ -350,7 +350,7 @@ else
         }
         catch (Exception ex)
         {
-            _error = $"Lösningen kunde inte sparas. {ex.Message}";
+            _error = $"Åtgärden kunde inte sparas. {ex.Message}";
         }
         finally
         {

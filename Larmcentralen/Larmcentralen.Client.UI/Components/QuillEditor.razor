@@ -12,7 +12,7 @@
 
     /// <summary>The HTML the editor starts with. Read the current HTML with <see cref="GetHtmlAsync"/>.</summary>
     [Parameter] public string? InitialHtml { get; set; }
-    [Parameter] public string Placeholder { get; set; } = "Skriv lösningen här…";
+    [Parameter] public string Placeholder { get; set; } = "Skriv åtgärden här…";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

@@ -93,7 +93,7 @@ public class SolutionService(ISolutionRepository repo, IAlarmRepository alarms) 
         var link = solution?.Alarms.FirstOrDefault(a => a.Id == alarmId);
         if (solution is null || link is null) return SolutionWriteResult.NotFound();
         if (solution.Alarms.Count == 1)
-            return SolutionWriteResult.Conflict("Lösningen gäller bara det här larmet. Ta bort lösningen i stället.");
+            return SolutionWriteResult.Conflict("Åtgärden gäller bara det här larmet. Ta bort åtgärden i stället.");
 
         solution.Alarms.Remove(link);
         solution.UpdatedAt = DateTime.UtcNow;
@@ -132,7 +132,7 @@ public class SolutionService(ISolutionRepository repo, IAlarmRepository alarms) 
     private async Task<(List<Alarm>? Alarms, string? Error)> ResolveAlarmsAsync(List<int>? ids)
     {
         if (ids is null || ids.Count == 0)
-            return (null, "Ange minst ett larm som lösningen gäller.");
+            return (null, "Ange minst ett larm som åtgärden gäller.");
 
         var distinct = ids.Distinct().ToList();
         var found = await alarms.GetByIdsAsync(distinct);
