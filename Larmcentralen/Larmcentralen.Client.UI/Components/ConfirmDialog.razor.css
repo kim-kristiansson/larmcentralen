@@ -1,5 +1,6 @@
 .dialog-backdrop { position: fixed; inset: 0; background: var(--scrim); display: grid; place-items: center; z-index: 10; padding: var(--space-5); }
 .dialog { background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); max-width: 480px; width: 100%; box-shadow: var(--shadow-2); }
-.dialog h2 { margin-top: 0; text-transform: lowercase; font-size: var(--text-xl); }
+/* No lowercase here (unlike page titles): the title often names something, like "Ta bort N1?", and names keep their case. */
+.dialog h2 { margin-top: 0; font-size: var(--text-xl); }
 .dialog p { font-size: var(--text-lg); color: var(--ink-soft); }
 .dialog .actions { justify-content: flex-end; margin-top: var(--space-5); }
