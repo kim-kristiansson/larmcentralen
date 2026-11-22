@@ -1,0 +1,22 @@
+/* Looks like the search page's other filter dropdowns (see Search.razor.css). */
+.code-filter { position: relative; display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.code-filter label { font-size: var(--text-xs); color: var(--ink-soft); font-weight: 600; }
+.code-filter input {
+  min-height: var(--control-h); width: 100%; font: inherit; font-size: var(--text-md); color: var(--ink);
+  padding: 0 32px 0 var(--space-2); border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface);
+  /* A chevron, so it reads as a dropdown like its neighbours. */
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%), linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
+  background-position: calc(100% - 17px) 50%, calc(100% - 12px) 50%; background-size: 5px 5px; background-repeat: no-repeat;
+}
+.code-filter input::placeholder { color: var(--ink); opacity: 1; }
+.code-filter.set input { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); background-color: var(--surface-2); font-weight: 600; }
+.code-filter-list {
+  list-style: none; margin: var(--space-1) 0 0; padding: var(--space-1); max-height: 320px; overflow-y: auto;
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 5; min-width: 180px;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow-2);
+}
+.code-filter-list li { padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); cursor: pointer; font-family: var(--font-mono); font-size: var(--text-md); color: var(--ink); }
+.code-filter-list li.special { font-family: var(--font-ui); color: var(--ink-soft); }
+.code-filter-list li.current { font-weight: 700; }
+.code-filter-list li.active { background: var(--surface-2); outline: 2px solid var(--focus); outline-offset: -2px; }
+.code-filter-list li.empty { cursor: default; font-family: var(--font-ui); color: var(--muted); }

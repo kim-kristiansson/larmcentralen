@@ -3,7 +3,6 @@
 .also-for legend { font-weight: 600; font-size: var(--text-md); padding: 0 var(--space-2); }
 .also-for .hint { margin: 0; font-size: var(--text-sm); }
 .quick-select { align-self: flex-start; }
-.also-group-title { margin: 0; font-weight: 600; font-size: var(--text-md); }
 .also-list { list-style: none; margin: var(--space-1) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
 /* Override the column layout .form gives every label: one row per alarm. */
 .form .also-row, .also-row { display: flex; flex-direction: row; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--surface-2); font-size: var(--text-md); flex-wrap: wrap; }

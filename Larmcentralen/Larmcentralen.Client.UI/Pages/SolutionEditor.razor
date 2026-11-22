@@ -3,24 +3,24 @@
 @inherits KnowledgeBaseComponent
 @inject NavigationManager Nav
 
-<PageTitle>@(IsNew ? "Ny lösning" : "Redigera lösning") · Larmcentralen</PageTitle>
+<PageTitle>@(IsNew ? "Ny åtgärd" : "Redigera åtgärd") · Larmcentralen</PageTitle>
 
 <p class="back"><a href="@BackUrl">← @(_alarm is null ? "Tillbaka till sökningen" : "Tillbaka till larmet")</a></p>
 
 @if (!CanEdit)
 {
-    <h1 class="page-title">@(IsNew ? "Ny lösning" : "Redigera lösning")</h1>
+    <h1 class="page-title">@(IsNew ? "Ny åtgärd" : "Redigera åtgärd")</h1>
     <NoEditAccess />
 }
 else if (_alarm is null || (!IsNew && !_solutionFound))
 {
-    <h1 class="page-title">@(IsNew ? "Ny lösning" : "Redigera lösning")</h1>
-    <p class="muted">@(_alarm is null ? "Larmet finns inte." : "Lösningen finns inte.")</p>
+    <h1 class="page-title">@(IsNew ? "Ny åtgärd" : "Redigera åtgärd")</h1>
+    <p class="muted">@(_alarm is null ? "Larmet finns inte." : "Åtgärden finns inte.")</p>
 }
 else
 {
     var current = _alarm;
-    <h1 class="page-title">@(IsNew ? "Ny lösning" : "Redigera lösning")</h1>
+    <h1 class="page-title">@(IsNew ? "Ny åtgärd" : "Redigera åtgärd")</h1>
     <p class="muted">För larm <strong>@(current.Alarm.AlarmCode is null ? "" : $"{current.Alarm.AlarmCode} · ")@current.Alarm.Title</strong> på @UnitLabel(current)</p>
 
     @if (!IsOnline)
@@ -36,7 +36,7 @@ else
             {
                 <p>
                     <OnlineButton Class="btn btn-small" OnClick="DetachAsync" Disabled="_saving"
-                                  Title="Kopierar lösningen till bara det här larmet. De andra enheterna behåller originalet.">Gör en egen kopia för den här enheten</OnlineButton>
+                                  Title="Kopierar åtgärden till bara det här larmet. De andra enheterna behåller originalet.">Gör en egen kopia för den här enheten</OnlineButton>
                 </p>
             }
         </div>
@@ -63,7 +63,7 @@ else
         </div>
 
         <div class="field">
-            <span class="field-label">Lösning, steg för steg</span>
+            <span class="field-label">Åtgärd, steg för steg</span>
             <QuillEditor @ref="_editor" InitialHtml="@_initialHtml" />
         </div>
 
@@ -71,7 +71,7 @@ else
         {
             <fieldset class="also-for">
                 <legend>Gäller även</legend>
-                <p class="muted hint">Bocka i andra larm som har samma fel. Lösningen visas då på alla, och en ändring gäller alla.</p>
+                <p class="muted hint">Bocka i andra larm som har samma fel. Åtgärden visas då på alla, och en ändring gäller alla.</p>
 
                 @if (SameCodeSiblings() is { Count: > 0 } sameCode)
                 {
@@ -87,30 +87,26 @@ else
                         ? "Inga förslag för den här enheten. Sök nedan för att lägga till ett larm."
                         : $"Inga liknande larm på andra {TypePlural(current.Equipment)}. Sök nedan för att lägga till ett larm.")</p>
                 }
-                @foreach (var group in Groups())
+                @if (_rows.Count > 0)
                 {
-                    <div class="also-group" @key="group.Key">
-                        <p class="also-group-title">
-                            ”@group.Title”@if (group.SameText) {<span class="muted"> · samma text</span>}
-                        </p>
-                        <ul class="also-list">
-                            @foreach (var row in group.Rows)
-                            {
-                                var id = row.Alarm.Id;
-                                <li @key="id">
-                                    <label class="also-row">
-                                        <input type="checkbox" checked="@_selected.Contains(id)" @onchange="e => Toggle(id, e.Value is true)" />
-                                        <span class="also-unit">@UnitLabel(row)</span>
-                                        @if (AlarmIndex.TypeOf(row.Equipment) is { } type)
-                                        {
-                                            <span class="also-type">@type</span>
-                                        }
-                                        <span class="also-text">@(row.Alarm.AlarmCode is null ? "" : $"{row.Alarm.AlarmCode} · ")@row.Alarm.Title</span>
-                                    </label>
-                                </li>
-                            }
-                        </ul>
-                    </div>
+                    @* One flat list by unit. The text is each alarm's own, shown for information only. *@
+                    <ul class="also-list">
+                        @foreach (var row in Rows())
+                        {
+                            var id = row.Alarm.Id;
+                            <li @key="id">
+                                <label class="also-row">
+                                    <input type="checkbox" checked="@_selected.Contains(id)" @onchange="e => Toggle(id, e.Value is true)" />
+                                    <span class="also-unit">@UnitLabel(row)</span>
+                                    @if (AlarmIndex.TypeOf(row.Equipment) is { } type)
+                                    {
+                                        <span class="also-type">@type</span>
+                                    }
+                                    <span class="also-text">@(row.Alarm.AlarmCode is null ? "" : $"{row.Alarm.AlarmCode} · ")@row.Alarm.Title</span>
+                                </label>
+                            </li>
+                        }
+                    </ul>
                 }
 
                 <div class="also-search">
@@ -220,8 +216,8 @@ else
             }
         }
 
-        // Suggestions first (nothing pre-ticked), then alarms the solution already belongs to.
-        _rows = Kb.Index.Siblings(AlarmId)
+        // Suggestions: the same code on units of the same type (nothing pre-ticked), plus the alarms the åtgärd already belongs to.
+        _rows = Kb.Index.SameCode(AlarmId)
             .Concat(Kb.Index.GetByIds(_selected))
             .Where(a => a.Alarm.Id != AlarmId)
             .DistinctBy(a => a.Alarm.Id)
@@ -238,18 +234,12 @@ else
             .ToList();
     }
 
-    private sealed record RowGroup(string Key, string Title, bool SameText, IReadOnlyList<AlarmView> Rows);
+    private static readonly StringComparer Natural =
+        StringComparer.Create(System.Globalization.CultureInfo.InvariantCulture, System.Globalization.CompareOptions.NumericOrdering | System.Globalization.CompareOptions.IgnoreCase);
 
-    /// <summary>Rows grouped by alarm text, the group with the same text as this alarm first.</summary>
-    private IEnumerable<RowGroup> Groups()
-    {
-        var ownText = AlarmIndex.NormaliseText(_alarm?.Alarm.Title);
-        return _rows
-            .GroupBy(r => AlarmIndex.NormaliseText(r.Alarm.Title))
-            .Select(g => new RowGroup(g.Key, g.First().Alarm.Title, g.Key == ownText, g.ToList()))
-            .OrderByDescending(g => g.SameText)
-            .ThenBy(g => g.Title, StringComparer.CurrentCultureIgnoreCase);
-    }
+    /// <summary>The rows as one flat list by unit (T101, T102 … in natural order), then code. No grouping by text.</summary>
+    private IEnumerable<AlarmView> Rows()
+        => _rows.OrderBy(r => r.Equipment.Title, Natural).ThenBy(r => r.Alarm.AlarmCode ?? "", Natural).ThenBy(r => r.Alarm.Id);
 
     private void Toggle(int alarmId, bool on)
     {
@@ -311,7 +301,7 @@ else
             _linkedAtLoad = 1;
             _selected.Clear();
             _selected.Add(AlarmId);
-            _rows = Kb.Index.Siblings(AlarmId).ToList();
+            _rows = Kb.Index.SameCode(AlarmId).ToList();
             _loadedFor = (AlarmId, copyId);
             Nav.NavigateTo($"larm/{AlarmId}/losning/{copyId}/redigera", replace: true);
         }
@@ -350,7 +340,7 @@ else
         }
         catch (Exception ex)
         {
-            _error = $"Lösningen kunde inte sparas. {ex.Message}";
+            _error = $"Åtgärden kunde inte sparas. {ex.Message}";
         }
         finally
         {

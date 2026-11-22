@@ -16,7 +16,7 @@ public class AlarmsController(IAlarmService service) : ControllerBase
         [FromServices] ISolutionService solutions, [FromServices] ISharePointSyncService sync)
     {
         var result = await solutions.UnlinkAsync(alarmId, solutionId);
-        if (result.Status != SolutionWriteStatus.Ok) return this.ToError(result);
+        if (result.Status != WriteStatus.Ok) return this.ToError(result);
         await this.SyncAlarmsAsync(sync, result);
         return NoContent();
     }
@@ -30,7 +30,7 @@ public class AlarmsController(IAlarmService service) : ControllerBase
         [FromServices] ISolutionService solutions, [FromServices] ISharePointSyncService sync)
     {
         var result = await solutions.DetachAsync(alarmId, solutionId);
-        if (result.Status != SolutionWriteStatus.Ok) return this.ToError(result);
+        if (result.Status != WriteStatus.Ok) return this.ToError(result);
         await this.SyncAlarmsAsync(sync, result);
         return Ok(result.Solution);
     }
@@ -52,16 +52,21 @@ public class AlarmsController(IAlarmService service) : ControllerBase
         return alarm is null ? NotFound() : Ok(alarm);
     }
 
+    /// <summary>The code as AlarmCodeId (picked from the list) or as text (found or added). 409 when the unit already has it.</summary>
     [HttpPost]
-    public async Task<ActionResult<AlarmDto>> Create(CreateAlarmDto dto)
+    public async Task<IActionResult> Create(CreateAlarmDto dto)
     {
-        var alarm = await service.CreateAsync(dto);
-        return CreatedAtAction(nameof(Get), new { id = alarm.Id }, alarm);
+        var result = await service.CreateAsync(dto);
+        if (result.Status != WriteStatus.Ok) return this.ToError(result.Status, result.Error);
+        return CreatedAtAction(nameof(Get), new { id = result.Alarm!.Id }, result.Alarm);
     }
 
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, UpdateAlarmDto dto)
-        => await service.UpdateAsync(id, dto) ? NoContent() : NotFound();
+    {
+        var result = await service.UpdateAsync(id, dto);
+        return result.Status == WriteStatus.Ok ? NoContent() : this.ToError(result.Status, result.Error);
+    }
 
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)

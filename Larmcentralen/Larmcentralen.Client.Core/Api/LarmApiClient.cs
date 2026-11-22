@@ -13,6 +13,16 @@ public class LarmApiClient(HttpClient http)
         => await http.GetFromJsonAsync<SyncSnapshot>("api/sync", ct)
            ?? throw new InvalidOperationException("The API returned an empty sync snapshot.");
 
+    /// <summary>
+    /// A cheap call to see whether the server answers at all. Returns the status code (any answer, even 401, means
+    /// the server is there); throws when it cannot be reached.
+    /// </summary>
+    public async Task<System.Net.HttpStatusCode> PingAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/me", HttpCompletionOption.ResponseHeadersRead, ct);
+        return response.StatusCode;
+    }
+
     /// <summary>Asks the API what this app's key allows (read only, or edit too).</summary>
     public async Task<AccessInfo> GetAccessAsync(CancellationToken ct = default)
         => await http.GetFromJsonAsync<AccessInfo>("api/me", ct)
@@ -73,6 +83,25 @@ public class LarmApiClient(HttpClient http)
         var copy = await response.Content.ReadFromJsonAsync<CreatedEntity>(ct);
         return copy?.Id ?? throw new InvalidOperationException("The API did not return the copy's id.");
     }
+
+    /// <summary>
+    /// Adds a code to the shared list and returns its id. A code that is already there (in any case) is not an
+    /// error: its id is returned.
+    /// </summary>
+    public async Task<int> CreateAlarmCodeAsync(string code, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsJsonAsync("api/alarm-codes", new { code }, ct);
+        if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            var conflict = await response.Content.ReadFromJsonAsync<CodeConflict>(ct);
+            if (conflict?.Code is { } existing) return existing.Id;
+        }
+        await EnsureSuccessAsync(response, ct);
+        var created = await response.Content.ReadFromJsonAsync<CreatedEntity>(ct);
+        return created?.Id ?? throw new InvalidOperationException("The API did not return the new code's id.");
+    }
+
+    private sealed record CodeConflict(string? Error, CreatedEntity? Code);
 
     /// <summary>Downloads the alarm and its solutions as a .docx.</summary>
     public async Task<(byte[] Bytes, string FileName)> ExportAlarmAsync(int alarmId, CancellationToken ct = default)

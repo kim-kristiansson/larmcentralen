@@ -3,6 +3,8 @@ using System.Globalization;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace Larmcentralen.Infrastructure.Data;
 
@@ -47,8 +49,30 @@ public static class SqliteSetup
             Directory.CreateDirectory(folder);
 
         await BackupBeforeMigratingAsync(db, dataSource);
-        await db.Database.MigrateAsync();
+        await MigrateAsync(db);
         await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
+    }
+
+    /// <summary>
+    /// Applies pending migrations. Two changes need a step in C# between their two migrations: alarm definitions
+    /// (group the alarms) and, after them, reusable alarm codes (give each alarm its own text and code back).
+    /// For each: migrate up to its first migration, run the step, then go on.
+    /// </summary>
+    public static async Task MigrateAsync(AppDbContext db, CancellationToken ct = default)
+    {
+        var migrator = db.GetService<IMigrator>();
+        var pending = (await db.Database.GetPendingMigrationsAsync(ct)).ToList();
+        if (pending.Contains(Migrations._20261121172920_MoveAlarmTextToDefinitions.Id))
+        {
+            await migrator.MigrateAsync(Migrations._20261121172910_AddAlarmDefinitions.Id, ct);
+            await AlarmDefinitionBackfill.RunAsync(db, ct);
+        }
+        if (pending.Contains(Migrations._20261121202256_DropAlarmDefinitions.Id))
+        {
+            await migrator.MigrateAsync(Migrations._20261121202250_AddAlarmCodes.Id, ct);
+            await AlarmCodeBackfill.RunAsync(db, ct);
+        }
+        await db.Database.MigrateAsync(ct);
     }
 
     /// <summary>

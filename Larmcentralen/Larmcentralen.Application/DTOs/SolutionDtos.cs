@@ -42,19 +42,19 @@ public record UpdateSolutionDto(
     List<int>? AlarmIds = null
 );
 
-public enum SolutionWriteStatus { Ok, NotFound, Invalid, Conflict }
+public enum WriteStatus { Ok, NotFound, Invalid, Conflict }
 
 /// <summary>
 /// Outcome of a change to a solution. <see cref="AffectedAlarmIds"/> are the alarms whose
 /// solutions changed (before and after), for example to refresh their SharePoint documents.
 /// </summary>
 public record SolutionWriteResult(
-    SolutionWriteStatus Status,
+    WriteStatus Status,
     SolutionDto? Solution = null,
     string? Error = null,
     IReadOnlyList<int>? AffectedAlarmIds = null)
 {
-    public static SolutionWriteResult NotFound() => new(SolutionWriteStatus.NotFound);
-    public static SolutionWriteResult Invalid(string error) => new(SolutionWriteStatus.Invalid, Error: error);
-    public static SolutionWriteResult Conflict(string error) => new(SolutionWriteStatus.Conflict, Error: error);
+    public static SolutionWriteResult NotFound() => new(WriteStatus.NotFound);
+    public static SolutionWriteResult Invalid(string error) => new(WriteStatus.Invalid, Error: error);
+    public static SolutionWriteResult Conflict(string error) => new(WriteStatus.Conflict, Error: error);
 }

@@ -38,7 +38,7 @@ public class SolutionService(ISolutionRepository repo, IAlarmRepository alarms) 
         await repo.AddAsync(solution);
         await repo.SaveChangesAsync();
 
-        return new SolutionWriteResult(SolutionWriteStatus.Ok, ToDto(solution),
+        return new SolutionWriteResult(WriteStatus.Ok, ToDto(solution),
             AffectedAlarmIds: AlarmIdsOf(solution));
     }
 
@@ -69,7 +69,7 @@ public class SolutionService(ISolutionRepository repo, IAlarmRepository alarms) 
 
         await repo.SaveChangesAsync();
 
-        return new SolutionWriteResult(SolutionWriteStatus.Ok, ToDto(solution),
+        return new SolutionWriteResult(WriteStatus.Ok, ToDto(solution),
             AffectedAlarmIds: before.Union(AlarmIdsOf(solution)).Order().ToList());
     }
 
@@ -83,7 +83,7 @@ public class SolutionService(ISolutionRepository repo, IAlarmRepository alarms) 
         var affected = AlarmIdsOf(solution);
         repo.Remove(solution);
         await repo.SaveChangesAsync();
-        return new SolutionWriteResult(SolutionWriteStatus.Ok, AffectedAlarmIds: affected);
+        return new SolutionWriteResult(WriteStatus.Ok, AffectedAlarmIds: affected);
     }
 
     /// <summary>Removes the solution from one alarm only. Refused (Conflict) when it is the last link.</summary>
@@ -93,12 +93,12 @@ public class SolutionService(ISolutionRepository repo, IAlarmRepository alarms) 
         var link = solution?.Alarms.FirstOrDefault(a => a.Id == alarmId);
         if (solution is null || link is null) return SolutionWriteResult.NotFound();
         if (solution.Alarms.Count == 1)
-            return SolutionWriteResult.Conflict("Lösningen gäller bara det här larmet. Ta bort lösningen i stället.");
+            return SolutionWriteResult.Conflict("Åtgärden gäller bara det här larmet. Ta bort åtgärden i stället.");
 
         solution.Alarms.Remove(link);
         solution.UpdatedAt = DateTime.UtcNow;
         await repo.SaveChangesAsync();
-        return new SolutionWriteResult(SolutionWriteStatus.Ok, ToDto(solution), AffectedAlarmIds: [alarmId]);
+        return new SolutionWriteResult(WriteStatus.Ok, ToDto(solution), AffectedAlarmIds: [alarmId]);
     }
 
     /// <summary>
@@ -112,7 +112,7 @@ public class SolutionService(ISolutionRepository repo, IAlarmRepository alarms) 
         var alarm = solution?.Alarms.FirstOrDefault(a => a.Id == alarmId);
         if (solution is null || alarm is null) return SolutionWriteResult.NotFound();
         if (solution.Alarms.Count == 1)
-            return new SolutionWriteResult(SolutionWriteStatus.Ok, ToDto(solution), AffectedAlarmIds: []);
+            return new SolutionWriteResult(WriteStatus.Ok, ToDto(solution), AffectedAlarmIds: []);
 
         var copy = new Solution
         {
@@ -126,13 +126,13 @@ public class SolutionService(ISolutionRepository repo, IAlarmRepository alarms) 
         await repo.AddAsync(copy);
         await repo.SaveChangesAsync();
 
-        return new SolutionWriteResult(SolutionWriteStatus.Ok, ToDto(copy), AffectedAlarmIds: [alarmId]);
+        return new SolutionWriteResult(WriteStatus.Ok, ToDto(copy), AffectedAlarmIds: [alarmId]);
     }
 
     private async Task<(List<Alarm>? Alarms, string? Error)> ResolveAlarmsAsync(List<int>? ids)
     {
         if (ids is null || ids.Count == 0)
-            return (null, "Ange minst ett larm som lösningen gäller.");
+            return (null, "Ange minst ett larm som åtgärden gäller.");
 
         var distinct = ids.Distinct().ToList();
         var found = await alarms.GetByIdsAsync(distinct);

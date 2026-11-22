@@ -57,17 +57,17 @@ else
 
         <section class="solutions">
             <div class="section-head">
-                <h2 class="section-title">Lösningar</h2>
+                <h2 class="section-title">Åtgärder</h2>
                 @if (CanEdit)
                 {
-                    <OnlineButton Class="btn btn-primary" OnClick="@(() => Nav.NavigateTo($"larm/{Id}/losning/ny"))">Ny lösning</OnlineButton>
+                    <OnlineButton Class="btn btn-primary" OnClick="@(() => Nav.NavigateTo($"larm/{Id}/losning/ny"))">Ny åtgärd</OnlineButton>
                 }
             </div>
 
             @if (_details.Solutions.Count == 0)
             {
                 <div class="empty-state">
-                    <p>Ingen lösning är skriven för det här larmet ännu.</p>
+                    <p>Ingen åtgärd är skriven för det här larmet ännu.</p>
                 </div>
             }
             @foreach (var (solution, index) in _details.Solutions.Select((s, i) => (s, i)))
@@ -89,7 +89,7 @@ else
                     </header>
                     @if (alsoFor.Count > 0)
                     {
-                        <p class="shared-with" title="Lösningen är delad. En ändring gäller alla de här larmen.">
+                        <p class="shared-with" title="Åtgärden är delad. En ändring gäller alla de här larmen.">
                             <span class="shared-label">Gäller även:</span> @string.Join(", ", alsoFor.Select(a => a.Equipment.Title).Distinct())
                         </p>
                     }
@@ -104,19 +104,57 @@ else
                 </section>
             }
         </section>
+
+        @if (Kb.Index.SameCode(Id) is { Count: > 0 } related)
+        {
+            <section class="same-code" aria-labelledby="same-code-title">
+                <h2 id="same-code-title" class="section-title">Samma larmkod på andra @TypePlural(_details.Equipment)</h2>
+                <p class="muted hint">@alarm.AlarmCode på andra enheter av samma typ. Texten är deras egen; en åtgärd som fungerar där kan du använda även här.</p>
+                @foreach (var other in related)
+                {
+                    var foreign = Kb.Index.GetDetails(other.Alarm.Id)?.Solutions
+                        .Where(s => _details.Solutions.All(own => own.Id != s.Id)).ToList() ?? [];
+                    <div class="same-code-alarm" @key="other.Alarm.Id">
+                        <p class="same-code-head">
+                            <a href="larm/@other.Alarm.Id"><strong>@other.Equipment.Title</strong></a>
+                            <span class="muted">· @other.Alarm.Title</span>
+                            <SeverityBadge Value="@other.Alarm.Severity" />
+                        </p>
+                        @if (foreign.Count == 0)
+                        {
+                            <p class="muted same-code-none">@(Kb.Index.GetDetails(other.Alarm.Id)?.Solutions.Count > 0 ? "Samma åtgärder som här." : "Ingen åtgärd skriven.")</p>
+                        }
+                        @foreach (var solution in foreign)
+                        {
+                            <details class="same-code-solution" @key="solution.Id">
+                                <summary>
+                                    <span>@solution.Title</span>
+                                    @if (CanEdit)
+                                    {
+                                        <OnlineButton Class="btn btn-small" Disabled="_busy" OnClick="@(() => UseHereAsync(solution))"
+                                                      Title="Åtgärden visas då även på det här larmet. En ändring gäller båda.">Använd även här</OnlineButton>
+                                    }
+                                </summary>
+                                <RichContent Html="@solution.Content" />
+                            </details>
+                        }
+                    </div>
+                }
+            </section>
+        }
     </article>
 
     <ConfirmDialog Open="_confirmDeleteAlarm"
                    Title="Ta bort larmet?"
                    Message="@(_details.Solutions.Any(s => AlsoFor(s).Count > 0)
-                       ? $"”{alarm.Title}” tas bort för alla användare, med lösningar som bara gäller det här larmet. Delade lösningar finns kvar för de andra larmen. Det går inte att ångra."
-                       : $"”{alarm.Title}” och alla dess lösningar tas bort för alla användare. Det går inte att ångra.")"
+                       ? $"”{alarm.Title}” tas bort för alla användare, med åtgärder som bara gäller det här larmet. Delade åtgärder finns kvar för de andra larmen. Det går inte att ångra."
+                       : $"”{alarm.Title}” och alla dess åtgärder tas bort för alla användare. Det går inte att ångra.")"
                    OnConfirm="DeleteAlarmAsync" OnCancel="@(() => _confirmDeleteAlarm = false)" />
 
     @if (_solutionToDelete is { } toDelete && AlsoFor(toDelete) is { Count: > 0 } others)
     {
         <ConfirmDialog Open="true"
-                       Title="Ta bort lösningen?"
+                       Title="Ta bort åtgärden?"
                        Message="@($"”{toDelete.Title}” gäller även {string.Join(", ", others.Select(a => a.Equipment.Title).Distinct())}. Ta bort den bara här, eller överallt? Det går inte att ångra.")"
                        SecondaryText="Ta bort från det här larmet"
                        ConfirmText="@($"Ta bort överallt ({others.Count + 1} larm)")"
@@ -126,7 +164,7 @@ else
     else
     {
         <ConfirmDialog Open="@(_solutionToDelete is not null)"
-                       Title="Ta bort lösningen?"
+                       Title="Ta bort åtgärden?"
                        Message="@($"”{_solutionToDelete?.Title}” tas bort för alla användare. Det går inte att ångra.")"
                        OnConfirm="DeleteSolutionAsync" OnCancel="@(() => _solutionToDelete = null)" />
     }
@@ -193,11 +231,11 @@ else
         try
         {
             await Kb.WriteAsync((api, ct) => api.DeleteSolutionAsync(solution.Id, ct));
-            Show("Lösningen är borttagen.", error: false);
+            Show("Åtgärden är borttagen.", error: false);
         }
         catch (Exception ex)
         {
-            Show($"Lösningen kunde inte tas bort. {ex.Message}", error: true);
+            Show($"Åtgärden kunde inte tas bort. {ex.Message}", error: true);
         }
     }
 
@@ -215,11 +253,36 @@ else
         try
         {
             await Kb.WriteAsync((api, ct) => api.UnlinkSolutionAsync(Id, solution.Id, ct));
-            Show("Lösningen är borttagen från det här larmet. De andra larmen har kvar den.", error: false);
+            Show("Åtgärden är borttagen från det här larmet. De andra larmen har kvar den.", error: false);
         }
         catch (Exception ex)
         {
-            Show($"Lösningen kunde inte tas bort. {ex.Message}", error: true);
+            Show($"Åtgärden kunde inte tas bort. {ex.Message}", error: true);
+        }
+    }
+
+    /// <summary>"härdugnar", "anlöpningsugnar", "tvättar".</summary>
+    private static string TypePlural(Equipment equipment)
+        => AlarmIndex.TypeOf(equipment) is { } type ? type.ToLowerInvariant() + "ar" : "enheter";
+
+    /// <summary>"Använd även här": links another unit's solution to this alarm too (it is then shared).</summary>
+    private async Task UseHereAsync(Solution solution)
+    {
+        _busy = true;
+        try
+        {
+            var alarmIds = Kb.Index.AlarmsForSolution(solution.Id).Select(a => a.Alarm.Id).Append(Id).Distinct().ToList();
+            await Kb.WriteAsync((api, ct) => api.UpdateSolutionAsync(solution.Id,
+                new UpdateSolutionRequest(solution.Title, solution.Content, solution.SortOrder, solution.EstimatedTime, alarmIds), ct));
+            Show($"”{solution.Title}” gäller nu även det här larmet.", error: false);
+        }
+        catch (Exception ex)
+        {
+            Show($"Åtgärden kunde inte läggas till. {ex.Message}", error: true);
+        }
+        finally
+        {
+            _busy = false;
         }
     }
 

@@ -21,6 +21,7 @@ public sealed class KnowledgeBase(
     private readonly SemaphoreSlim _syncLock = new(1, 1);
     private CancellationTokenSource? _backgroundCts;
     private Task? _backgroundTask;
+    private Task? _healthTask;
     private bool _initialized;
 
     /// <summary>Raised on the thread that made the change. UI components must marshal with InvokeAsync.</summary>
@@ -30,8 +31,21 @@ public sealed class KnowledgeBase(
     public DateTimeOffset? LastSyncedAt { get; private set; }
     public bool IsSyncing { get; private set; }
 
-    /// <summary>True when the device has a network and the last call to the API worked.</summary>
+    /// <summary>True when the device has a network and the server answered the last call or health check.</summary>
     public bool IsOnline => network.HasNetwork && _apiReachable;
+
+    /// <summary>What the status bar shows: connected, the server cannot be reached, or no network at all.</summary>
+    public ConnectionState Connection =>
+        !network.HasNetwork ? ConnectionState.NoNetwork
+        : _apiReachable ? ConnectionState.Online
+        : ConnectionState.ServerUnreachable;
+
+    /// <summary>Shown when a call to the server fails because it does not answer.</summary>
+    public const string ServerUnreachableError = "Servern går inte att nå.";
+
+    /// <summary>How often <see cref="StartBackgroundSync"/> checks that the server answers, and how long a check may take.</summary>
+    public static readonly TimeSpan DefaultHealthCheckInterval = TimeSpan.FromSeconds(30);
+    public static readonly TimeSpan HealthCheckTimeout = TimeSpan.FromSeconds(5);
     public string? LastSyncError { get; private set; }
     public bool HasLocalData => Index.AlarmCount > 0 || LastSyncedAt is not null;
 
@@ -127,12 +141,16 @@ public sealed class KnowledgeBase(
     /// Syncs now and then every <paramref name="interval"/> until disposed. After a failed sync it
     /// tries again after <paramref name="retryInterval"/> (default 30 s) instead of waiting a full interval,
     /// so an API that starts after the app, or restarts, is picked up quickly.
+    /// Alongside, every <paramref name="healthCheckInterval"/> (default 30 s) it checks that the server still answers
+    /// (<see cref="CheckServerAsync"/>), so the status bar shows a server that went down within about that time,
+    /// not only at the next sync.
     /// </summary>
-    public void StartBackgroundSync(TimeSpan interval, TimeSpan? retryInterval = null)
+    public void StartBackgroundSync(TimeSpan interval, TimeSpan? retryInterval = null, TimeSpan? healthCheckInterval = null)
     {
         if (_backgroundTask is not null) return;
         var retry = retryInterval ?? DefaultRetryInterval;
         if (retry > interval) retry = interval;
+        var health = healthCheckInterval ?? DefaultHealthCheckInterval;
         _backgroundCts = new CancellationTokenSource();
         var ct = _backgroundCts.Token;
         _backgroundTask = Task.Run(async () =>
@@ -143,6 +161,67 @@ public sealed class KnowledgeBase(
                 await Task.Delay(ok ? interval : retry, ct);
             }
         }, ct);
+        // One check at a time: the next waits for the previous to finish.
+        _healthTask = Task.Run(async () =>
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                await Task.Delay(health, ct);
+                await CheckServerAsync(ct);
+            }
+        }, ct);
+    }
+
+    /// <summary>
+    /// Checks that the server answers (a cheap GET with a short timeout) and updates <see cref="Connection"/>.
+    /// No answer, a timeout, or 502/503/504 from a proxy means unreachable. Any other answer, even 401/403, means
+    /// the server is there. When it comes back after being unreachable, the local copy is synced straight away.
+    /// Returns true when the server answered.
+    /// </summary>
+    public async Task<bool> CheckServerAsync(CancellationToken ct = default)
+    {
+        if (!network.HasNetwork)
+        {
+            RaiseChanged();
+            return false;
+        }
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(HealthCheckTimeout);
+        try
+        {
+            var status = await api.PingAsync(timeout.Token);
+            if (IsProxyError(status))
+            {
+                MarkUnreachable($"Health check: the server answered {(int)status}");
+                return false;
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        {
+            MarkUnreachable($"Health check failed: {ex.Message}");
+            return false;
+        }
+
+        if (_apiReachable) return true;
+        logger.LogInformation("The server answers again; syncing");
+        SetReachable(true, null);
+        await SyncAsync(ct);
+        return true;
+    }
+
+    /// <summary>502/503/504: a proxy or gateway answered because the server behind it did not.</summary>
+    private static bool IsProxyError(HttpStatusCode status)
+        => status is HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout;
+
+    private void MarkUnreachable(string reason)
+    {
+        if (_apiReachable) logger.LogWarning("The server cannot be reached: {Reason}", reason);
+        SetReachable(false, ServerUnreachableError);
     }
 
     /// <summary>
@@ -157,10 +236,10 @@ public sealed class KnowledgeBase(
         {
             result = await write(api, ct);
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (IsUnreachable(ex, ct))
         {
             logger.LogWarning(ex, "Write to the API failed");
-            SetReachable(false, "Servern går inte att nå.");
+            SetReachable(false, ServerUnreachableError);
             throw new OfflineException(ex);
         }
         catch (ApiException ex) when (ex.Status == System.Net.HttpStatusCode.Forbidden)
@@ -189,13 +268,26 @@ public sealed class KnowledgeBase(
             SetReachable(true, null);
             return result;
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (IsUnreachable(ex, ct))
         {
             logger.LogWarning(ex, "Call to the API failed");
-            SetReachable(false, "Servern går inte att nå.");
+            SetReachable(false, ServerUnreachableError);
             throw new OfflineException(ex);
         }
     }
+
+    /// <summary>
+    /// True for failures that mean the server did not answer: no connection, a timeout (not a cancel the caller asked
+    /// for), or 502/503/504 from a proxy in front of it.
+    /// </summary>
+    private static bool IsUnreachable(Exception ex, CancellationToken ct) => ex switch
+    {
+        HttpRequestException { StatusCode: { } status } => IsProxyError(status),
+        HttpRequestException => true,
+        OperationCanceledException => !ct.IsCancellationRequested,
+        ApiException api => IsProxyError(api.Status),
+        _ => false
+    };
 
     private async Task SetCanEditAsync(bool canEdit, CancellationToken ct)
     {
@@ -239,6 +331,8 @@ public sealed class KnowledgeBase(
             await _backgroundCts.CancelAsync();
             try { if (_backgroundTask is not null) await _backgroundTask; }
             catch (OperationCanceledException) { }
+            try { if (_healthTask is not null) await _healthTask; }
+            catch (OperationCanceledException) { }
             _backgroundCts.Dispose();
         }
         _syncLock.Dispose();
@@ -251,3 +345,14 @@ public class OfflineException(Exception? inner = null)
 /// <summary>The API refused a change because this app's key may only read.</summary>
 public class NotAllowedException(Exception? inner = null)
     : Exception("Du har bara läsbehörighet. Be en administratör om ändringen.", inner);
+
+/// <summary>What the app knows about its connection to the server.</summary>
+public enum ConnectionState
+{
+    /// <summary>The server answered the last call or check.</summary>
+    Online,
+    /// <summary>The device has a network, but the server does not answer.</summary>
+    ServerUnreachable,
+    /// <summary>The device has no network at all.</summary>
+    NoNetwork
+}

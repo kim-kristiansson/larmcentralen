@@ -36,7 +36,7 @@ public class SmsAlarmService(
         // Look up alarm in database
         var alarms = await alarmRepo.SearchAsync(alarmCode, null, null, null, 0, 5);
         var alarm = alarms.FirstOrDefault(a =>
-            a.AlarmCode == alarmCode &&
+            a.AlarmCode?.Code == alarmCode &&
             a.Equipment.Title.Equals(equipment, StringComparison.OrdinalIgnoreCase));
 
         if (alarm is null)
@@ -52,7 +52,7 @@ public class SmsAlarmService(
         }
 
         // Send alert email
-        await SendAlertSmsAsync(alarm.Equipment.Title, alarm.AlarmCode!, alarm.Title, alarm.Severity, description);
+        await SendAlertSmsAsync(alarm.Equipment.Title, alarm.AlarmCode!.Code, alarm.Title, alarm.Severity, description);
         logger.LogInformation("Alert email sent for {Severity} alarm: {Code} on {Equipment}", alarm.Severity, alarmCode, equipment);
     }
 
