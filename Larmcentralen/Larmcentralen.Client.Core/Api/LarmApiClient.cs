@@ -13,6 +13,16 @@ public class LarmApiClient(HttpClient http)
         => await http.GetFromJsonAsync<SyncSnapshot>("api/sync", ct)
            ?? throw new InvalidOperationException("The API returned an empty sync snapshot.");
 
+    /// <summary>
+    /// A cheap call to see whether the server answers at all. Returns the status code (any answer, even 401, means
+    /// the server is there); throws when it cannot be reached.
+    /// </summary>
+    public async Task<System.Net.HttpStatusCode> PingAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/me", HttpCompletionOption.ResponseHeadersRead, ct);
+        return response.StatusCode;
+    }
+
     /// <summary>Asks the API what this app's key allows (read only, or edit too).</summary>
     public async Task<AccessInfo> GetAccessAsync(CancellationToken ct = default)
         => await http.GetFromJsonAsync<AccessInfo>("api/me", ct)
