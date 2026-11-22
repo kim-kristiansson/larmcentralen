@@ -5,7 +5,7 @@
 
 <PageTitle>@(IsNew ? "Nytt larm" : "Redigera larm") · Larmcentralen</PageTitle>
 
-<p class="back"><a href="@(IsNew ? "" : $"larm/{Id}")">← @(IsNew ? "Tillbaka till sökningen" : "Tillbaka till larmet")</a></p>
+<p class="back"><a href="@BackHref">← @(IsNew ? (FromUnit is null ? "Tillbaka till inställningar" : "Tillbaka till utrustning") : "Tillbaka till larmet")</a></p>
 <h1 class="page-title">@(IsNew ? "Nytt larm" : "Redigera larm")</h1>
 
 @if (!CanEdit)
@@ -84,13 +84,19 @@ else
 
         <div class="form-actions">
             <OnlineButton Type="submit" Class="btn btn-primary" Disabled="_saving">@(_saving ? "Sparar…" : "Spara")</OnlineButton>
-            <a class="btn" href="@(IsNew ? "" : $"larm/{Id}")">Avbryt</a>
+            <a class="btn" href="@BackHref">Avbryt</a>
         </div>
     </EditForm>
 }
 
 @code {
     [Parameter] public int? Id { get; set; }
+
+    /// <summary>"Nytt larm" on a unit in Utrustning opens larm/ny?enhet=7: the unit is picked already.</summary>
+    [SupplyParameterFromQuery(Name = "enhet")] public int? FromUnit { get; set; }
+
+    /// <summary>New alarms are started from Inställningar (or a unit in Utrustning), so that is where Back goes.</summary>
+    private string BackHref => !IsNew ? $"larm/{Id}" : FromUnit is null ? "installningar" : "installningar/utrustning";
 
     private bool IsNew => Id is null;
     private readonly AlarmForm _form = new();
@@ -100,7 +106,13 @@ else
 
     protected override void OnParametersSet()
     {
-        if (IsNew || _found) return;
+        if (IsNew)
+        {
+            if (_form.EquipmentId == 0 && FromUnit is { } unit && Kb.Index.Equipment.Any(e => e.Id == unit))
+                _form.EquipmentId = unit;
+            return;
+        }
+        if (_found) return;
         var details = Kb.Index.GetDetails(Id!.Value);
         if (details is null) return;
         _found = true;

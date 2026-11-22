@@ -1,6 +1,7 @@
 @page "/installningar/utrustning"
 @inherits KnowledgeBaseComponent
 @using Larmcentralen.Client.Core.Api
+@inject NavigationManager Nav
 
 <PageTitle>Utrustning · Larmcentralen</PageTitle>
 
@@ -153,6 +154,7 @@ else
                             <span class="unit-type">@(AlarmIndex.TypeOf(unit) ?? AlarmIndex.OtherType)</span>
                             <span class="unit-alarms">@(alarms == 1 ? "1 larm" : $"{alarms} larm")</span>
                             <span class="spacer"></span>
+                            <OnlineButton Class="btn btn-small" OnClick="@(() => Nav.NavigateTo($"larm/ny?enhet={unit.Id}"))">Nytt larm</OnlineButton>
                             <OnlineButton Class="btn btn-small" OnClick="@(() => StartEditUnit(unit))">Ändra</OnlineButton>
                             <OnlineButton Class="btn btn-small btn-danger-outline" OnClick="@(() => AskDeleteUnit(unit))">Ta bort</OnlineButton>
                         </li>
