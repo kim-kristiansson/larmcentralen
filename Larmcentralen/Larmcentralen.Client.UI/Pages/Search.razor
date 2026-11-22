@@ -51,7 +51,7 @@
     </label>
     <CodeFilter Codes="_codes" OfferWithoutCode="_withoutCode" Value="@State.AlarmCode" ValueChanged="OnCodeChanged" />
     <label>
-        <span>Allvarlighet</span>
+        <span>Prioritet</span>
         <select value="@State.Severity" @onchange="OnSeverityChanged">
             <option value="">Alla</option>
             @foreach (var s in Severity.All)

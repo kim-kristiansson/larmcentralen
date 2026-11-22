@@ -60,7 +60,7 @@ public partial class SmsAlarmService(
         if (AlarmText.SeverityRank(alarm.Severity) < AlarmText.SeverityRank("Hög"))
         {
             logger.LogInformation("Alarm {Code} on {Equipment} is {Severity}, no alert", code, unit, alarm.Severity);
-            return $"{code} på {unit} ({alarm.Severity}). Ingen avisering för den nivån.";
+            return $"{code} på {unit} ({alarm.Severity}). Ingen avisering för den prioriteten.";
         }
 
         var text = $"🚨 {alarm.Severity}: {code} på {unit}\n{alarm.Title}\n{description}".TrimEnd();
