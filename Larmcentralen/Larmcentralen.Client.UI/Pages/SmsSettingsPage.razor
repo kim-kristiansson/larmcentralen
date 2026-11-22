@@ -189,7 +189,14 @@ else
     /// <summary>Loads the settings the first time the server can be reached (the page may open offline).</summary>
     protected override void Load()
     {
-        if (CanEdit && IsOnline && !_loadedOnline && _settings is null && !_saving) _ = InvokeAsync(RefreshAsync);
+        if (CanEdit && IsOnline && !_loadedOnline && _settings is null && !_saving) _ = InvokeAsync(LoadInBackgroundAsync);
+    }
+
+    /// <summary>Outside Blazor's own events nothing re-renders by itself, so this one does.</summary>
+    private async Task LoadInBackgroundAsync()
+    {
+        await RefreshAsync();
+        StateHasChanged();
     }
 
     private async Task RefreshAsync()
@@ -208,7 +215,6 @@ else
         {
             _error = $"SMS-inställningarna kunde inte hämtas. {Reason(ex)}";
         }
-        StateHasChanged();
     }
 
     private void Fill(SmsSettings settings)
