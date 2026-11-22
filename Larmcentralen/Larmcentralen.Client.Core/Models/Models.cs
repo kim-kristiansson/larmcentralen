@@ -124,10 +124,10 @@ public record CreatedEntity(int Id);
 /// Settings for incoming alarm SMS (admin only, not synced): the 46elks number the alarm system sends to and the
 /// numbers it sends from, in international form (+46…). <see cref="LastSms"/> is null until an SMS has come in.
 /// The company's 46elks login: the password never comes back, only whether one is saved.
-/// <see cref="ServerHasElksAccount"/>: the server has its own 46elks login, used when none is saved here.
+/// <see cref="AlertRecipient"/> gets an alert SMS for Hög and Kritisk alarms; null sends none.
 /// </summary>
 public record SmsSettings(string? ElksNumber, List<string> SenderNumbers, LastSms? LastSms, DateTime? UpdatedAt,
-    LastFetch? LastFetch = null, string? ElksUsername = null, bool HasElksPassword = false, bool ServerHasElksAccount = false);
+    LastFetch? LastFetch = null, string? ElksUsername = null, bool HasElksPassword = false, string? AlertRecipient = null);
 
 /// <summary>Result of "Testa anslutningen" (messages in Swedish).</summary>
 public record SmsConnectionTest(bool Ok, List<string> Messages);
@@ -142,7 +142,8 @@ public record LastSms(DateTime ReceivedAt, string? From, bool Accepted, string R
 /// A change to the SMS settings. Numbers may be written any Swedish way; the server normalises them.
 /// <see cref="ElksPassword"/> null keeps the saved password; <see cref="ElksUsername"/> "" removes the saved login.
 /// </summary>
-public record SmsSettingsRequest(string ElksNumber, List<string> SenderNumbers, string? ElksUsername = null, string? ElksPassword = null);
+public record SmsSettingsRequest(string ElksNumber, List<string> SenderNumbers, string? ElksUsername = null, string? ElksPassword = null,
+    string? AlertRecipient = null);
 
 /// <summary>Response of GET /api/me: what this app's API key may do. Only admins can edit.</summary>
 public record AccessInfo(string Role, bool CanEdit);

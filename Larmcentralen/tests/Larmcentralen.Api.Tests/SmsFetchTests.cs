@@ -27,7 +27,7 @@ public sealed class SmsFetchTests : IClassFixture<ApiFactory>
     private record LastSms(DateTime ReceivedAt, string? From, bool Accepted, string Result);
     private record LastFetch(DateTime At, string? Error);
     private record Settings(string? ElksNumber, List<string> SenderNumbers, LastSms? LastSms, DateTime? UpdatedAt, LastFetch? LastFetch,
-        string? ElksUsername, bool HasElksPassword, bool ServerHasElksAccount);
+        string? ElksUsername, bool HasElksPassword, string? AlertRecipient);
     private record ConnectionTest(bool Ok, List<string> Messages);
     private record Problem(string? Detail);
 
@@ -65,8 +65,14 @@ public sealed class SmsFetchTests : IClassFixture<ApiFactory>
             return Task.FromResult(Numbers.ToList());
         }
 
+        public List<(ElksLogin Login, string From, string To, string Message)> Sent { get; } = [];
+
+        /// <summary>Records the SMS; nothing leaves the test.</summary>
         public Task<string?> SendSmsAsync(ElksLogin login, string from, string to, string message, CancellationToken ct)
-            => throw new InvalidOperationException("Tests never send through 46elks.");
+        {
+            Sent.Add((login, from, to, message));
+            return Task.FromResult<string?>("s-sent");
+        }
     }
 
     private readonly FakeAlertSender _alerts = new();
@@ -78,10 +84,7 @@ public sealed class SmsFetchTests : IClassFixture<ApiFactory>
         _factory = factory.WithWebHostBuilder(b =>
         {
             // The test calls FetchOnceAsync itself; no background fetching alongside it.
-            b.UseSetting("Email:FetchIntervalSeconds", "0");
-            // The server's own (test) 46elks login, used until one is saved under SMS-larm.
-            b.UseSetting("Email:ElksUsername", "server-test-user");
-            b.UseSetting("Email:ElksPassword", "server-test-password");
+            b.UseSetting("Elks:FetchIntervalSeconds", "0");
             b.ConfigureTestServices(s =>
             {
                 s.AddSingleton<IAlertSmsSender>(_alerts);
@@ -119,7 +122,7 @@ public sealed class SmsFetchTests : IClassFixture<ApiFactory>
         var area = await PostAsync(c, "api/areas", new { title = "SQ-linjen" });
         var unit = await PostAsync(c, "api/equipment", new { title = "T102", areaId = area });
         await PostAsync(c, "api/alarms", new { title = "Ingen svarssignal tändbrännare", alarmCode = "M206.6", severity = "Kritisk", equipmentId = unit });
-        using (var put = await c.PutAsJsonAsync("api/settings/sms", new { elksNumber = ElksNumber, senderNumbers = new[] { Sender } }, Ct))
+        using (var put = await c.PutAsJsonAsync("api/settings/sms", new { elksNumber = ElksNumber, senderNumbers = new[] { Sender }, elksUsername = "u-test", elksPassword = "test-password" }, Ct))
             Assert.True(put.IsSuccessStatusCode);
 
         // Already in the history before fetching started: never acted on.
@@ -157,9 +160,9 @@ public sealed class SmsFetchTests : IClassFixture<ApiFactory>
     public async Task A_failed_fetch_is_shown_on_the_admin_page()
     {
         using var c = Admin();
-        using (var put = await c.PutAsJsonAsync("api/settings/sms", new { elksNumber = ElksNumber, senderNumbers = new[] { Sender } }, Ct))
+        using (var put = await c.PutAsJsonAsync("api/settings/sms", new { elksNumber = ElksNumber, senderNumbers = new[] { Sender }, elksUsername = "u-test", elksPassword = "test-password" }, Ct))
             Assert.True(put.IsSuccessStatusCode);
-        _history.Failure = new ElksException("46elks godkände inte inloggningen (Email:ElksUsername, Email:ElksPassword).");
+        _history.Failure = new ElksException("46elks godkände inte inloggningen.");
 
         Assert.Equal(-1, await FetchAsync());
 
@@ -176,13 +179,11 @@ public sealed class SmsFetchTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task A_saved_46elks_login_is_write_only_and_used_instead_of_the_servers()
+    public async Task A_saved_46elks_login_is_write_only_and_the_only_one_used()
     {
         using var c = Admin();
-        using (var put = await c.PutAsJsonAsync("api/settings/sms", new { elksNumber = ElksNumber, senderNumbers = new[] { Sender } }, Ct))
+        using (var put = await c.PutAsJsonAsync("api/settings/sms", new { elksNumber = ElksNumber, senderNumbers = new[] { Sender }, elksUsername = "u-test", elksPassword = "test-password" }, Ct))
             Assert.True(put.IsSuccessStatusCode);
-        Assert.True((await GetSettingsAsync(c)).ServerHasElksAccount);
-
         // A username alone is not enough.
         using (var half = await c.PutAsJsonAsync("api/settings/sms", new { elksUsername = "u-company" }, Ct))
         {
@@ -208,19 +209,24 @@ public sealed class SmsFetchTests : IClassFixture<ApiFactory>
         Assert.True(result.Ok, string.Join(" ", result.Messages));
         Assert.Equal(new ElksLogin("u-company", "company-test-password"), _history.Logins[^1]);
 
-        // Removing it falls back to the server's login.
+        // Without it there is no login at all: nothing in the server's configuration stands in.
         using (var removed = await c.PutAsJsonAsync("api/settings/sms", new { elksUsername = "" }, Ct))
             Assert.True(removed.IsSuccessStatusCode);
         Assert.False((await GetSettingsAsync(c)).HasElksPassword);
-        using (await c.PostAsync("api/settings/sms/test", null, Ct)) { }
-        Assert.Equal("server-test-user", _history.Logins[^1].Username);
+        using var none = await c.PostAsync("api/settings/sms/test", null, Ct);
+        var noLogin = (await none.Content.ReadFromJsonAsync<ConnectionTest>(Json, Ct))!;
+        Assert.False(noLogin.Ok);
+        Assert.Contains(noLogin.Messages, m => m.Contains("Inget 46elks-konto"));
+        var asked = _history.Logins.Count;
+        Assert.Equal(0, await FetchAsync());
+        Assert.Equal(asked, _history.Logins.Count);
     }
 
     [Fact]
     public async Task The_connection_test_says_when_the_number_is_not_on_the_account()
     {
         using var c = Admin();
-        using (var put = await c.PutAsJsonAsync("api/settings/sms", new { elksNumber = ElksNumber, senderNumbers = new[] { Sender } }, Ct))
+        using (var put = await c.PutAsJsonAsync("api/settings/sms", new { elksNumber = ElksNumber, senderNumbers = new[] { Sender }, elksUsername = "u-test", elksPassword = "test-password" }, Ct))
             Assert.True(put.IsSuccessStatusCode);
         _history.Numbers.Add(new ElksNumber("+46766869999", true, ["sms"], null));
 
@@ -240,5 +246,40 @@ public sealed class SmsFetchTests : IClassFixture<ApiFactory>
         using var test = await reader.PostAsync("api/settings/sms/test", null, Ct);
 
         Assert.Equal(HttpStatusCode.Forbidden, test.StatusCode);
+    }
+
+    [Fact]
+    public async Task Alerts_go_to_the_saved_number_through_the_saved_login()
+    {
+        // The real alert sender, with only 46elks itself faked.
+        var elks = new FakeElks();
+        using var factory = _factory.WithWebHostBuilder(b => b.ConfigureTestServices(s =>
+        {
+            s.AddScoped<IAlertSmsSender, ElksAlertSmsSender>();
+            s.AddSingleton<IElksApi>(elks);
+        }));
+        using var c = factory.CreateClient();
+        c.DefaultRequestHeaders.Add("X-Api-Key", ApiFactory.AdminKey);
+
+        using (var bad = await c.PutAsJsonAsync("api/settings/sms", new { alertRecipient = "112" }, Ct))
+            Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+        using (var put = await c.PutAsJsonAsync("api/settings/sms", new { elksUsername = "u-alerts", elksPassword = "alerts-password", alertRecipient = "070-333 00 00" }, Ct))
+            Assert.True(put.IsSuccessStatusCode);
+        Assert.Equal("+46703330000", (await GetSettingsAsync(c)).AlertRecipient);
+
+        using var scope = factory.Services.CreateScope();
+        Assert.True(await scope.ServiceProvider.GetRequiredService<IAlertSmsSender>().SendAsync("Testlarm", Ct));
+
+        var sent = Assert.Single(elks.Sent);
+        Assert.Equal(new ElksLogin("u-alerts", "alerts-password"), sent.Login);
+        Assert.Equal("+46703330000", sent.To);
+        Assert.Equal("Larmcentral", sent.From);
+
+        // No number: no alert.
+        using (var cleared = await c.PutAsJsonAsync("api/settings/sms", new { alertRecipient = "" }, Ct))
+            Assert.True(cleared.IsSuccessStatusCode);
+        using var scope2 = factory.Services.CreateScope();
+        Assert.False(await scope2.ServiceProvider.GetRequiredService<IAlertSmsSender>().SendAsync("Testlarm", Ct));
+        Assert.Single(elks.Sent);
     }
 }

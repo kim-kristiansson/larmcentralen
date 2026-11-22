@@ -18,7 +18,7 @@ public class SmsSettingsController(ISmsSettingsService service, ElksAccount acco
 {
     [HttpGet]
     public async Task<ActionResult<SmsSettingsDto>> Get()
-        => Ok(await service.GetAsync() with { ServerHasElksAccount = account.ServerHasLogin });
+        => Ok(await service.GetAsync());
 
     /// <summary>400 (with a Swedish reason) when a number isn't a Swedish phone number, or the login is half filled in.</summary>
     [HttpPut]
@@ -26,7 +26,7 @@ public class SmsSettingsController(ISmsSettingsService service, ElksAccount acco
     {
         var result = await service.UpdateAsync(dto);
         return result.Status == WriteStatus.Ok
-            ? Ok(result.Value! with { ServerHasElksAccount = account.ServerHasLogin })
+            ? Ok(result.Value)
             : this.ToError(result.Status, result.Error);
     }
 

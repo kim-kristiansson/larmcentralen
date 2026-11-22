@@ -41,6 +41,14 @@ public class SmsSettingsService(ISmsSettingsRepository repo, ISecretProtector pr
                 return WriteResult<SmsSettingsDto>.Invalid($"Högst {MaxSenders} avsändare.");
         }
 
+        string? recipient = null;
+        if (dto.AlertRecipient is { } typedRecipient && !string.IsNullOrWhiteSpace(typedRecipient))
+        {
+            recipient = SwedishPhoneNumber.Normalise(typedRecipient);
+            if (recipient is null)
+                return WriteResult<SmsSettingsDto>.Invalid($"Aviseringsnumret \"{typedRecipient.Trim()}\" är inte ett svenskt telefonnummer.");
+        }
+
         var username = dto.ElksUsername?.Trim();
         if (username is { Length: > 100 } || (username?.Any(char.IsWhiteSpace) ?? false))
             return WriteResult<SmsSettingsDto>.Invalid("API-användarnamnet till 46elks ser inte rätt ut.");
@@ -48,6 +56,7 @@ public class SmsSettingsService(ISmsSettingsRepository repo, ISecretProtector pr
         var settings = await repo.GetAsync();
         if (dto.ElksNumber is not null) settings.ElksNumber = elksNumber;
         if (senders is not null) settings.SenderNumbers = senders;
+        if (dto.AlertRecipient is not null) settings.AlertRecipient = recipient;
 
         if (username is not null)
         {
@@ -144,5 +153,6 @@ public class SmsSettingsService(ISmsSettingsRepository repo, ISecretProtector pr
         s.UpdatedAt,
         s.LastFetchAt is { } fetched ? new LastFetchDto(fetched, s.LastFetchError) : null,
         s.ElksUsername,
-        s.ElksPasswordProtected is not null);
+        s.ElksPasswordProtected is not null,
+        s.AlertRecipient);
 }

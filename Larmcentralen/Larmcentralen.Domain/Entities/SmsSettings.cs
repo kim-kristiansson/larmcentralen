@@ -2,7 +2,7 @@ namespace Larmcentralen.Domain.Entities;
 
 /// <summary>
 /// Settings for incoming alarm SMS (one row, <see cref="SingletonId"/>). The plant's alarm system (OCSS) sends its
-/// alarms by SMS to a 46elks number, and 46elks passes them on to the API's webhook. Only SMS from one of
+/// alarms by SMS to a 46elks number, and the API fetches them from 46elks (or 46elks posts them to the webhook). Only SMS from one of
 /// <see cref="SenderNumbers"/> to <see cref="ElksNumber"/> are acted on. Numbers are stored in international form
 /// (<see cref="SwedishPhoneNumber.Normalise"/>).
 ///
@@ -21,8 +21,8 @@ public class SmsSettings
     public List<string> SenderNumbers { get; set; } = [];
 
     /// <summary>
-    /// The company's own 46elks API username (best a subaccount's). Null: the server's configuration
-    /// (Email:ElksUsername) is used instead.
+    /// The company's own 46elks API username (best a subaccount's). The only 46elks login: until it is set, nothing
+    /// is fetched from 46elks and no alert is sent.
     /// </summary>
     public string? ElksUsername { get; set; }
 
@@ -30,6 +30,9 @@ public class SmsSettings
     /// Its API password, encrypted by the API (ASP.NET Data Protection). Never sent to the app, never synced.
     /// </summary>
     public string? ElksPasswordProtected { get; set; }
+
+    /// <summary>Who gets an alert SMS for Hög and Kritisk alarms (+46…). Null: no alerts are sent.</summary>
+    public string? AlertRecipient { get; set; }
 
     public DateTime? UpdatedAt { get; set; }
 

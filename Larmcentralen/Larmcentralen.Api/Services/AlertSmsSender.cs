@@ -1,17 +1,13 @@
+using Larmcentralen.Application.Interfaces;
+
 namespace Larmcentralen.Api.Services;
 
 /// <summary>
-/// The server's 46elks settings (config section "Email" for historical reasons). The login can instead be saved
-/// by an admin under SMS-larm, which wins. From user-secrets or environment variables, never appsettings.json.
+/// Server settings for 46elks (config section "Elks"). The login, the numbers and who gets alerts are not here:
+/// admins set them under SMS-larm.
 /// </summary>
-public class EmailOptions
+public class ElksOptions
 {
-    public string ElksUsername { get; set; } = "";
-    public string ElksPassword { get; set; } = "";
-
-    /// <summary>Who gets the alert SMS for Hög and Kritisk alarms (+46…).</summary>
-    public string AlertRecipient { get; set; } = "";
-
     /// <summary>How often new SMS are fetched from 46elks' SMS history, in seconds. 0 turns fetching off (webhook only).</summary>
     public int FetchIntervalSeconds { get; set; } = 15;
 }
@@ -26,7 +22,7 @@ public interface IAlertSmsSender
 public sealed class ElksAlertSmsSender(
     IElksApi api,
     ElksAccount account,
-    Microsoft.Extensions.Options.IOptions<EmailOptions> options,
+    ISmsSettingsService settings,
     ILogger<ElksAlertSmsSender> logger) : IAlertSmsSender
 {
     /// <summary>Text sender: at most 11 letters and digits, starting with a letter (46elks' rule).</summary>
@@ -36,10 +32,9 @@ public sealed class ElksAlertSmsSender(
 
     public async Task<bool> SendAsync(string message, CancellationToken ct = default)
     {
-        var recipient = options.Value.AlertRecipient;
-        if (recipient.Length == 0)
+        if ((await settings.GetAsync()).AlertRecipient is not { } recipient)
         {
-            logger.LogWarning("Email:AlertRecipient not set: no alert sent.");
+            logger.LogWarning("No alert number set under SMS-larm: no alert sent.");
             return false;
         }
 
@@ -50,7 +45,7 @@ public sealed class ElksAlertSmsSender(
             {
                 if (await account.GetLoginAsync() is not { } login)
                 {
-                    logger.LogWarning("No 46elks login (SMS-larm or Email:ElksUsername/ElksPassword): no alert sent.");
+                    logger.LogWarning("No 46elks login saved under SMS-larm: no alert sent.");
                     return false;
                 }
                 var id = await api.SendSmsAsync(login, Sender, recipient, message, ct);

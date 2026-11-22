@@ -67,8 +67,8 @@ builder.Services.AddSingleton<ElksSmsFetcher>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ElksSmsFetcher>());
 
 // Configurations
-builder.Services.Configure<EmailOptions>(
-    builder.Configuration.GetSection("Email"));
+builder.Services.Configure<ElksOptions>(
+    builder.Configuration.GetSection("Elks"));
 builder.Services.Configure<SharePointOptions>(
     builder.Configuration.GetSection("SharePoint"));
 

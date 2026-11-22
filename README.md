@@ -85,11 +85,11 @@ Everything under `/api` requires a key:
 ### Alarm SMS (46elks)
 
 The plant's alarm system (OCSS) sends alarms by SMS to a 46elks number. The API fetches new SMS from
-46elks' SMS history (`GET https://api.46elks.com/a1/sms`) every `Email:FetchIntervalSeconds` seconds
+46elks' SMS history (`GET https://api.46elks.com/a1/sms`) every `Elks:FetchIntervalSeconds` seconds
 (default 15), with the 46elks account below. It only calls out, so it needs **no public address**, and
 the number needs no `sms_url`. The first fetch only marks where the history ends, so older SMS are never
 acted on. If the API does get a public address, 46elks can post to the webhook above instead (set it as
-the number's `sms_url`, and `Email:FetchIntervalSeconds` to 0 if you like). An SMS that arrives both ways is
+the number's `sms_url`, and `Elks:FetchIntervalSeconds` to 0 if you like). An SMS that arrives both ways is
 handled once. The API acts only on SMS **from** one of the
 alarm system's numbers **to** the 46elks number. Admins set both in the app under
 Inställningar → SMS-larm (`GET/PUT /api/settings/sms`, admin key). Until both are set every SMS is turned
@@ -101,13 +101,13 @@ OAuth or "log in with 46elks". The company enters its own login on the same page
 password is never handed out and costs are capped. The password is write-only: the API encrypts it with
 ASP.NET Data Protection and never returns it, and it is not part of the sync. The Data Protection keys
 live in `data/keys/` next to the database (DPAPI-protected on Windows, git-ignored); back them up with
-the database, or the saved password has to be typed in again. Without a saved login the server's own
-`Email:ElksUsername` / `Email:ElksPassword` (user-secrets or environment variables) are used.
+the database, or the saved password has to be typed in again. This is the only place for the login:
+nothing about 46elks goes in appsettings or user-secrets. Without it nothing is fetched or sent.
 **Testa anslutningen** logs in (`GET /a1/numbers`) and checks that the 46elks number is on the account,
 active and able to take SMS. It sends nothing.
 
 An accepted SMS is matched to an alarm by unit and code (`… Line : T102 : M206.6 …`); for a Hög or
-Kritisk alarm an alert SMS goes to `Email:AlertRecipient` from the text sender `Larmcentral`
+Kritisk alarm an alert SMS goes to the alert number set on the same page (none if empty), from the text sender `Larmcentral`
 (46elks allows at most 11 letters and digits). Sending is retried on 5xx or no answer, never on 4xx.
 After a failed fetch the API waits longer each time (up to 5 minutes). The page shows the last SMS,
 what happened to it and the last fetch (or why it failed); nothing else is logged. The webhook always
@@ -129,7 +129,6 @@ dotnet user-secrets set "Security:ApiKey" "<read key>"
 dotnet user-secrets set "Security:AdminApiKey" "<admin key>"
 dotnet user-secrets set "Security:SmsWebhookSecret" "<webhook secret>"
 dotnet user-secrets set "SharePoint:ClientSecret" "<secret>"      # and the other SharePoint values
-dotnet user-secrets set "Email:ElksPassword" "<46elks password>"  # and ElksUsername, AlertRecipient
 ```
 
 On Azure App Service, add the same settings as environment variables with `__` for `:`

@@ -4,13 +4,13 @@ using Microsoft.Extensions.Options;
 namespace Larmcentralen.Api.Services;
 
 /// <summary>
-/// Fetches new alarm SMS from 46elks' SMS history every <see cref="EmailOptions.FetchIntervalSeconds"/> seconds, so
+/// Fetches new alarm SMS from 46elks' SMS history every <see cref="ElksOptions.FetchIntervalSeconds"/> seconds, so
 /// the API needs no public address: it only calls out to 46elks. The 46elks number then needs no sms_url. The first
 /// fetch only marks where the history ends, so old SMS are never acted on.
 /// </summary>
 public sealed class ElksSmsFetcher(
     IServiceScopeFactory scopes,
-    IOptions<EmailOptions> options,
+    IOptions<ElksOptions> options,
     ILogger<ElksSmsFetcher> logger) : BackgroundService
 {
     /// <summary>Pages read back per fetch: 1000 SMS, far more than OCSS sends between two fetches.</summary>
@@ -24,7 +24,7 @@ public sealed class ElksSmsFetcher(
         var seconds = options.Value.FetchIntervalSeconds;
         if (seconds <= 0)
         {
-            logger.LogInformation("Fetching SMS from 46elks is off (Email:FetchIntervalSeconds is 0).");
+            logger.LogInformation("Fetching SMS from 46elks is off (Elks:FetchIntervalSeconds is 0).");
             return;
         }
 

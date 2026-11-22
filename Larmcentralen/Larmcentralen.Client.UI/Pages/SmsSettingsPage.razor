@@ -75,11 +75,8 @@ else
                 <span class="muted hint">
                     API-inloggningen från 46elks (under <em>Account</em> där). Använd helst ett eget underkonto
                     (<em>subaccount</em>) för larmcentralen, med ett kostnadstak. Lösenordet sparas krypterat på servern
-                    och visas aldrig igen. Skriv ett nytt för att byta det.
-                    @if (_settings.ServerHasElksAccount)
-                    {
-                        <text> Lämnas det tomt används serverns eget 46elks-konto.</text>
-                    }
+                    och visas aldrig igen. Skriv ett nytt för att byta det. Utan inloggning hämtas inga SMS och inga
+                    aviseringar skickas.
                 </span>
                 <div class="form-row">
                     <label>
@@ -99,6 +96,12 @@ else
                     </div>
                 }
             </fieldset>
+
+            <label>
+                <span>Avisering till <span class="optional">(valfritt)</span></span>
+                <input @bind="_alertRecipient" @bind:event="oninput" placeholder="t.ex. 070-123 45 67" inputmode="tel" autocomplete="off" />
+                <span class="muted hint">Numret som får ett SMS när ett larm med prioritet Hög eller Kritisk kommer in. Tomt: inga aviseringar.</span>
+            </label>
 
             @if (_error is not null)
             {
@@ -174,6 +177,7 @@ else
 
     private SmsSettings? _settings;
     private string _elksNumber = "";
+    private string _alertRecipient = "";
     private List<SenderRow> _senders = [];
     private string _elksUsername = "";
     private string _elksPassword = "";
@@ -221,6 +225,7 @@ else
     {
         _settings = settings;
         _elksNumber = settings.ElksNumber ?? "";
+        _alertRecipient = settings.AlertRecipient ?? "";
         _senders = settings.SenderNumbers.Select(n => new SenderRow { Number = n }).ToList();
         _elksUsername = settings.ElksUsername ?? "";
         _elksPassword = "";
@@ -250,7 +255,8 @@ else
                 _elksNumber.Trim(),
                 _senders.Select(s => s.Number.Trim()).Where(n => n.Length > 0).ToList(),
                 loginChanged ? username : null,
-                _elksPassword.Length > 0 ? _elksPassword : null);
+                _elksPassword.Length > 0 ? _elksPassword : null,
+                _alertRecipient.Trim());
             Fill(await Kb.CallApiAsync((api, ct) => api.UpdateSmsSettingsAsync(request, ct)));
             _message = done;
         }

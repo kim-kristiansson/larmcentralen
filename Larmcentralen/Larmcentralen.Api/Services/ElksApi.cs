@@ -5,7 +5,6 @@ using System.Text.Json.Serialization;
 using Larmcentralen.Application.DTOs;
 using Larmcentralen.Application.Interfaces;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.Extensions.Options;
 
 namespace Larmcentralen.Api.Services;
 
@@ -182,26 +181,22 @@ public sealed class ElksApi(HttpClient http) : IElksApi
 }
 
 /// <summary>
-/// Which 46elks login to use: the company's own, saved under SMS-larm (best a subaccount), or else the server's
-/// configuration (Email:ElksUsername, Email:ElksPassword, from user-secrets or environment variables).
+/// The 46elks login: the company's own, saved under SMS-larm (best a subaccount). There is no other: nothing about
+/// 46elks is kept in appsettings or user-secrets.
 /// </summary>
-public sealed class ElksAccount(ISmsSettingsService settings, IOptions<EmailOptions> options)
+public sealed class ElksAccount(ISmsSettingsService settings)
 {
-    /// <summary>True when the server's configuration has a 46elks login.</summary>
-    public bool ServerHasLogin => options.Value.ElksUsername.Length > 0 && options.Value.ElksPassword.Length > 0;
-
-    /// <summary>Null when there is no login at all. Throws <see cref="ElksException"/> when the saved one can't be read.</summary>
+    /// <summary>Null when none is saved. Throws <see cref="ElksException"/> when the saved one can't be read.</summary>
     public async Task<ElksLogin?> GetLoginAsync()
     {
         try
         {
-            if (await settings.GetElksLoginAsync() is { } saved) return saved;
+            return await settings.GetElksLoginAsync();
         }
         catch (InvalidOperationException ex)
         {
             throw new ElksException(ex.Message);
         }
-        return ServerHasLogin ? new ElksLogin(options.Value.ElksUsername, options.Value.ElksPassword) : null;
     }
 }
 

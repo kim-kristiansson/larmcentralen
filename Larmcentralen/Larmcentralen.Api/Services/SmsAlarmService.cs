@@ -8,7 +8,7 @@ namespace Larmcentralen.Api.Services;
 /// <summary>
 /// Handles an alarm SMS from the plant's alarm system (OCSS), passed on by 46elks. Only SMS from a configured sender
 /// to the configured 46elks number count (Inställningar, SMS-larm). The alarm is looked up in the knowledge base by
-/// unit and code; for a Hög or Kritisk alarm an alert SMS goes to <see cref="EmailOptions.AlertRecipient"/>.
+/// unit and code; for a Hög or Kritisk alarm an alert SMS goes to the alert number set under SMS-larm.
 /// What happened to the last SMS is kept for the admin page.
 /// </summary>
 public partial class SmsAlarmService(
