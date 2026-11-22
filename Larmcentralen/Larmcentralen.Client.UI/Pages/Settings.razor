@@ -5,27 +5,56 @@
 
 <p class="back"><a href="">← Tillbaka till sökningen</a></p>
 <h1 class="page-title">Inställningar</h1>
+<p class="muted access">@(CanEdit ? "Den här datorn har administratörsbehörighet." : "Den här datorn har läsbehörighet.")</p>
 
-@if (!CanEdit)
-{
-    <NoEditAccess />
-}
-else
-{
-    <p class="muted intro">Här ändrar en administratör det som gäller för alla.</p>
+@* Shared settings first (everyone uses them), then the admin group, which read-only PCs never see. *@
+<div class="cards">
+    <section class="card" aria-labelledby="sync-title">
+        <h2 id="sync-title">Synkronisering</h2>
+        <p class="sync-state" role="status" aria-live="polite">
+            <span class="dot @DotClass" aria-hidden="true"></span>
+            <strong>@StateText</strong>
+            <span class="muted">· @(Kb.LastSyncedAt is { } synced ? $"senast synkad {Format.When(synced)}" : "aldrig synkad")</span>
+        </p>
+        <p class="muted help">Appen hämtar det senaste från servern av sig själv. Synka nu om du vet att något just har ändrats.</p>
+        @* Not disabled when disconnected: syncing is also how the app tries the server again. *@
+        <button type="button" class="btn btn-primary" disabled="@Kb.IsSyncing" @onclick="SyncNow">
+            @(Kb.IsSyncing ? "Synkar…" : "Synka nu")
+        </button>
+    </section>
 
-    @* One card per admin feature. New features get a card here. *@
-    <ul class="settings">
-        <li>
-            <a class="setting" href="installningar/utrustning">
-                <span class="setting-title">Utrustning</span>
-                <span class="setting-text">Avdelningar och enheter: lägg till, ändra och ta bort. Just nu @AreaText och @UnitText.</span>
-            </a>
-        </li>
-    </ul>
+    <section class="card" aria-labelledby="look-title">
+        <h2 id="look-title">Utseende</h2>
+        <p class="muted help">Auto följer Windows inställning för ljust eller mörkt.</p>
+        <ThemeSwitch />
+    </section>
+</div>
+
+@if (CanEdit)
+{
+    <h2 class="group-title">Administration</h2>
+    @* One card per admin feature. New admin features get a card here. *@
+    <div class="cards">
+        <a class="card card-link" href="installningar/utrustning">
+            <span class="card-head"><span class="card-title">Utrustning</span><span class="badge">Admin</span></span>
+            <span class="muted">Avdelningar och enheter: lägg till, ändra och ta bort. Just nu @AreaText och @UnitText.</span>
+        </a>
+    </div>
 }
 
 @code {
     private string AreaText => Kb.Index.Areas.Count == 1 ? "1 avdelning" : $"{Kb.Index.Areas.Count} avdelningar";
     private string UnitText => Kb.Index.Equipment.Count == 1 ? "1 enhet" : $"{Kb.Index.Equipment.Count} enheter";
+
+    private string StateText => Kb.IsSyncing ? "Synkar…"
+        : Kb.Connection switch
+        {
+            ConnectionState.Online => "Ansluten",
+            ConnectionState.NoNetwork => "Frånkopplad: ingen nätverksanslutning",
+            _ => "Frånkopplad: servern går inte att nå"
+        };
+
+    private string DotClass => Kb.IsSyncing ? "syncing" : Kb.Connection == ConnectionState.Online ? "online" : "offline";
+
+    private async Task SyncNow() => await Kb.SyncAsync();
 }

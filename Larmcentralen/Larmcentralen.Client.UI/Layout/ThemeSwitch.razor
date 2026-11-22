@@ -3,17 +3,29 @@
 @inject IJSRuntime JS
 @using Microsoft.Extensions.Logging
 @inject ILogger<ThemeSwitch> Logger
-@* Chooses Auto (follow Windows), Ljust or Mörkt. The choice is stored by the host and applied to <html> by theme.js. *@
-<label class="theme-switch">
-    <span>Tema</span>
-    <select @onchange="OnChanged" aria-label="Tema">
-        <option value="Auto" selected="@(_current == ThemePreference.Auto)">Auto</option>
-        <option value="Light" selected="@(_current == ThemePreference.Light)">Ljust</option>
-        <option value="Dark" selected="@(_current == ThemePreference.Dark)">Mörkt</option>
-    </select>
-</label>
+@* Chooses Auto (follow Windows), Ljust or Mörkt as three big buttons (easy on a touch screen).
+   The choice is stored by the host and applied to <html> by theme.js.
+   With Headless="true" it shows nothing and only applies the stored choice: MainLayout uses that so the
+   theme is right on every page, while the buttons live on Inställningar. *@
+@if (!Headless)
+{
+    <div class="segmented" role="radiogroup" aria-label="Tema">
+        @foreach (var (value, label) in Choices)
+        {
+            <button type="button" role="radio" aria-checked="@(_current == value ? "true" : "false")"
+                    class="segment @(_current == value ? "selected" : "")" @onclick="() => ChooseAsync(value)">
+                @label
+            </button>
+        }
+    </div>
+}
 
 @code {
+    [Parameter] public bool Headless { get; set; }
+
+    private static readonly (ThemePreference Value, string Label)[] Choices =
+        [(ThemePreference.Auto, "Auto"), (ThemePreference.Light, "Ljust"), (ThemePreference.Dark, "Mörkt")];
+
     private IJSObjectReference? _module;
     private ThemePreference _current;
 
@@ -22,12 +34,11 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         // Brings the page in line with the stored choice (also fills localStorage for the next start).
-        if (firstRender) await ApplyAsync(_current);
+        if (firstRender && Headless) await ApplyAsync(_current);
     }
 
-    private async Task OnChanged(ChangeEventArgs e)
+    private async Task ChooseAsync(ThemePreference choice)
     {
-        if (!Enum.TryParse<ThemePreference>(e.Value?.ToString(), out var choice) || !Enum.IsDefined(choice)) return;
         _current = choice;
         Store.Save(choice);
         await ApplyAsync(choice);

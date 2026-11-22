@@ -1,8 +1,9 @@
-.status { display: flex; align-items: center; gap: var(--space-3); font-size: var(--text-sm); }
-.status-live { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-1) var(--space-3); }
-.status-pill { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 32px; padding: 0 var(--space-3); border-radius: var(--radius-pill); font-weight: 600; color: var(--ink); }
-.status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ok-dot); }
+/* One row that never wraps: the freshness text gives way (ellipsis) before anything else. */
+.status { display: flex; align-items: center; gap: var(--space-2); min-width: 0; font-size: var(--text-sm); white-space: nowrap; }
+.status-pill { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 28px; padding: 0 var(--space-3); border-radius: var(--radius-pill); font-weight: 600; color: var(--ink); flex: none; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok-dot); }
 .status-syncing .status-dot { background: var(--muted); }
 /* Disconnected looks like "Ansluten", only with a red dot: calm, but easy to spot. */
 .status-offline .status-dot { background: var(--off-dot); }
-.status-detail { color: var(--muted); }
+.status-detail { color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.status-detail.stale { color: var(--warn); font-weight: 600; }

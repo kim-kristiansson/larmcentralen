@@ -7,10 +7,11 @@
             <div class="topbar-tools">
                 <StatusBar />
                 <SettingsLink />
-                <ThemeSwitch />
             </div>
         </div>
     </header>
+    @* Applies the stored theme on start; the theme buttons are on Inställningar. *@
+    <ThemeSwitch Headless="true" />
     <SyncErrorBanner />
     <main>
         @* One shared container sets the page width for every page. *@

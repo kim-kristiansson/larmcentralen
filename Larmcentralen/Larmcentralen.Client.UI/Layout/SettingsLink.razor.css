@@ -1,0 +1,13 @@
+.settings-nav { display: inline-flex; flex: none; }
+/* A quiet button-like link; the open page gets a red underline (the one place red marks navigation). */
+.settings-nav ::deep .settings-link {
+  display: inline-flex; align-items: center; gap: var(--space-2); flex: none;
+  min-height: var(--control-h-sm); padding: 0 var(--space-3); border-radius: var(--radius);
+  color: var(--ink); font-weight: 600; text-decoration: none; border: 1px solid transparent;
+  box-shadow: inset 0 -2px 0 transparent;
+}
+.settings-nav ::deep .settings-link:hover { background: var(--surface-hover); border-color: var(--border); }
+.settings-nav ::deep .settings-link.active { box-shadow: inset 0 -3px 0 var(--brand); }
+@media (max-width: 900px) {
+  .settings-nav ::deep .settings-text { display: none; }
+}

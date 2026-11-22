@@ -1,36 +1,36 @@
 @inherits KnowledgeBaseComponent
-@* Shows whether the server answers (or there is no network at all), when the local copy was last synced, so
-   operators know how fresh it is, and the access level of the key.
+@* The top bar's status: whether the server answers (or there is no network at all) and how fresh the local copy is,
+   so operators see at a glance what they are reading. "Synka nu" and the access level are on Inställningar.
    Sync errors are shown by SyncErrorBanner under the top bar. *@
-<div class="status">
-    <div class="status-live" role="status" aria-live="polite">
-        @if (Kb.IsSyncing)
-        {
-            <span class="status-pill status-syncing"><span class="status-dot" aria-hidden="true"></span>Synkar…</span>
-        }
-        else if (Kb.Connection == ConnectionState.Online)
-        {
-            <span class="status-pill status-online"><span class="status-dot" aria-hidden="true"></span>Ansluten</span>
-        }
-        else
-        {
-            @* Both "server unreachable" and "no network" read "Frånkopplad"; the tooltip says which. *@
-            var reason = Kb.Connection == ConnectionState.NoNetwork ? "Ingen nätverksanslutning" : "Servern går inte att nå";
-            <span class="status-pill status-offline" title="@reason. Appen visar den lokala kopian; redigering kräver anslutning.">
-                <span class="status-dot" aria-hidden="true"></span>Frånkopplad<span class="visually-hidden">: @reason</span>
-            </span>
-        }
-        <span class="status-detail">
-            @(Kb.LastSyncedAt is { } synced ? $"synkad {Format.When(synced)}" : "aldrig synkad")
-            · @(Kb.CanEdit ? "admin" : "läsbehörighet")
+<div class="status" role="status" aria-live="polite">
+    @if (Kb.IsSyncing)
+    {
+        <span class="status-pill status-syncing"><span class="status-dot" aria-hidden="true"></span>Synkar…</span>
+    }
+    else if (Kb.Connection == ConnectionState.Online)
+    {
+        <span class="status-pill status-online"><span class="status-dot" aria-hidden="true"></span>Ansluten</span>
+    }
+    else
+    {
+        @* Both "server unreachable" and "no network" read "Frånkopplad"; the tooltip says which. *@
+        var reason = Kb.Connection == ConnectionState.NoNetwork ? "Ingen nätverksanslutning" : "Servern går inte att nå";
+        <span class="status-pill status-offline" title="@reason. Appen visar den lokala kopian; redigering kräver anslutning.">
+            <span class="status-dot" aria-hidden="true"></span>Frånkopplad<span class="visually-hidden">: @reason</span>
         </span>
-    </div>
-    <button type="button" class="btn btn-small" disabled="@Kb.IsSyncing" @onclick="SyncNow"
-            title="Hämta senaste versionen från servern">
-        Synka nu
-    </button>
+    }
+    <span class="status-detail @(IsStale ? "stale" : "")"
+          title="@(IsStale ? "Den lokala kopian är mer än ett dygn gammal." : null)">@Freshness</span>
 </div>
 
 @code {
-    private async Task SyncNow() => await Kb.SyncAsync();
+    /// <summary>Older than this, the freshness text turns amber.</summary>
+    private static readonly TimeSpan StaleAfter = TimeSpan.FromHours(24);
+
+    private bool IsStale => Kb.LastSyncedAt is { } synced && DateTimeOffset.Now - synced > StaleAfter;
+
+    /// <summary>"Synkad 02:59" online; offline "Data från 02:59", because that is what the operator is reading.</summary>
+    private string Freshness => Kb.LastSyncedAt is { } synced
+        ? $"{(Kb.Connection == ConnectionState.Online || Kb.IsSyncing ? "Synkad" : "Data från")} {Format.Short(synced)}"
+        : "Aldrig synkad";
 }

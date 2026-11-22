@@ -1,8 +1,11 @@
-.theme-switch { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--muted); }
-.theme-switch select {
-  min-height: var(--control-h-sm); padding: 0 var(--space-2); font: inherit; font-size: var(--text-md); font-weight: 600;
-  color: var(--ink); background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius); cursor: pointer;
+/* Three equal buttons in one frame. The chosen one is filled with the strong neutral (not brand red,
+   which is kept for alarms and the offline dot). */
+.segmented { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+.segment {
+  min-height: var(--control-h); min-width: 96px; padding: 0 var(--space-5); border: none; background: none;
+  font: inherit; font-weight: 600; color: var(--ink); cursor: pointer;
 }
-.theme-switch select:hover { border-color: var(--ink); }
-/* The popup list follows color-scheme; system colours keep it readable in every mode. */
-.theme-switch option { background: Canvas; color: CanvasText; }
+.segment + .segment { border-left: 1px solid var(--border-strong); }
+.segment:hover:not(.selected) { background: var(--surface-hover); }
+.segment.selected { background: var(--action); color: var(--on-action); }
+.segment:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
