@@ -23,6 +23,8 @@
 :root {
   /* Status dot for "Ansluten" (decorative: the label carries the meaning) */
   --ok-dot: light-dark(#16A34A, #6EE7A0);
+  /* Status dot for "Frånkopplad": a clear red on both backgrounds (decorative too). */
+  --off-dot: light-dark(#DC2626, #F87171);
 
   /* Neutrals */
   --background: light-dark(#F6F6F6, #121212);

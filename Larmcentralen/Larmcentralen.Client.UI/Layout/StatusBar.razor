@@ -12,13 +12,13 @@
         {
             <span class="status-pill status-online"><span class="status-dot" aria-hidden="true"></span>Ansluten</span>
         }
-        else if (Kb.Connection == ConnectionState.ServerUnreachable)
-        {
-            <span class="status-pill status-offline" title="Appen visar den lokala kopian. Redigering kräver anslutning till servern."><span class="status-dot" aria-hidden="true"></span>Servern går inte att nå</span>
-        }
         else
         {
-            <span class="status-pill status-offline" title="Datorn har ingen nätverksanslutning. Appen visar den lokala kopian."><span class="status-dot" aria-hidden="true"></span>Offline</span>
+            @* Both "server unreachable" and "no network" read "Frånkopplad"; the tooltip says which. *@
+            var reason = Kb.Connection == ConnectionState.NoNetwork ? "Ingen nätverksanslutning" : "Servern går inte att nå";
+            <span class="status-pill status-offline" title="@reason. Appen visar den lokala kopian; redigering kräver anslutning.">
+                <span class="status-dot" aria-hidden="true"></span>Frånkopplad<span class="visually-hidden">: @reason</span>
+            </span>
         }
         <span class="status-detail">
             @(Kb.LastSyncedAt is { } synced ? $"synkad {Format.When(synced)}" : "aldrig synkad")
