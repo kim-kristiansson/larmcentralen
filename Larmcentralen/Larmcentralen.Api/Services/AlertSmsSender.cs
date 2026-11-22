@@ -1,10 +1,8 @@
-using Microsoft.Extensions.Options;
-
 namespace Larmcentralen.Api.Services;
 
 /// <summary>
-/// The 46elks account and who gets alerts (config section "Email" for historical reasons). From user-secrets or
-/// environment variables, never appsettings.json.
+/// The server's 46elks settings (config section "Email" for historical reasons). The login can instead be saved
+/// by an admin under SMS-larm, which wins. From user-secrets or environment variables, never appsettings.json.
 /// </summary>
 public class EmailOptions
 {
@@ -25,43 +23,50 @@ public interface IAlertSmsSender
     Task<bool> SendAsync(string message, CancellationToken ct = default);
 }
 
-public sealed class ElksAlertSmsSender(HttpClient http, IOptions<EmailOptions> options, ILogger<ElksAlertSmsSender> logger)
-    : IAlertSmsSender
+public sealed class ElksAlertSmsSender(
+    IElksApi api,
+    ElksAccount account,
+    Microsoft.Extensions.Options.IOptions<EmailOptions> options,
+    ILogger<ElksAlertSmsSender> logger) : IAlertSmsSender
 {
-    public const string ApiUrl = "https://api.46elks.com/a1/sms";
+    /// <summary>Text sender: at most 11 letters and digits, starting with a letter (46elks' rule).</summary>
+    public const string Sender = "Larmcentral";
+
+    private static readonly TimeSpan[] RetryDelays = [TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(10)];
 
     public async Task<bool> SendAsync(string message, CancellationToken ct = default)
     {
-        var o = options.Value;
-        if (o.ElksUsername.Length == 0 || o.ElksPassword.Length == 0 || o.AlertRecipient.Length == 0)
+        var recipient = options.Value.AlertRecipient;
+        if (recipient.Length == 0)
         {
-            logger.LogWarning("Email:ElksUsername, Email:ElksPassword or Email:AlertRecipient not set: no alert sent.");
+            logger.LogWarning("Email:AlertRecipient not set: no alert sent.");
             return false;
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, ApiUrl)
+        // 5xx or no answer: try again a couple of times. 4xx never: the request itself is wrong.
+        for (var attempt = 0; ; attempt++)
         {
-            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            try
             {
-                ["from"] = "Larmcentral",
-                ["to"] = o.AlertRecipient,
-                ["message"] = message,
-            })
-        };
-        var auth = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{o.ElksUsername}:{o.ElksPassword}"));
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", auth);
-
-        try
-        {
-            using var response = await http.SendAsync(request, ct);
-            var body = await response.Content.ReadAsStringAsync(ct);
-            logger.LogInformation("46elks response: {Status} {Body}", response.StatusCode, body);
-            return response.IsSuccessStatusCode;
-        }
-        catch (HttpRequestException ex)
-        {
-            logger.LogError(ex, "Could not reach 46elks");
-            return false;
+                if (await account.GetLoginAsync() is not { } login)
+                {
+                    logger.LogWarning("No 46elks login (SMS-larm or Email:ElksUsername/ElksPassword): no alert sent.");
+                    return false;
+                }
+                var id = await api.SendSmsAsync(login, Sender, recipient, message, ct);
+                logger.LogInformation("Alert SMS {Id} handed to 46elks", id);
+                return true;
+            }
+            catch (ElksException ex) when (ex.Transient && attempt < RetryDelays.Length)
+            {
+                logger.LogWarning("Sending the alert failed ({Reason}), trying again", ex.Message);
+                await Task.Delay(RetryDelays[attempt], ct);
+            }
+            catch (ElksException ex)
+            {
+                logger.LogError("Sending the alert failed: {Reason}", ex.Message);
+                return false;
+            }
         }
     }
 }

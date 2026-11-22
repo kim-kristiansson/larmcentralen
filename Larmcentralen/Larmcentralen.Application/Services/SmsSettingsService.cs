@@ -9,7 +9,7 @@ namespace Larmcentralen.Application.Services;
 /// Which SMS the alarm webhook acts on: only from a configured sender (the plant's alarm system, OCSS)
 /// to the configured 46elks number. Until both are set, every SMS is turned away.
 /// </summary>
-public class SmsSettingsService(ISmsSettingsRepository repo) : ISmsSettingsService
+public class SmsSettingsService(ISmsSettingsRepository repo, ISecretProtector protector) : ISmsSettingsService
 {
     /// <summary>Plenty for one alarm system with a spare modem or two.</summary>
     public const int MaxSenders = 20;
@@ -41,9 +41,36 @@ public class SmsSettingsService(ISmsSettingsRepository repo) : ISmsSettingsServi
                 return WriteResult<SmsSettingsDto>.Invalid($"Högst {MaxSenders} avsändare.");
         }
 
+        var username = dto.ElksUsername?.Trim();
+        if (username is { Length: > 100 } || (username?.Any(char.IsWhiteSpace) ?? false))
+            return WriteResult<SmsSettingsDto>.Invalid("API-användarnamnet till 46elks ser inte rätt ut.");
+
         var settings = await repo.GetAsync();
         if (dto.ElksNumber is not null) settings.ElksNumber = elksNumber;
         if (senders is not null) settings.SenderNumbers = senders;
+
+        if (username is not null)
+        {
+            if (username.Length == 0)
+            {
+                settings.ElksUsername = null;
+                settings.ElksPasswordProtected = null;
+            }
+            else
+            {
+                if (username != settings.ElksUsername && string.IsNullOrEmpty(dto.ElksPassword))
+                    settings.ElksPasswordProtected = null;
+                settings.ElksUsername = username;
+            }
+        }
+        if (!string.IsNullOrEmpty(dto.ElksPassword))
+        {
+            if (settings.ElksUsername is null)
+                return WriteResult<SmsSettingsDto>.Invalid("Ange API-användarnamnet till 46elks också.");
+            settings.ElksPasswordProtected = protector.Protect(dto.ElksPassword);
+        }
+        if (settings.ElksUsername is not null && settings.ElksPasswordProtected is null)
+            return WriteResult<SmsSettingsDto>.Invalid("Ange API-lösenordet till 46elks också.");
 
         if (settings.ElksNumber is not null && settings.SenderNumbers.Contains(settings.ElksNumber))
             return WriteResult<SmsSettingsDto>.Invalid("46elks-numret kan inte också vara en avsändare.");
@@ -77,6 +104,18 @@ public class SmsSettingsService(ISmsSettingsRepository repo) : ISmsSettingsServi
         await repo.SaveChangesAsync();
     }
 
+    public async Task<ElksLogin?> GetElksLoginAsync()
+    {
+        var settings = await repo.GetAsync();
+        if (settings.ElksUsername is null || settings.ElksPasswordProtected is null) return null;
+        var password = protector.Unprotect(settings.ElksPasswordProtected)
+                       ?? throw new InvalidOperationException(UnreadablePassword);
+        return new ElksLogin(settings.ElksUsername, password);
+    }
+
+    /// <summary>Shown when the saved password can't be decrypted any more.</summary>
+    public const string UnreadablePassword = "Det sparade lösenordet till 46elks kan inte läsas längre (serverns nycklar har bytts). Ange det igen under SMS-larm.";
+
     public async Task<SmsFetchState> GetFetchStateAsync()
     {
         var settings = await repo.GetAsync();
@@ -103,5 +142,7 @@ public class SmsSettingsService(ISmsSettingsRepository repo) : ISmsSettingsServi
         [.. s.SenderNumbers],
         s.LastSmsAt is { } at ? new LastSmsDto(at, s.LastSmsFrom, s.LastSmsAccepted, s.LastSmsResult ?? "") : null,
         s.UpdatedAt,
-        s.LastFetchAt is { } fetched ? new LastFetchDto(fetched, s.LastFetchError) : null);
+        s.LastFetchAt is { } fetched ? new LastFetchDto(fetched, s.LastFetchError) : null,
+        s.ElksUsername,
+        s.ElksPasswordProtected is not null);
 }

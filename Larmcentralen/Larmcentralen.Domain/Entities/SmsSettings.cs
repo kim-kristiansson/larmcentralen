@@ -20,6 +20,17 @@ public class SmsSettings
     /// <summary>The numbers the alarm system sends from. Empty: every SMS is turned away.</summary>
     public List<string> SenderNumbers { get; set; } = [];
 
+    /// <summary>
+    /// The company's own 46elks API username (best a subaccount's). Null: the server's configuration
+    /// (Email:ElksUsername) is used instead.
+    /// </summary>
+    public string? ElksUsername { get; set; }
+
+    /// <summary>
+    /// Its API password, encrypted by the API (ASP.NET Data Protection). Never sent to the app, never synced.
+    /// </summary>
+    public string? ElksPasswordProtected { get; set; }
+
     public DateTime? UpdatedAt { get; set; }
 
     /// <summary>When the last SMS came in.</summary>

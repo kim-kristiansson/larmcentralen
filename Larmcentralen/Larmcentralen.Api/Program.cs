@@ -6,6 +6,7 @@ using Larmcentralen.Application.Services;
 using Larmcentralen.Domain.Interfaces;
 using Larmcentralen.Infrastructure.Data;
 using Larmcentralen.Infrastructure.Repositories;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -49,8 +50,17 @@ builder.Services.AddScoped<ISharePointSyncService, SharePointSyncService>();
 builder.Services.AddScoped<SharePointUploadService>();
 builder.Services.AddScoped<ExportService>();
 builder.Services.AddScoped<SmsAlarmService>();
-builder.Services.AddHttpClient<IAlertSmsSender, ElksAlertSmsSender>();
-builder.Services.AddHttpClient<IElksSmsHistory, ElksSmsHistory>();
+builder.Services.AddHttpClient<IElksApi, ElksApi>(c => c.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddScoped<ElksAccount>();
+builder.Services.AddScoped<IAlertSmsSender, ElksAlertSmsSender>();
+// The company's own 46elks password (SMS-larm) is kept encrypted in the database.
+var dataSource = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(
+    builder.Configuration.GetConnectionString("DefaultConnection")).DataSource;
+var keysFolder = new DirectoryInfo(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dataSource))!, "keys"));
+// Kept beside the database (back them up together), readable by any account on this machine.
+var dataProtection = builder.Services.AddDataProtection().SetApplicationName("Larmcentralen").PersistKeysToFileSystem(keysFolder);
+if (OperatingSystem.IsWindows()) dataProtection.ProtectKeysWithDpapi(protectToLocalMachine: true);
+builder.Services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>();
 builder.Services.AddSingleton<HandledSmsIds>();
 // Fetches new alarm SMS from 46elks, so the API needs no public address.
 builder.Services.AddSingleton<ElksSmsFetcher>();

@@ -526,6 +526,8 @@ $RECYCLE.BIN/
 *.db
 *.db-shm
 *.db-wal
+# The API's Data Protection keys (they decrypt the saved 46elks password), next to the database
+**/data/keys/
 
 # Secrets and local config (added by security audit 2026-11-21)
 .env.*

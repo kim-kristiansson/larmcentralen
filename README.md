@@ -95,11 +95,25 @@ alarm system's numbers **to** the 46elks number. Admins set both in the app unde
 Inställningar → SMS-larm (`GET/PUT /api/settings/sms`, admin key). Until both are set every SMS is turned
 away. Numbers can be typed any Swedish way (`070-123 45 67`, `+46 70 123 45 67`) and are stored as `+4670…`.
 
+**The 46elks login.** 46elks only has HTTP Basic auth (API username and API password); there is no
+OAuth or "log in with 46elks". The company enters its own login on the same page, best a 46elks
+*subaccount* made for Larmcentralen (`POST /a1/subaccounts` with a `usagelimit`), so the main account's
+password is never handed out and costs are capped. The password is write-only: the API encrypts it with
+ASP.NET Data Protection and never returns it, and it is not part of the sync. The Data Protection keys
+live in `data/keys/` next to the database (DPAPI-protected on Windows, git-ignored); back them up with
+the database, or the saved password has to be typed in again. Without a saved login the server's own
+`Email:ElksUsername` / `Email:ElksPassword` (user-secrets or environment variables) are used.
+**Testa anslutningen** logs in (`GET /a1/numbers`) and checks that the 46elks number is on the account,
+active and able to take SMS. It sends nothing.
+
 An accepted SMS is matched to an alarm by unit and code (`… Line : T102 : M206.6 …`); for a Hög or
-Kritisk alarm an alert SMS goes to `Email:AlertRecipient` through the 46elks account
-(`Email:ElksUsername`, `Email:ElksPassword`, both needed for fetching too). The page shows the last SMS,
+Kritisk alarm an alert SMS goes to `Email:AlertRecipient` from the text sender `Larmcentral`
+(46elks allows at most 11 letters and digits). Sending is retried on 5xx or no answer, never on 4xx.
+After a failed fetch the API waits longer each time (up to 5 minutes). The page shows the last SMS,
 what happened to it and the last fetch (or why it failed); nothing else is logged. The webhook always
 answers an empty 200, because 46elks sends any text in the response back to the sender as a reply.
+46elks recommends also limiting the webhook to its IP addresses (see 46elks' docs, "IP addresses")
+in the firewall if the webhook is used.
 
 In Development the API runs without keys if none are set (it logs a warning). In any other
 environment it refuses to start until all three (`Security:ApiKey`, `Security:AdminApiKey`,

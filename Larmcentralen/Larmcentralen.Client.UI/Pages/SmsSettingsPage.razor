@@ -70,6 +70,36 @@ else
                 </div>
             </div>
 
+            <fieldset class="account">
+                <legend>46elks-konto</legend>
+                <span class="muted hint">
+                    API-inloggningen från 46elks (under <em>Account</em> där). Använd helst ett eget underkonto
+                    (<em>subaccount</em>) för larmcentralen, med ett kostnadstak. Lösenordet sparas krypterat på servern
+                    och visas aldrig igen. Skriv ett nytt för att byta det.
+                    @if (_settings.ServerHasElksAccount)
+                    {
+                        <text> Lämnas det tomt används serverns eget 46elks-konto.</text>
+                    }
+                </span>
+                <div class="form-row">
+                    <label>
+                        <span>API-användarnamn</span>
+                        <input @bind="_elksUsername" @bind:event="oninput" autocomplete="off" spellcheck="false" />
+                    </label>
+                    <label>
+                        <span>API-lösenord</span>
+                        <input type="password" @bind="_elksPassword" @bind:event="oninput" autocomplete="new-password"
+                               placeholder="@(_settings.HasElksPassword ? "Sparat" : "")" />
+                    </label>
+                </div>
+                @if (_settings.ElksUsername is not null)
+                {
+                    <div>
+                        <button type="button" class="btn btn-small btn-danger-outline" disabled="@_saving" @onclick="RemoveLoginAsync">Ta bort inloggningen</button>
+                    </div>
+                }
+            </fieldset>
+
             @if (_error is not null)
             {
                 <p class="error" role="alert">@_error</p>
@@ -80,7 +110,17 @@ else
             }
             <div class="form-actions">
                 <OnlineButton Type="submit" Class="btn btn-primary" Disabled="_saving">@(_saving ? "Sparar…" : "Spara")</OnlineButton>
+                <OnlineButton Class="btn" Disabled="_saving" OnClick="TestAsync">@(_testing ? "Testar…" : "Testa anslutningen")</OnlineButton>
             </div>
+            @if (_test is not null)
+            {
+                <ul class="test @(_test.Ok ? "success" : "error")" role="status">
+                    @foreach (var line in _test.Messages)
+                    {
+                        <li>@line</li>
+                    }
+                </ul>
+            }
         </form>
 
         <section class="card last" aria-labelledby="last-title">
@@ -114,9 +154,9 @@ else
         <section class="card setup" aria-labelledby="setup-title">
             <h2 id="setup-title">Koppla 46elks</h2>
             <p class="muted">
-                Servern hämtar nya SMS från 46elks av sig själv, med 46elks-kontot i serverns inställningar
-                (<code>Email:ElksUsername</code> och <code>Email:ElksPassword</code>). Ingen publik adress behövs,
-                och numret ska inte ha någon webhook (<em>sms_url</em>) i 46elks.
+                Servern hämtar nya SMS från 46elks av sig själv var 15:e sekund, med 46elks-kontot ovan. Ingen publik
+                adress behövs, och numret behöver ingen webhook (<em>sms_url</em>) i 46elks. Tryck på
+                <strong>Testa anslutningen</strong> efter att du har sparat, så kontrolleras inloggningen och numret.
             </p>
             <p class="muted">
                 Har servern en publik adress kan 46elks i stället skicka SMS direkt till
@@ -135,6 +175,10 @@ else
     private SmsSettings? _settings;
     private string _elksNumber = "";
     private List<SenderRow> _senders = [];
+    private string _elksUsername = "";
+    private string _elksPassword = "";
+    private SmsConnectionTest? _test;
+    private bool _testing;
     private bool _saving;
     private bool _loadedOnline;
     private string? _message;
@@ -156,7 +200,7 @@ else
             var settings = await Kb.CallApiAsync((api, ct) => api.GetSmsSettingsAsync(ct));
             // Keep what the admin is typing: only fill the form the first time.
             if (_settings is null) Fill(settings);
-            else _settings = _settings with { LastSms = settings.LastSms };
+            else _settings = _settings with { LastSms = settings.LastSms, LastFetch = settings.LastFetch };
             _loadedOnline = true;
             _error = null;
         }
@@ -172,21 +216,37 @@ else
         _settings = settings;
         _elksNumber = settings.ElksNumber ?? "";
         _senders = settings.SenderNumbers.Select(n => new SenderRow { Number = n }).ToList();
+        _elksUsername = settings.ElksUsername ?? "";
+        _elksPassword = "";
     }
 
     private void AddSender() => _senders.Add(new SenderRow());
 
-    private async Task SaveAsync()
+    private Task SaveAsync() => SaveAsync(_elksUsername.Trim(), "SMS-inställningarna är sparade.");
+
+    /// <summary>Removes the saved 46elks login: the server's own (if any) is used again.</summary>
+    private Task RemoveLoginAsync()
+    {
+        _elksUsername = _elksPassword = "";
+        return SaveAsync("", "Inloggningen till 46elks är borttagen.");
+    }
+
+    private async Task SaveAsync(string username, string done)
     {
         _saving = true;
         _message = _error = null;
+        _test = null;
         try
         {
+            // Unchanged login: send nothing for it, so the saved password stays.
+            var loginChanged = username != (_settings?.ElksUsername ?? "") || _elksPassword.Length > 0;
             var request = new SmsSettingsRequest(
                 _elksNumber.Trim(),
-                _senders.Select(s => s.Number.Trim()).Where(n => n.Length > 0).ToList());
+                _senders.Select(s => s.Number.Trim()).Where(n => n.Length > 0).ToList(),
+                loginChanged ? username : null,
+                _elksPassword.Length > 0 ? _elksPassword : null);
             Fill(await Kb.CallApiAsync((api, ct) => api.UpdateSmsSettingsAsync(request, ct)));
-            _message = "SMS-inställningarna är sparade.";
+            _message = done;
         }
         catch (Exception ex)
         {
@@ -195,6 +255,25 @@ else
         finally
         {
             _saving = false;
+        }
+    }
+
+    private async Task TestAsync()
+    {
+        _testing = true;
+        _test = null;
+        _message = _error = null;
+        try
+        {
+            _test = await Kb.CallApiAsync((api, ct) => api.TestSmsConnectionAsync(ct));
+        }
+        catch (Exception ex)
+        {
+            _test = new SmsConnectionTest(false, [$"Testet kunde inte köras. {Reason(ex)}"]);
+        }
+        finally
+        {
+            _testing = false;
         }
     }
 

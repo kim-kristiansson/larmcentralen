@@ -182,6 +182,15 @@ public class LarmApiClient(HttpClient http)
                ?? throw new InvalidOperationException("The API returned empty SMS settings.");
     }
 
+    /// <summary>Logs in to 46elks with the saved login and checks the 46elks number. Sends nothing.</summary>
+    public async Task<SmsConnectionTest> TestSmsConnectionAsync(CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync("api/settings/sms/test", null, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<SmsConnectionTest>(ct)
+               ?? throw new InvalidOperationException("The API returned an empty test result.");
+    }
+
     /// <summary>Downloads the alarm and its solutions as a .docx.</summary>
     public async Task<(byte[] Bytes, string FileName)> ExportAlarmAsync(int alarmId, CancellationToken ct = default)
     {

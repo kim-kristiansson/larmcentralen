@@ -34,6 +34,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(s => s.LastSmsFrom).HasMaxLength(50);
             e.Property(s => s.LastSmsResult).HasMaxLength(500);
             e.Property(s => s.LastFetchError).HasMaxLength(500);
+            e.Property(s => s.ElksUsername).HasMaxLength(100);
+            e.Property(s => s.ElksPasswordProtected).HasMaxLength(2000);
             // Stored as a JSON array.
             e.PrimitiveCollection(s => s.SenderNumbers);
         });

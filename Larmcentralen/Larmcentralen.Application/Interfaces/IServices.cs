@@ -85,8 +85,23 @@ public interface ISmsSettingsService
     Task RecordAsync(string? from, bool accepted, string result, DateTime? now = null);
 
     /// <summary>The 46elks number and where fetching from 46elks' SMS history stopped last time.</summary>
+    /// <summary>
+    /// The company's own 46elks login saved under SMS-larm, decrypted; null when none is saved. Throws
+    /// InvalidOperationException (Swedish message) when the saved password can't be decrypted.
+    /// </summary>
+    Task<ElksLogin?> GetElksLoginAsync();
+
     Task<SmsFetchState> GetFetchStateAsync();
 
     /// <summary>Keeps when 46elks was last asked and how it went; moves the fetch mark forward (never back).</summary>
     Task RecordFetchAsync(DateTime at, DateTime? fetchedUntil, string? error);
+}
+
+/// <summary>Encrypts secrets kept in the database (the 46elks password). Implemented by the API.</summary>
+public interface ISecretProtector
+{
+    string Protect(string secret);
+
+    /// <summary>Null when it can't be decrypted (for example the server's keys were lost).</summary>
+    string? Unprotect(string protectedSecret);
 }
