@@ -24,6 +24,9 @@ public class SolutionRepository(AppDbContext db) : Repository<Solution>(db), ISo
             .FirstOrDefaultAsync(s => s.Id == id);
     }
 
+    public Task<bool> IsLinkedElsewhereAsync(int solutionId, int alarmId)
+        => Db.AlarmSolutions.IgnoreQueryFilters().AnyAsync(l => l.SolutionId == solutionId && l.AlarmId != alarmId);
+
     public async Task<List<AlarmSolution>> GetAllLinksAsync()
     {
         return await Db.AlarmSolutions

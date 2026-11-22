@@ -117,7 +117,7 @@ public class LarmApiClient(HttpClient http)
         await EnsureSuccessAsync(response, ct);
     }
 
-    /// <summary>The API refuses (409) while the area still has units.</summary>
+    /// <summary>Moves the avdelning to the bin (Papperskorg) with its units, their alarms and solutions.</summary>
     public async Task DeleteAreaAsync(int id, CancellationToken ct = default)
     {
         using var response = await http.DeleteAsync($"api/areas/{id}", ct);
@@ -138,10 +138,33 @@ public class LarmApiClient(HttpClient http)
         await EnsureSuccessAsync(response, ct);
     }
 
-    /// <summary>The API refuses (409) while the unit still has alarms.</summary>
+    /// <summary>Moves the unit to the bin (Papperskorg) with its alarms and solutions.</summary>
     public async Task DeleteEquipmentAsync(int id, CancellationToken ct = default)
     {
         using var response = await http.DeleteAsync($"api/equipment/{id}", ct);
+        await EnsureSuccessAsync(response, ct);
+    }
+
+    /// <summary>What removing an avdelning (<paramref name="isArea"/>) or a unit would take with it.</summary>
+    public async Task<TrashPreview> PreviewRemovalAsync(bool isArea, int id, CancellationToken ct = default)
+        => await http.GetFromJsonAsync<TrashPreview>($"api/trash/preview/{(isArea ? "areas" : "equipment")}/{id}", ct)
+           ?? throw new InvalidOperationException("The API returned an empty preview.");
+
+    /// <summary>The bin (admin only). Not part of the sync: it needs a connection.</summary>
+    public async Task<List<TrashItem>> GetTrashAsync(CancellationToken ct = default)
+        => await http.GetFromJsonAsync<List<TrashItem>>("api/trash", ct) ?? [];
+
+    /// <summary>Brings a removal back. 409 (with a reason) when its avdelning is in the bin too, or the name is taken.</summary>
+    public async Task RestoreFromTrashAsync(int id, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync($"api/trash/{id}/restore", null, ct);
+        await EnsureSuccessAsync(response, ct);
+    }
+
+    /// <summary>Erases a removal for good, now.</summary>
+    public async Task EraseFromTrashAsync(int id, CancellationToken ct = default)
+    {
+        using var response = await http.DeleteAsync($"api/trash/{id}", ct);
         await EnsureSuccessAsync(response, ct);
     }
 

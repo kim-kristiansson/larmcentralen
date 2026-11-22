@@ -57,23 +57,6 @@ public class AreaService(IAreaRepository repo) : IAreaService
         return WriteResult<AreaDto>.Ok(ToDto(area));
     }
 
-    /// <summary>Refuses (409) while the area still has units: they would be left without an area.</summary>
-    public async Task<WriteResult<AreaDto>> DeleteAsync(int id)
-    {
-        var area = await repo.GetByIdWithEquipmentAsync(id);
-        if (area is null) return WriteResult<AreaDto>.NotFound();
-
-        if (area.Equipment.Count > 0)
-        {
-            var units = area.Equipment.Count == 1 ? "1 enhet" : $"{area.Equipment.Count} enheter";
-            return WriteResult<AreaDto>.Conflict($"Avdelningen har {units}. Flytta eller ta bort dem först.");
-        }
-
-        repo.Remove(area);
-        await repo.SaveChangesAsync();
-        return WriteResult<AreaDto>.Ok(ToDto(area));
-    }
-
     private async Task<WriteResult<AreaDto>?> ValidateAsync(string title, int? id)
     {
         if (title.Length == 0) return WriteResult<AreaDto>.Invalid("Ange avdelningens namn.");
@@ -82,6 +65,9 @@ public class AreaService(IAreaRepository repo) : IAreaService
         var all = await repo.GetAllAsync();
         if (all.Any(a => a.Id != id && string.Equals(a.Title.Trim(), title, StringComparison.CurrentCultureIgnoreCase)))
             return WriteResult<AreaDto>.Conflict($"Det finns redan en avdelning som heter {title}.");
+        if ((await repo.GetBinnedTitlesAsync()).Any(t => string.Equals(t.Trim(), title, StringComparison.CurrentCultureIgnoreCase)))
+            return WriteResult<AreaDto>.Conflict(
+                $"En avdelning som heter {title} ligger i papperskorgen. Återställ den, eller välj ett annat namn.");
         return null;
     }
 

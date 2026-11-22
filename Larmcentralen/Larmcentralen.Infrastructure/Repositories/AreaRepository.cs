@@ -14,6 +14,9 @@ public class AreaRepository(AppDbContext db) : Repository<Area>(db), IAreaReposi
             .FirstOrDefaultAsync(a => a.Id == id);
     }
 
+    public Task<List<string>> GetBinnedTitlesAsync()
+        => Db.Areas.IgnoreQueryFilters().Where(a => a.TrashBatchId != null).Select(a => a.Title).ToListAsync();
+
     public async Task<List<Area>> GetAllWithEquipmentAsync()
     {
         return await Db.Areas

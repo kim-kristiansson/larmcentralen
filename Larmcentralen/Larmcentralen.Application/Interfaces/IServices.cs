@@ -8,7 +8,6 @@ public interface IAreaService
     Task<AreaDto?> GetByIdAsync(int id);
     Task<WriteResult<AreaDto>> CreateAsync(CreateAreaDto dto);
     Task<WriteResult<AreaDto>> UpdateAsync(int id, UpdateAreaDto dto);
-    Task<WriteResult<AreaDto>> DeleteAsync(int id);
 }
 
 public interface IEquipmentService
@@ -40,6 +39,27 @@ public interface ISolutionService
     Task<SolutionWriteResult> UnlinkAsync(int alarmId, int solutionId);
     Task<SolutionWriteResult> DetachAsync(int alarmId, int solutionId);
 }
+/// <summary>The bin (Papperskorg) for removed avdelningar and units. See TrashService.</summary>
+public interface ITrashService
+{
+    /// <summary>What removing it would take with it. Null when it does not exist.</summary>
+    Task<TrashPreviewDto?> PreviewAsync(int? areaId, int? equipmentId);
+
+    /// <summary>Moves an avdelning (areaId) or a unit (equipmentId) to the bin with everything below it.</summary>
+    Task<WriteResult<TrashItemDto>> MoveToTrashAsync(int? areaId, int? equipmentId, DateTime? now = null);
+
+    Task<List<TrashItemDto>> GetAllAsync();
+
+    /// <summary>Brings a removal back. 409 when its avdelning is in the bin too, or a unit with its name was added since.</summary>
+    Task<WriteResult<TrashItemDto>> RestoreAsync(int batchId);
+
+    /// <summary>Erases a removal for good, now. False when it does not exist.</summary>
+    Task<bool> EraseAsync(int batchId);
+
+    /// <summary>Erases every removal older than the retention period. Returns how many.</summary>
+    Task<int> EraseExpiredAsync(DateTime now);
+}
+
 public interface ISyncService
 {
     Task<SyncSnapshotDto> GetSnapshotAsync();

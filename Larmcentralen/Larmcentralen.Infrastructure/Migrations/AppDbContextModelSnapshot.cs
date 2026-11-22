@@ -15,7 +15,7 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261121202256_DropAlarmDefinitions";
+    public override string LastMigrationId => "20261122024237_AddTrash";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -50,12 +50,17 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                     .HasMaxLength(300)
                     .HasColumnType("TEXT");
 
+                b.Property<int?>("TrashBatchId")
+                    .HasColumnType("INTEGER");
+
                 b.Property<DateTime?>("UpdatedAt")
                     .HasColumnType("TEXT");
 
                 b.HasKey("Id");
 
                 b.HasIndex("AlarmCodeId");
+
+                b.HasIndex("TrashBatchId");
 
                 b.HasIndex("EquipmentId", "AlarmCodeId")
                     .IsUnique();
@@ -126,6 +131,9 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                     .HasMaxLength(100)
                     .HasColumnType("TEXT");
 
+                b.Property<int?>("TrashBatchId")
+                    .HasColumnType("INTEGER");
+
                 b.Property<DateTime?>("UpdatedAt")
                     .HasColumnType("TEXT");
 
@@ -133,6 +141,8 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
 
                 b.HasIndex("Title")
                     .IsUnique();
+
+                b.HasIndex("TrashBatchId");
 
                 b.ToTable("Areas");
             });
@@ -168,12 +178,17 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                     .HasMaxLength(200)
                     .HasColumnType("TEXT");
 
+                b.Property<int?>("TrashBatchId")
+                    .HasColumnType("INTEGER");
+
                 b.Property<DateTime?>("UpdatedAt")
                     .HasColumnType("TEXT");
 
                 b.HasKey("Id");
 
                 b.HasIndex("AreaId");
+
+                b.HasIndex("TrashBatchId");
 
                 b.ToTable("Equipment");
             });
@@ -202,12 +217,57 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                     .HasMaxLength(300)
                     .HasColumnType("TEXT");
 
+                b.Property<int?>("TrashBatchId")
+                    .HasColumnType("INTEGER");
+
                 b.Property<DateTime?>("UpdatedAt")
                     .HasColumnType("TEXT");
 
                 b.HasKey("Id");
 
+                b.HasIndex("TrashBatchId");
+
                 b.ToTable("Solutions");
+            });
+
+        modelBuilder.Entity("Larmcentralen.Domain.Entities.TrashBatch", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
+
+                b.Property<int>("AlarmCount")
+                    .HasColumnType("INTEGER");
+
+                b.Property<string>("AreaTitle")
+                    .HasMaxLength(100)
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTime>("DeletedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<int>("EquipmentCount")
+                    .HasColumnType("INTEGER");
+
+                b.Property<int>("ItemId")
+                    .HasColumnType("INTEGER");
+
+                b.Property<string>("Kind")
+                    .IsRequired()
+                    .HasMaxLength(20)
+                    .HasColumnType("TEXT");
+
+                b.Property<int>("SolutionCount")
+                    .HasColumnType("INTEGER");
+
+                b.Property<string>("Title")
+                    .IsRequired()
+                    .HasMaxLength(200)
+                    .HasColumnType("TEXT");
+
+                b.HasKey("Id");
+
+                b.ToTable("TrashBatches");
             });
 
         modelBuilder.Entity("Larmcentralen.Domain.Entities.Alarm", b =>
@@ -222,6 +282,11 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                     .HasForeignKey("EquipmentId")
                     .OnDelete(DeleteBehavior.Restrict)
                     .IsRequired();
+
+                b.HasOne("Larmcentralen.Domain.Entities.TrashBatch", null)
+                    .WithMany()
+                    .HasForeignKey("TrashBatchId")
+                    .OnDelete(DeleteBehavior.Restrict);
 
                 b.Navigation("AlarmCode");
 
@@ -247,6 +312,14 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                 b.Navigation("Solution");
             });
 
+        modelBuilder.Entity("Larmcentralen.Domain.Entities.Area", b =>
+            {
+                b.HasOne("Larmcentralen.Domain.Entities.TrashBatch", null)
+                    .WithMany()
+                    .HasForeignKey("TrashBatchId")
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
         modelBuilder.Entity("Larmcentralen.Domain.Entities.Equipment", b =>
             {
                 b.HasOne("Larmcentralen.Domain.Entities.Area", "Area")
@@ -255,7 +328,20 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                     .OnDelete(DeleteBehavior.Restrict)
                     .IsRequired();
 
+                b.HasOne("Larmcentralen.Domain.Entities.TrashBatch", null)
+                    .WithMany()
+                    .HasForeignKey("TrashBatchId")
+                    .OnDelete(DeleteBehavior.Restrict);
+
                 b.Navigation("Area");
+            });
+
+        modelBuilder.Entity("Larmcentralen.Domain.Entities.Solution", b =>
+            {
+                b.HasOne("Larmcentralen.Domain.Entities.TrashBatch", null)
+                    .WithMany()
+                    .HasForeignKey("TrashBatchId")
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
         modelBuilder.Entity("Larmcentralen.Domain.Entities.AlarmCode", b =>

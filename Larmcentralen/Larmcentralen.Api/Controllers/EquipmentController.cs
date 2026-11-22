@@ -37,11 +37,11 @@ public class EquipmentController(IEquipmentService service) : ControllerBase
         return result.Status == WriteStatus.Ok ? NoContent() : this.ToError(result.Status, result.Error);
     }
 
-    /// <summary>409 while the unit still has alarms.</summary>
+    /// <summary>Moves the unit to the bin (Papperskorg) with its alarms and solutions. Returns the bin entry.</summary>
     [HttpDelete("{id:int}")]
-    public async Task<IActionResult> Delete(int id)
+    public async Task<IActionResult> Delete(int id, [FromServices] ITrashService trash)
     {
-        var result = await service.DeleteAsync(id);
-        return result.Status == WriteStatus.Ok ? NoContent() : this.ToError(result.Status, result.Error);
+        var result = await trash.MoveToTrashAsync(null, id);
+        return result.Status == WriteStatus.Ok ? Ok(result.Value) : this.ToError(result.Status, result.Error);
     }
 }

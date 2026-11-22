@@ -1,0 +1,166 @@
+@page "/installningar/papperskorg"
+@inherits KnowledgeBaseComponent
+@using Larmcentralen.Client.Core.Api
+
+<PageTitle>Papperskorg · Larmcentralen</PageTitle>
+
+<p class="back"><a href="installningar">← Tillbaka till inställningar</a></p>
+<h1 class="page-title">Papperskorg</h1>
+
+@if (!CanEdit)
+{
+    <NoEditAccess />
+}
+else
+{
+    <p class="muted intro">
+        Borttagna avdelningar och enheter ligger här med allt som hörde till dem: enheter, larm och åtgärder.
+        Återställ för att få tillbaka allt som det var. Efter 30 dagar raderas de för gott.
+    </p>
+
+    @if (_message is not null)
+    {
+        <p class="success" role="status">@_message</p>
+    }
+    @if (_error is not null)
+    {
+        <p class="error" role="alert">@_error</p>
+    }
+
+    @if (!IsOnline)
+    {
+        <p class="notice">Papperskorgen kräver anslutning till servern.</p>
+    }
+    else if (_items is null)
+    {
+        <p class="muted">Hämtar papperskorgen…</p>
+    }
+    else if (_items.Count == 0)
+    {
+        <p class="muted">Papperskorgen är tom.</p>
+    }
+    else
+    {
+        <ul class="trash">
+            @foreach (var item in _items)
+            {
+                var along = Format.Contents(item.IsArea ? item.EquipmentCount : 0, item.AlarmCount, item.SolutionCount);
+                var daysLeft = DaysLeft(item);
+                <li class="trash-item">
+                    <div class="trash-text">
+                        <span class="trash-title">
+                            @item.Title
+                            <span class="kind">@(item.IsArea ? "Avdelning" : "Enhet")</span>
+                        </span>
+                        <span class="muted">
+                            @if (!item.IsArea && item.AreaTitle is not null) { <text>@item.AreaTitle · </text> }
+                            @(along is null ? "inget mer" : $"med {along}")
+                            · borttagen @Format.When(new DateTimeOffset(item.DeletedAt, TimeSpan.Zero))
+                        </span>
+                        <span class="days @(daysLeft <= 3 ? "soon" : "")">
+                            @(daysLeft <= 0 ? "Raderas i dag" : $"Raderas om {Format.Count(daysLeft, "dag", "dagar")}")
+                        </span>
+                    </div>
+                    <div class="trash-actions">
+                        <OnlineButton Class="btn btn-small" Disabled="_busy" OnClick="@(() => RestoreAsync(item))">Återställ</OnlineButton>
+                        <OnlineButton Class="btn btn-small btn-danger-outline" Disabled="_busy" OnClick="@(() => _confirm = item)">Radera nu</OnlineButton>
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+
+    <ConfirmDialog Open="@(_confirm is not null)"
+                   Title="@($"Radera {_confirm?.Title} för gott?")"
+                   Message="@ConfirmMessage"
+                   ConfirmText="Radera för gott"
+                   OnConfirm="EraseAsync"
+                   OnCancel="@(() => _confirm = null)" />
+}
+
+@code {
+    private List<TrashItem>? _items;
+    private TrashItem? _confirm;
+    private bool _busy;
+    private string? _message;
+    private string? _error;
+    private bool _loadedOnline;
+
+    private string ConfirmMessage => _confirm is null ? "" :
+        (Format.Contents(_confirm.IsArea ? _confirm.EquipmentCount : 0, _confirm.AlarmCount, _confirm.SolutionCount) is { } along
+            ? $"{_confirm.Title} raderas tillsammans med {along}. "
+            : $"{_confirm.Title} raderas. ")
+        + "Det går inte att ångra.";
+
+    protected override async Task OnInitializedAsync() => await RefreshAsync();
+
+    /// <summary>Loads the list the first time the server can be reached (the page may open offline).</summary>
+    protected override void Load()
+    {
+        if (CanEdit && IsOnline && !_loadedOnline && _items is null && !_busy) _ = InvokeAsync(RefreshAsync);
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (!CanEdit || !IsOnline) return;
+        try
+        {
+            _items = await Kb.CallApiAsync((api, ct) => api.GetTrashAsync(ct));
+            _loadedOnline = true;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Papperskorgen kunde inte hämtas. {Reason(ex)}";
+        }
+        StateHasChanged();
+    }
+
+    private async Task RestoreAsync(TrashItem item)
+    {
+        _busy = true;
+        _message = _error = null;
+        try
+        {
+            await Kb.WriteAsync((api, ct) => api.RestoreFromTrashAsync(item.Id, ct));
+            _message = $"{item.Title} är återställd.";
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"{item.Title} kunde inte återställas. {Reason(ex)}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task EraseAsync()
+    {
+        var item = _confirm;
+        _confirm = null;
+        if (item is null) return;
+        _busy = true;
+        _message = _error = null;
+        try
+        {
+            await Kb.WriteAsync((api, ct) => api.EraseFromTrashAsync(item.Id, ct));
+            _message = $"{item.Title} är raderad för gott.";
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"{item.Title} kunde inte raderas. {Reason(ex)}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>Days left before the server erases it, rounded up: 30 right after removal, 1 on the last day.</summary>
+    private static int DaysLeft(TrashItem item)
+        => Math.Max(0, (int)Math.Ceiling((DateTime.SpecifyKind(item.EraseAt, DateTimeKind.Utc) - DateTime.UtcNow).TotalDays));
+
+    private static string Reason(Exception ex) => ex is ApiException { Detail: { } detail } ? detail : ex.Message;
+}

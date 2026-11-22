@@ -11,4 +11,7 @@ public interface ISolutionRepository : IRepository<Solution>
 
     /// <summary>Every alarm-solution link, for the sync snapshot.</summary>
     Task<List<AlarmSolution>> GetAllLinksAsync();
+
+    /// <summary>True when the solution is linked to another alarm than <paramref name="alarmId"/>, binned alarms included.</summary>
+    Task<bool> IsLinkedElsewhereAsync(int solutionId, int alarmId);
 }

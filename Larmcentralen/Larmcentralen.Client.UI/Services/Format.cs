@@ -24,6 +24,27 @@ public static class Format
         return text.StartsWith("i dag ", StringComparison.Ordinal) ? text["i dag ".Length..] : text;
     }
 
+    /// <summary>"1 enhet", "3 enheter": the count with the right form of the word.</summary>
+    public static string Count(int n, string one, string many) => $"{n} {(n == 1 ? one : many)}";
+
+    /// <summary>
+    /// What a removal takes with it, as a list: "2 enheter, 14 larm och 3 åtgärder". Leaves out what is zero;
+    /// null when nothing goes along.
+    /// </summary>
+    public static string? Contents(int units, int alarms, int solutions)
+    {
+        var parts = new List<string>();
+        if (units > 0) parts.Add(Count(units, "enhet", "enheter"));
+        if (alarms > 0) parts.Add(Count(alarms, "larm", "larm"));
+        if (solutions > 0) parts.Add(Count(solutions, "åtgärd", "åtgärder"));
+        return parts.Count switch
+        {
+            0 => null,
+            1 => parts[0],
+            _ => string.Join(", ", parts[..^1]) + " och " + parts[^1]
+        };
+    }
+
     /// <summary>Quill leaves "&lt;p&gt;&lt;br&gt;&lt;/p&gt;" in an empty editor.</summary>
     public static bool IsEmptyHtml(string? html)
         => string.IsNullOrWhiteSpace(html) || html.Trim() is "<p><br></p>" or "<p></p>";

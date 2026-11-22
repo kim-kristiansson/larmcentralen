@@ -18,3 +18,4 @@
 .unit-alarms { color: var(--muted); font-size: var(--text-md); }
 
 .editor { margin-bottom: var(--space-4); }
+.trash-link { margin-left: var(--space-2); }

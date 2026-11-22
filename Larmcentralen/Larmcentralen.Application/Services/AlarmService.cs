@@ -83,8 +83,11 @@ public class AlarmService(
         var alarm = await repo.GetByIdWithDetailsAsync(id);
         if (alarm is null) return false;
 
-        foreach (var orphan in alarm.Solutions.Where(s => s.Alarms.All(x => x.Id == id)).ToList())
-            solutions.Remove(orphan);
+        // A solution only this alarm uses goes with it. One also linked to an alarm in the bin stays, so restoring
+        // that alarm brings it back with its solution.
+        foreach (var solution in alarm.Solutions.ToList())
+            if (!await solutions.IsLinkedElsewhereAsync(solution.Id, id))
+                solutions.Remove(solution);
 
         repo.Remove(alarm);
         await repo.SaveChangesAsync();

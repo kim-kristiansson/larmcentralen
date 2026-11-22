@@ -72,8 +72,8 @@ public class EquipmentService(IEquipmentRepository repo, IAreaRepository areas) 
     }
 
     /// <summary>
-    /// Refuses (409) while the unit still has alarms. Removing them along with the unit would also lose their
-    /// solutions, so the alarms have to be moved to another unit or removed first.
+    /// Erases an empty unit for good (used by the import tool). Refuses (409) while the unit still has alarms.
+    /// The app removes units through the bin instead (TrashService).
     /// </summary>
     public async Task<WriteResult<EquipmentDto>> DeleteAsync(int id)
     {

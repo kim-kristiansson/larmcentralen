@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Larmcentralen.Api.Tests;
 
-/// <summary>Admins add, change and remove areas and units. Removing something that still has alarms or units is refused.</summary>
+/// <summary>Admins add, change and remove areas and units. Removing goes through the bin: see TrashTests.</summary>
 public sealed class EquipmentAdminTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -47,8 +47,9 @@ public sealed class EquipmentAdminTests(ApiFactory factory) : IClassFixture<ApiF
         unit = await c.GetFromJsonAsync<Unit>($"api/equipment/{id}", Json, Ct);
         Assert.Equal(("Härdugn 9", "Tvätt", other), (unit!.DisplayName, unit.EquipmentType, unit.AreaId));
 
+        // Removing moves it to the bin (see TrashTests).
         using (var delete = await c.DeleteAsync($"api/equipment/{id}", Ct))
-            Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, delete.StatusCode);
         using (var gone = await c.GetAsync($"api/equipment/{id}", Ct))
             Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
     }
@@ -120,46 +121,6 @@ public sealed class EquipmentAdminTests(ApiFactory factory) : IClassFixture<ApiF
         using var response = await c.PostAsJsonAsync("api/areas", new { title = title.ToUpperInvariant() }, Ct);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task A_unit_with_alarms_cannot_be_removed()
-    {
-        using var c = Admin();
-        var area = await PostAsync(c, "api/areas", new { title = Unique("Avdelning ") });
-        var unit = await PostAsync(c, "api/equipment", new { title = Unique("T"), areaId = area });
-        var alarm = await PostAsync(c, "api/alarms", new { title = "Temperatur för hög", severity = "Hög", equipmentId = unit });
-
-        using (var refused = await c.DeleteAsync($"api/equipment/{unit}", Ct))
-        {
-            Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
-            Assert.Contains("1 larm", await DetailAsync(refused));
-        }
-
-        // Once the alarm is gone the unit can go.
-        using (var deleteAlarm = await c.DeleteAsync($"api/alarms/{alarm}", Ct))
-            Assert.True(deleteAlarm.IsSuccessStatusCode);
-        using (var delete = await c.DeleteAsync($"api/equipment/{unit}", Ct))
-            Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
-    }
-
-    [Fact]
-    public async Task An_area_with_units_cannot_be_removed()
-    {
-        using var c = Admin();
-        var area = await PostAsync(c, "api/areas", new { title = Unique("Avdelning ") });
-        var unit = await PostAsync(c, "api/equipment", new { title = Unique("N"), areaId = area });
-
-        using (var refused = await c.DeleteAsync($"api/areas/{area}", Ct))
-        {
-            Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
-            Assert.Contains("1 enhet", await DetailAsync(refused));
-        }
-
-        using (var deleteUnit = await c.DeleteAsync($"api/equipment/{unit}", Ct))
-            Assert.Equal(HttpStatusCode.NoContent, deleteUnit.StatusCode);
-        using (var delete = await c.DeleteAsync($"api/areas/{area}", Ct))
-            Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
     }
 
     [Fact]

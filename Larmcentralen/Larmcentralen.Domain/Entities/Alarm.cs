@@ -14,6 +14,9 @@ public class Alarm
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 
+    /// <summary>Set while this row is in the bin (Papperskorg); such rows are hidden by query filters.</summary>
+    public int? TrashBatchId { get; set; }
+
     public int EquipmentId { get; set; }
     public Equipment Equipment { get; set; } = null!;
 

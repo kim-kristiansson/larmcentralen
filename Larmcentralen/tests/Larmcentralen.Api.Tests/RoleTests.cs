@@ -56,6 +56,8 @@ public sealed class RoleTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [InlineData("DELETE", "api/alarms/1/solutions/1")]
     [InlineData("POST", "api/alarms/1/solutions/1/detach")]
     [InlineData("POST", "api/alarm-codes")]
+    [InlineData("POST", "api/trash/1/restore")]
+    [InlineData("DELETE", "api/trash/1")]
     public async Task Read_key_cannot_change_anything(string method, string url)
     {
         using var client = factory.ClientWithKey(ApiFactory.ReadKey);

@@ -108,6 +108,16 @@ public record SaveAreaRequest(string Title, string? DisplayName = null, string? 
 public record SaveEquipmentRequest(string Title, string? DisplayName, int AreaId, string? EquipmentType,
     string? Category = null, string? Description = null);
 
+/// <summary>What removing an avdelning or unit would take with it (admin only). <see cref="Kind"/> is "Area" or "Equipment".</summary>
+public record TrashPreview(string Kind, int ItemId, string Title, int EquipmentCount, int AlarmCount, int SolutionCount);
+
+/// <summary>One removal in the bin (Papperskorg). Erased for good at <see cref="EraseAt"/> unless restored.</summary>
+public record TrashItem(int Id, string Kind, int ItemId, string Title, string? AreaTitle,
+    int EquipmentCount, int AlarmCount, int SolutionCount, DateTime DeletedAt, DateTime EraseAt)
+{
+    public bool IsArea => Kind == "Area";
+}
+
 public record CreatedEntity(int Id);
 
 /// <summary>Response of GET /api/me: what this app's API key may do. Only admins can edit.</summary>

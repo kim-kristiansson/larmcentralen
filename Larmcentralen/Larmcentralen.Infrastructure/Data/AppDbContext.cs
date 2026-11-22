@@ -12,6 +12,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Solution> Solutions => Set<Solution>();
     public DbSet<AlarmSolution> AlarmSolutions => Set<AlarmSolution>();
     public DbSet<AlarmCode> AlarmCodes => Set<AlarmCode>();
+    public DbSet<TrashBatch> TrashBatches => Set<TrashBatch>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -23,6 +24,37 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // The bin (Papperskorg): rows marked with a TrashBatchId are hidden from every query, so the API, the sync
+        // snapshot (and with it every offline PC) and search all leave them out. Only TrashRepository looks past
+        // the filters, with IgnoreQueryFilters().
+        modelBuilder.Entity<TrashBatch>(e =>
+        {
+            e.ToTable("TrashBatches");
+            e.Property(b => b.Kind).HasMaxLength(20);
+            e.Property(b => b.Title).HasMaxLength(200);
+            e.Property(b => b.AreaTitle).HasMaxLength(100);
+        });
+        modelBuilder.Entity<Area>(e =>
+        {
+            e.HasQueryFilter(a => a.TrashBatchId == null);
+            e.HasOne<TrashBatch>().WithMany().HasForeignKey(a => a.TrashBatchId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<Equipment>(e =>
+        {
+            e.HasQueryFilter(x => x.TrashBatchId == null);
+            e.HasOne<TrashBatch>().WithMany().HasForeignKey(x => x.TrashBatchId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<Alarm>(e =>
+        {
+            e.HasQueryFilter(a => a.TrashBatchId == null);
+            e.HasOne<TrashBatch>().WithMany().HasForeignKey(a => a.TrashBatchId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<Solution>(e =>
+        {
+            e.HasQueryFilter(s => s.TrashBatchId == null);
+            e.HasOne<TrashBatch>().WithMany().HasForeignKey(s => s.TrashBatchId).OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<Area>(e =>
         {
             e.HasIndex(a => a.Title).IsUnique();
@@ -84,6 +116,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                         j.ToTable("AlarmSolutions");
                         j.HasKey(x => new { x.AlarmId, x.SolutionId });
                         j.HasIndex(x => x.SolutionId);
+                        // A link counts only while both ends are out of the bin.
+                        j.HasQueryFilter(x => x.Alarm.TrashBatchId == null && x.Solution.TrashBatchId == null);
                     });
         });
     }

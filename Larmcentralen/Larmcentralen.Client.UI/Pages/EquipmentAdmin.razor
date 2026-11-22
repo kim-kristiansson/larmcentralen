@@ -18,7 +18,7 @@ else
         <p class="notice">Du är offline. Ändringar kan sparas när anslutningen är tillbaka.</p>
     }
 
-    <p class="muted intro">Lägg till, ändra och ta bort avdelningar och enheter. En enhet som har larm kan inte tas bort, och inte heller en avdelning som har enheter.</p>
+    <p class="muted intro">Lägg till, ändra och ta bort avdelningar och enheter. Det du tar bort hamnar i <a href="installningar/papperskorg">papperskorgen</a> med allt som hör till, och kan återställas där i 30 dagar.</p>
 
     @if (_mode == Mode.None)
     {
@@ -104,7 +104,13 @@ else
 
     @if (_message is not null)
     {
-        <p class="success" role="status">@_message</p>
+        <p class="success" role="status">
+            @_message
+            @if (_trashLink)
+            {
+                <a class="trash-link" href="installningar/papperskorg">Öppna papperskorgen</a>
+            }
+        </p>
     }
     @if (_listError is not null)
     {
@@ -126,9 +132,7 @@ else
                 <span class="spacer"></span>
                 <OnlineButton Class="btn btn-small" OnClick="@(() => StartNewUnit(area.Id))">Ny enhet här</OnlineButton>
                 <OnlineButton Class="btn btn-small" OnClick="@(() => StartEditArea(area))">Byt namn</OnlineButton>
-                <OnlineButton Class="btn btn-small btn-danger-outline" Disabled="@(units.Count > 0)"
-                              Title="@(units.Count > 0 ? "Flytta eller ta bort enheterna först" : null)"
-                              OnClick="@(() => AskDeleteArea(area))">Ta bort</OnlineButton>
+                <OnlineButton Class="btn btn-small btn-danger-outline" OnClick="@(() => AskDeleteArea(area))">Ta bort</OnlineButton>
             </header>
             @if (units.Count == 0)
             {
@@ -150,9 +154,7 @@ else
                             <span class="unit-alarms">@(alarms == 1 ? "1 larm" : $"{alarms} larm")</span>
                             <span class="spacer"></span>
                             <OnlineButton Class="btn btn-small" OnClick="@(() => StartEditUnit(unit))">Ändra</OnlineButton>
-                            <OnlineButton Class="btn btn-small btn-danger-outline" Disabled="@(alarms > 0)"
-                                          Title="@(alarms > 0 ? "Enheten har larm. Flytta eller ta bort larmen först." : null)"
-                                          OnClick="@(() => AskDeleteUnit(unit))">Ta bort</OnlineButton>
+                            <OnlineButton Class="btn btn-small btn-danger-outline" OnClick="@(() => AskDeleteUnit(unit))">Ta bort</OnlineButton>
                         </li>
                     }
                 </ul>
@@ -163,6 +165,7 @@ else
     <ConfirmDialog Open="@(_confirm is not null)"
                    Title="@(_confirm?.Title ?? "")"
                    Message="@(_confirm?.Message ?? "")"
+                   ConfirmText="Flytta till papperskorgen"
                    OnConfirm="DeleteAsync"
                    OnCancel="@(() => _confirm = null)" />
 }
@@ -182,6 +185,8 @@ else
     private string? _error;
     private string? _listError;
     private string? _message;
+    /// <summary>The last message was about a removal: offer the way to undo it.</summary>
+    private bool _trashLink;
     private PendingDelete? _confirm;
 
     private sealed record PendingDelete(string Title, string Message, Func<Task> Delete, string Done);
@@ -199,6 +204,7 @@ else
 
     private void Reset()
     {
+        _trashLink = false;
         _error = null;
         _listError = null;
         _message = null;
@@ -312,24 +318,38 @@ else
         }
     }
 
-    private void AskDeleteArea(Area area)
-    {
-        Reset();
-        _confirm = new PendingDelete(
-            $"Ta bort {area.Name}?",
-            "Avdelningen tas bort för alla. Det går inte att ångra.",
-            () => Kb.WriteAsync((api, ct) => api.DeleteAreaAsync(area.Id, ct)),
-            $"Avdelningen {area.Name} är borttagen.");
-    }
+    private Task AskDeleteArea(Area area) => AskDeleteAsync(true, area.Id, area.Name,
+        () => Kb.WriteAsync((api, ct) => api.DeleteAreaAsync(area.Id, ct)),
+        $"Avdelningen {area.Name} ligger nu i papperskorgen.");
 
-    private void AskDeleteUnit(Equipment unit)
+    private Task AskDeleteUnit(Equipment unit) => AskDeleteAsync(false, unit.Id, unit.Title,
+        () => Kb.WriteAsync((api, ct) => api.DeleteEquipmentAsync(unit.Id, ct)),
+        $"{unit.Title} ligger nu i papperskorgen.");
+
+    /// <summary>Asks the server what would go along (the confirmation names it), then asks the admin.</summary>
+    private async Task AskDeleteAsync(bool isArea, int id, string name, Func<Task> delete, string done)
     {
         Reset();
-        _confirm = new PendingDelete(
-            $"Ta bort {unit.Title}?",
-            "Enheten tas bort för alla. Det går inte att ångra.",
-            () => Kb.WriteAsync((api, ct) => api.DeleteEquipmentAsync(unit.Id, ct)),
-            $"{unit.Title} är borttagen.");
+        TrashPreview preview;
+        try
+        {
+            preview = await Kb.CallApiAsync((api, ct) => api.PreviewRemovalAsync(isArea, id, ct));
+        }
+        catch (Exception ex)
+        {
+            _listError = $"Det gick inte att ta bort. {Reason(ex)}";
+            return;
+        }
+
+        var along = Format.Contents(isArea ? preview.EquipmentCount : 0, preview.AlarmCount, preview.SolutionCount);
+        var what = isArea ? "Avdelningen" : "Enheten";
+        var message = along is null
+            ? $"{what} flyttas till papperskorgen och försvinner för alla."
+            : $"{what} flyttas till papperskorgen med {along} och försvinner för alla.";
+        if (preview.AlarmCount > 0)
+            message += " Åtgärder som delas med larm som finns kvar stannar kvar.";
+        message += " Du kan återställa allt i Inställningar → Papperskorg i 30 dagar.";
+        _confirm = new PendingDelete($"Ta bort {name}?", message, delete, done);
     }
 
     private async Task DeleteAsync()
@@ -342,6 +362,7 @@ else
         {
             await pending.Delete();
             _message = pending.Done;
+            _trashLink = true;
         }
         catch (Exception ex)
         {

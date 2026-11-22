@@ -37,11 +37,11 @@ public class AreasController(IAreaService service) : ControllerBase
         return result.Status == WriteStatus.Ok ? NoContent() : this.ToError(result.Status, result.Error);
     }
 
-    /// <summary>409 while the area still has units.</summary>
+    /// <summary>Moves the avdelning to the bin (Papperskorg) with its units, their alarms and solutions. Returns the bin entry.</summary>
     [HttpDelete("{id:int}")]
-    public async Task<IActionResult> Delete(int id)
+    public async Task<IActionResult> Delete(int id, [FromServices] ITrashService trash)
     {
-        var result = await service.DeleteAsync(id);
-        return result.Status == WriteStatus.Ok ? NoContent() : this.ToError(result.Status, result.Error);
+        var result = await trash.MoveToTrashAsync(id, null);
+        return result.Status == WriteStatus.Ok ? Ok(result.Value) : this.ToError(result.Status, result.Error);
     }
 }
