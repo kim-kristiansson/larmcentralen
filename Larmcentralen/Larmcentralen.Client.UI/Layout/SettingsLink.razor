@@ -1,0 +1,6 @@
+@inherits KnowledgeBaseComponent
+@* Admins only: the way into Inställningar. Read-only PCs never see it. *@
+@if (CanEdit)
+{
+    <a class="btn btn-small settings-link" href="installningar">Inställningar</a>
+}

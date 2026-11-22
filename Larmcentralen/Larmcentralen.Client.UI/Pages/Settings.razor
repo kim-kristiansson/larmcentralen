@@ -1,0 +1,31 @@
+@page "/installningar"
+@inherits KnowledgeBaseComponent
+
+<PageTitle>Inställningar · Larmcentralen</PageTitle>
+
+<p class="back"><a href="">← Tillbaka till sökningen</a></p>
+<h1 class="page-title">Inställningar</h1>
+
+@if (!CanEdit)
+{
+    <NoEditAccess />
+}
+else
+{
+    <p class="muted intro">Här ändrar en administratör det som gäller för alla.</p>
+
+    @* One card per admin feature. New features get a card here. *@
+    <ul class="settings">
+        <li>
+            <a class="setting" href="installningar/utrustning">
+                <span class="setting-title">Utrustning</span>
+                <span class="setting-text">Områden och enheter: lägg till, ändra och ta bort. Just nu @AreaText och @UnitText.</span>
+            </a>
+        </li>
+    </ul>
+}
+
+@code {
+    private string AreaText => Kb.Index.Areas.Count == 1 ? "1 område" : $"{Kb.Index.Areas.Count} områden";
+    private string UnitText => Kb.Index.Equipment.Count == 1 ? "1 enhet" : $"{Kb.Index.Equipment.Count} enheter";
+}
