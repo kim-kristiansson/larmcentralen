@@ -103,6 +103,48 @@ public class LarmApiClient(HttpClient http)
 
     private sealed record CodeConflict(string? Error, CreatedEntity? Code);
 
+    public async Task<int> CreateAreaAsync(SaveAreaRequest request, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsJsonAsync("api/areas", request, ct);
+        await EnsureSuccessAsync(response, ct);
+        var created = await response.Content.ReadFromJsonAsync<CreatedEntity>(ct);
+        return created?.Id ?? throw new InvalidOperationException("The API did not return the new area's id.");
+    }
+
+    public async Task UpdateAreaAsync(int id, SaveAreaRequest request, CancellationToken ct = default)
+    {
+        using var response = await http.PutAsJsonAsync($"api/areas/{id}", request, ct);
+        await EnsureSuccessAsync(response, ct);
+    }
+
+    /// <summary>The API refuses (409) while the area still has units.</summary>
+    public async Task DeleteAreaAsync(int id, CancellationToken ct = default)
+    {
+        using var response = await http.DeleteAsync($"api/areas/{id}", ct);
+        await EnsureSuccessAsync(response, ct);
+    }
+
+    public async Task<int> CreateEquipmentAsync(SaveEquipmentRequest request, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsJsonAsync("api/equipment", request, ct);
+        await EnsureSuccessAsync(response, ct);
+        var created = await response.Content.ReadFromJsonAsync<CreatedEntity>(ct);
+        return created?.Id ?? throw new InvalidOperationException("The API did not return the new unit's id.");
+    }
+
+    public async Task UpdateEquipmentAsync(int id, SaveEquipmentRequest request, CancellationToken ct = default)
+    {
+        using var response = await http.PutAsJsonAsync($"api/equipment/{id}", request, ct);
+        await EnsureSuccessAsync(response, ct);
+    }
+
+    /// <summary>The API refuses (409) while the unit still has alarms.</summary>
+    public async Task DeleteEquipmentAsync(int id, CancellationToken ct = default)
+    {
+        using var response = await http.DeleteAsync($"api/equipment/{id}", ct);
+        await EnsureSuccessAsync(response, ct);
+    }
+
     /// <summary>Downloads the alarm and its solutions as a .docx.</summary>
     public async Task<(byte[] Bytes, string FileName)> ExportAlarmAsync(int alarmId, CancellationToken ct = default)
     {
@@ -127,4 +169,29 @@ public class ApiException(System.Net.HttpStatusCode status, string body)
     : Exception($"The API answered {(int)status} {status}. {body}".Trim())
 {
     public System.Net.HttpStatusCode Status { get; } = status;
+
+    /// <summary>
+    /// The reason the API gave, for showing to the user: the "detail" of a problem response (the API writes it in
+    /// Swedish), or null when the body has none.
+    /// </summary>
+    public string? Detail
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(body)) return null;
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(body);
+                return doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+                       && doc.RootElement.TryGetProperty("detail", out var detail)
+                       && detail.ValueKind == System.Text.Json.JsonValueKind.String
+                    ? detail.GetString()
+                    : null;
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                return null;
+            }
+        }
+    }
 }

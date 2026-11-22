@@ -4,35 +4,44 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Larmcentralen.Api.Controllers;
 
+/// <summary>Areas (e.g. "SQ-linjen (OCSS)"). Reading needs any key; changes need the admin key.</summary>
 [ApiController]
 [Route("api/[controller]")]
 public class AreasController(IAreaService service) : ControllerBase
 {
-    private readonly IAreaService _service = service;
-
     [HttpGet]
     public async Task<ActionResult<List<AreaDto>>> GetAll()
-        => Ok(await _service.GetAllAsync());
+        => Ok(await service.GetAllAsync());
 
     [HttpGet("{id:int}")]
     public async Task<ActionResult<AreaDto>> Get(int id)
     {
-        var area = await _service.GetByIdAsync(id);
+        var area = await service.GetByIdAsync(id);
         return area is null ? NotFound() : Ok(area);
     }
 
+    /// <summary>400 without a name, 409 when another area already has it.</summary>
     [HttpPost]
-    public async Task<ActionResult<AreaDto>> Create(CreateAreaDto dto)
+    public async Task<IActionResult> Create(CreateAreaDto dto)
     {
-        var area = await _service.CreateAsync(dto);
-        return CreatedAtAction(nameof(Get), new { id = area.Id }, area);
+        var result = await service.CreateAsync(dto);
+        return result.Status == WriteStatus.Ok
+            ? CreatedAtAction(nameof(Get), new { id = result.Value!.Id }, result.Value)
+            : this.ToError(result.Status, result.Error);
     }
 
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, UpdateAreaDto dto)
-        => await _service.UpdateAsync(id, dto) ? NoContent() : NotFound();
+    {
+        var result = await service.UpdateAsync(id, dto);
+        return result.Status == WriteStatus.Ok ? NoContent() : this.ToError(result.Status, result.Error);
+    }
 
+    /// <summary>409 while the area still has units.</summary>
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
-        => await _service.DeleteAsync(id) ? NoContent() : NotFound();
+    {
+        var result = await service.DeleteAsync(id);
+        return result.Status == WriteStatus.Ok ? NoContent() : this.ToError(result.Status, result.Error);
+    }
 }

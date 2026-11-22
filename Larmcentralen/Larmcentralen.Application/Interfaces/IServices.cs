@@ -6,18 +6,18 @@ public interface IAreaService
 {
     Task<List<AreaDto>> GetAllAsync();
     Task<AreaDto?> GetByIdAsync(int id);
-    Task<AreaDto> CreateAsync(CreateAreaDto dto);
-    Task<bool> UpdateAsync(int id, UpdateAreaDto dto);
-    Task<bool> DeleteAsync(int id);
+    Task<WriteResult<AreaDto>> CreateAsync(CreateAreaDto dto);
+    Task<WriteResult<AreaDto>> UpdateAsync(int id, UpdateAreaDto dto);
+    Task<WriteResult<AreaDto>> DeleteAsync(int id);
 }
 
 public interface IEquipmentService
 {
     Task<List<EquipmentDto>> GetAllAsync(int? areaId);
     Task<EquipmentDto?> GetByIdAsync(int id);
-    Task<EquipmentDto> CreateAsync(CreateEquipmentDto dto);
-    Task<bool> UpdateAsync(int id, UpdateEquipmentDto dto);
-    Task<bool> DeleteAsync(int id);
+    Task<WriteResult<EquipmentDto>> CreateAsync(CreateEquipmentDto dto);
+    Task<WriteResult<EquipmentDto>> UpdateAsync(int id, UpdateEquipmentDto dto);
+    Task<WriteResult<EquipmentDto>> DeleteAsync(int id);
 }
 
 public interface IAlarmService

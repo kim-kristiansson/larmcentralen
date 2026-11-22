@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Larmcentralen.Api.Controllers;
 
+/// <summary>Units (T101, A01, W1 …). Reading needs any key; changes need the admin key.</summary>
 [ApiController]
 [Route("api/[controller]")]
 public class EquipmentController(IEquipmentService service) : ControllerBase
@@ -19,18 +20,28 @@ public class EquipmentController(IEquipmentService service) : ControllerBase
         return equipment is null ? NotFound() : Ok(equipment);
     }
 
+    /// <summary>400 without a title or with an unknown area, 409 when another unit already has the title.</summary>
     [HttpPost]
-    public async Task<ActionResult<EquipmentDto>> Create(CreateEquipmentDto dto)
+    public async Task<IActionResult> Create(CreateEquipmentDto dto)
     {
-        var equipment = await service.CreateAsync(dto);
-        return CreatedAtAction(nameof(Get), new { id = equipment.Id }, equipment);
+        var result = await service.CreateAsync(dto);
+        return result.Status == WriteStatus.Ok
+            ? CreatedAtAction(nameof(Get), new { id = result.Value!.Id }, result.Value)
+            : this.ToError(result.Status, result.Error);
     }
 
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, UpdateEquipmentDto dto)
-        => await service.UpdateAsync(id, dto) ? NoContent() : NotFound();
+    {
+        var result = await service.UpdateAsync(id, dto);
+        return result.Status == WriteStatus.Ok ? NoContent() : this.ToError(result.Status, result.Error);
+    }
 
+    /// <summary>409 while the unit still has alarms.</summary>
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
-        => await service.DeleteAsync(id) ? NoContent() : NotFound();
+    {
+        var result = await service.DeleteAsync(id);
+        return result.Status == WriteStatus.Ok ? NoContent() : this.ToError(result.Status, result.Error);
+    }
 }

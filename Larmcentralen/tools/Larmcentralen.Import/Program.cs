@@ -58,7 +58,7 @@ var alarmRepo = new AlarmRepository(db);
 var equipmentRepo = new EquipmentRepository(db);
 var codeRepo = new AlarmCodeRepository(db);
 var solutionRepo = new SolutionRepository(db);
-var equipmentService = new EquipmentService(equipmentRepo);
+var equipmentService = new EquipmentService(equipmentRepo, new AreaRepository(db));
 var alarmService = new AlarmService(alarmRepo, codeRepo, equipmentRepo, solutionRepo);
 
 Console.WriteLine($"Before: {await CountsAsync()}");

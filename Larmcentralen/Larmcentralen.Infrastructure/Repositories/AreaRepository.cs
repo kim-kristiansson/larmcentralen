@@ -13,4 +13,12 @@ public class AreaRepository(AppDbContext db) : Repository<Area>(db), IAreaReposi
             .Include(a => a.Equipment)
             .FirstOrDefaultAsync(a => a.Id == id);
     }
+
+    public async Task<List<Area>> GetAllWithEquipmentAsync()
+    {
+        return await Db.Areas
+            .Include(a => a.Equipment)
+            .OrderBy(a => a.Title)
+            .ToListAsync();
+    }
 }

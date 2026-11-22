@@ -89,6 +89,19 @@ public sealed class AlarmIndex
     public IEnumerable<Equipment> EquipmentInArea(int? areaId)
         => areaId is null ? Equipment : Equipment.Where(e => e.AreaId == areaId);
 
+    /// <summary>Orders unit titles and codes the way people expect: T2 before T10.</summary>
+    public static IComparer<string> NaturalOrder => NaturalComparer.Instance;
+
+    /// <summary>How many alarms the unit has (a unit with alarms cannot be removed).</summary>
+    public int AlarmCountFor(int equipmentId) => _alarms.Values.Count(a => a.View.Equipment.Id == equipmentId);
+
+    /// <summary>Every unit type in use, trimmed, each once, alphabetically.</summary>
+    public IReadOnlyList<string> EquipmentTypes()
+        => Equipment.Select(TypeOf).OfType<string>()
+            .Distinct(StringComparer.CurrentCultureIgnoreCase)
+            .Order(StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
     public AlarmDetails? GetDetails(int alarmId)
     {
         if (!_alarms.TryGetValue(alarmId, out var indexed)) return null;

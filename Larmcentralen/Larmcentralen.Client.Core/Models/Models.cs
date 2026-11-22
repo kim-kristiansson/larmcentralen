@@ -101,6 +101,13 @@ public record CreateSolutionRequest(string Title, string? Content, int SortOrder
 /// <summary><see cref="AlarmIds"/> null leaves the links unchanged; a list replaces them.</summary>
 public record UpdateSolutionRequest(string Title, string? Content, int SortOrder, string? EstimatedTime, List<int>? AlarmIds = null);
 
+/// <summary>Create or change an area (admin only).</summary>
+public record SaveAreaRequest(string Title, string? DisplayName = null, string? Description = null, string? Location = null);
+
+/// <summary>Create or change a unit (admin only). An empty <see cref="EquipmentType"/> clears the type.</summary>
+public record SaveEquipmentRequest(string Title, string? DisplayName, int AreaId, string? EquipmentType,
+    string? Category = null, string? Description = null);
+
 public record CreatedEntity(int Id);
 
 /// <summary>Response of GET /api/me: what this app's API key may do. Only admins can edit.</summary>

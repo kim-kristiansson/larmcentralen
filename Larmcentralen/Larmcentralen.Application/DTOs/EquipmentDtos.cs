@@ -22,7 +22,7 @@ public record CreateEquipmentDto(
 );
 
 /// <summary>
-/// Changes a unit. <see cref="EquipmentType"/> null leaves the type as it is (older clients
+/// Changes a unit. For the optional fields (and <see cref="EquipmentType"/>), null leaves the value as it is (older clients
 /// don't send it); an empty string clears it.
 /// </summary>
 public record UpdateEquipmentDto(

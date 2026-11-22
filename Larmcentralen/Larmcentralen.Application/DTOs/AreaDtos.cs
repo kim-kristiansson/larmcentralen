@@ -1,4 +1,4 @@
-﻿namespace Larmcentralen.Application.DTOs;
+namespace Larmcentralen.Application.DTOs;
 
 public record AreaDto(
     int Id,
@@ -16,6 +16,7 @@ public record CreateAreaDto(
     string? Location
 );
 
+/// <summary>Changes an area. For the optional fields, null leaves the value as it is and an empty string clears it.</summary>
 public record UpdateAreaDto(
     string Title,
     string? DisplayName,
