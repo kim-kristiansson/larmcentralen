@@ -46,7 +46,28 @@ public static class SqliteSetup
         if (!string.IsNullOrEmpty(folder))
             Directory.CreateDirectory(folder);
 
+        await BackupBeforeMigratingAsync(db, dataSource);
         await db.Database.MigrateAsync();
         await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
+    }
+
+    /// <summary>
+    /// When an existing database is about to be migrated, writes a consistent copy next to it first
+    /// (larmcentralen.before-migration-20261121-160000.db), so a migration that goes wrong never costs data.
+    /// Returns the backup path, or null when nothing needed migrating (or the database is new).
+    /// </summary>
+    public static async Task<string?> BackupBeforeMigratingAsync(AppDbContext db, string dataSource)
+    {
+        if (string.IsNullOrEmpty(dataSource) || dataSource == ":memory:" || !File.Exists(dataSource)) return null;
+        if (!(await db.Database.GetPendingMigrationsAsync()).Any()) return null;
+        if (!(await db.Database.GetAppliedMigrationsAsync()).Any()) return null;
+
+        var full = Path.GetFullPath(dataSource);
+        var backup = Path.Combine(Path.GetDirectoryName(full)!,
+            $"{Path.GetFileNameWithoutExtension(full)}.before-migration-{DateTime.Now:yyyyMMdd-HHmmss}{Path.GetExtension(full)}");
+        // VACUUM INTO takes a consistent snapshot, WAL contents included. It cannot take parameters.
+        var sql = "VACUUM INTO '" + backup.Replace("'", "''") + "';";
+        await db.Database.ExecuteSqlRawAsync(sql);
+        return backup;
     }
 }

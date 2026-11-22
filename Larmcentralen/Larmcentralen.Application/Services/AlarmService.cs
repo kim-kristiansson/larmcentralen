@@ -5,7 +5,7 @@ using Larmcentralen.Domain.Interfaces;
 
 namespace Larmcentralen.Application.Services;
 
-public class AlarmService(IAlarmRepository repo) : IAlarmService
+public class AlarmService(IAlarmRepository repo, ISolutionRepository solutions) : IAlarmService
 {
     public async Task<List<AlarmListDto>> SearchAsync(string? search, int? equipmentId, int? areaId, string? severity, int skip = 0, int take = 10)
     {
@@ -26,10 +26,7 @@ public class AlarmService(IAlarmRepository repo) : IAlarmService
             a.Id, a.Title, a.AlarmCode, a.Severity, a.Description,
             a.EquipmentId, a.Equipment.Title, a.Equipment.Area.Title,
             a.CreatedAt, a.UpdatedAt,
-            a.Solutions.Select(s => new SolutionDto(
-                s.Id, s.Title, s.Content, s.SortOrder, s.EstimatedTime,
-                s.AlarmId, s.CreatedAt, s.UpdatedAt
-            )).ToList()
+            a.Solutions.Select(SolutionService.ToDto).ToList()
         );
     }
 
@@ -74,8 +71,13 @@ public class AlarmService(IAlarmRepository repo) : IAlarmService
 
     public async Task<bool> DeleteAsync(int id)
     {
-        var alarm = await repo.GetByIdAsync(id);
+        var alarm = await repo.GetByIdWithDetailsAsync(id);
         if (alarm is null) return false;
+
+        // A solution always belongs to at least one alarm. Solutions only this alarm uses go with it,
+        // in the same save; shared ones stay for the other alarms (the link row is removed by cascade).
+        foreach (var orphan in alarm.Solutions.Where(s => s.Alarms.All(x => x.Id == id)).ToList())
+            solutions.Remove(orphan);
 
         repo.Remove(alarm);
         await repo.SaveChangesAsync();

@@ -1,0 +1,67 @@
+@implements IAsyncDisposable
+@inject IThemeStore Store
+@inject IJSRuntime JS
+@using Microsoft.Extensions.Logging
+@inject ILogger<ThemeSwitch> Logger
+@* Chooses Auto (follow Windows), Ljust or Mörkt. The choice is stored by the host and applied to <html> by theme.js. *@
+<label class="theme-switch">
+    <span>Tema</span>
+    <select @onchange="OnChanged" aria-label="Tema">
+        <option value="Auto" selected="@(_current == ThemePreference.Auto)">Auto</option>
+        <option value="Light" selected="@(_current == ThemePreference.Light)">Ljust</option>
+        <option value="Dark" selected="@(_current == ThemePreference.Dark)">Mörkt</option>
+    </select>
+</label>
+
+@code {
+    private IJSObjectReference? _module;
+    private ThemePreference _current;
+
+    protected override void OnInitialized() => _current = Store.Load();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Brings the page in line with the stored choice (also fills localStorage for the next start).
+        if (firstRender) await ApplyAsync(_current);
+    }
+
+    private async Task OnChanged(ChangeEventArgs e)
+    {
+        if (!Enum.TryParse<ThemePreference>(e.Value?.ToString(), out var choice) || !Enum.IsDefined(choice)) return;
+        _current = choice;
+        Store.Save(choice);
+        await ApplyAsync(choice);
+    }
+
+    /// <summary>The theme is cosmetic: a failure here is logged and must never break the page.</summary>
+    private async Task ApplyAsync(ThemePreference preference)
+    {
+        try
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/Larmcentralen.Client.UI/js/theme.js");
+            await _module.InvokeVoidAsync("apply", Key(preference));
+        }
+        catch (JSDisconnectedException)
+        {
+            // The WebView is already gone.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not apply the theme {Theme}", preference);
+        }
+    }
+
+    private static string Key(ThemePreference p) => p.ToString().ToLowerInvariant();
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_module is not null) await _module.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+            // The WebView is already gone; nothing to clean up.
+        }
+    }
+}

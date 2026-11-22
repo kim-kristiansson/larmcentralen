@@ -13,6 +13,10 @@
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.Graph" />
+        <!-- Direct reference so Graph.Core 3.2.6 (Kiota 1.22.1) wins over the 3.2.5 that Microsoft.Graph
+             pulls in; 3.2.5 brings Kiota 1.21.1, affected by GHSA-7j59-v9qr-6fq9. Drop it once
+             Microsoft.Graph itself depends on a patched Graph.Core. -->
+        <PackageReference Include="Microsoft.Graph.Core" />
         <PackageReference Include="Swashbuckle.AspNetCore" />
     </ItemGroup>
 

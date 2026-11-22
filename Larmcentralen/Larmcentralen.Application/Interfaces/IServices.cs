@@ -34,9 +34,11 @@ public interface ISolutionService
 {
     Task<List<SolutionDto>> GetByAlarmIdAsync(int alarmId);
     Task<SolutionDto?> GetByIdAsync(int id);
-    Task<SolutionDto> CreateAsync(CreateSolutionDto dto);
-    Task<bool> UpdateAsync(int id, UpdateSolutionDto dto);
-    Task<bool> DeleteAsync(int id);
+    Task<SolutionWriteResult> CreateAsync(CreateSolutionDto dto);
+    Task<SolutionWriteResult> UpdateAsync(int id, UpdateSolutionDto dto);
+    Task<SolutionWriteResult> DeleteAsync(int id);
+    Task<SolutionWriteResult> UnlinkAsync(int alarmId, int solutionId);
+    Task<SolutionWriteResult> DetachAsync(int alarmId, int solutionId);
 }
 public interface ISyncService
 {

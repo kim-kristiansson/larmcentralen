@@ -1,3 +1,4 @@
+using System.Net;
 using Larmcentralen.Client.Core.Api;
 using Larmcentralen.Client.Core.Models;
 using Larmcentralen.Client.Core.Search;
@@ -42,6 +43,9 @@ public sealed class KnowledgeBase(
     public bool CanEdit { get; private set; }
 
     private const string CanEditSetting = "CanEdit";
+
+    /// <summary>Shown when the API answers 401/403 to a sync: reachable, but this PC's key is missing or wrong.</summary>
+    public const string MissingKeyError = "API-nyckeln saknas eller är fel. Be en administratör om en nyckel.";
 
     private bool _apiReachable = true;
 
@@ -90,6 +94,14 @@ public sealed class KnowledgeBase(
         {
             throw;
         }
+        catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            // The server answered, so we are online: the key is missing or wrong. Say so instead of "offline".
+            logger.LogWarning(ex, "Sync refused by the API ({Status}): API key missing or invalid", ex.StatusCode);
+            _apiReachable = true;
+            LastSyncError = MissingKeyError;
+            return false;
+        }
         catch (Exception ex)
         {
             // Never swallow silently: log it and surface it in the status bar.
@@ -108,18 +120,28 @@ public sealed class KnowledgeBase(
         }
     }
 
-    /// <summary>Syncs now and then every <paramref name="interval"/> until disposed.</summary>
-    public void StartBackgroundSync(TimeSpan interval)
+    /// <summary>How soon to try again after a failed sync, so the app comes back online soon after the server does.</summary>
+    public static readonly TimeSpan DefaultRetryInterval = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Syncs now and then every <paramref name="interval"/> until disposed. After a failed sync it
+    /// tries again after <paramref name="retryInterval"/> (default 30 s) instead of waiting a full interval,
+    /// so an API that starts after the app, or restarts, is picked up quickly.
+    /// </summary>
+    public void StartBackgroundSync(TimeSpan interval, TimeSpan? retryInterval = null)
     {
         if (_backgroundTask is not null) return;
+        var retry = retryInterval ?? DefaultRetryInterval;
+        if (retry > interval) retry = interval;
         _backgroundCts = new CancellationTokenSource();
         var ct = _backgroundCts.Token;
         _backgroundTask = Task.Run(async () =>
         {
-            await SyncAsync(ct);
-            using var timer = new PeriodicTimer(interval);
-            while (await timer.WaitForNextTickAsync(ct))
-                await SyncAsync(ct);
+            while (!ct.IsCancellationRequested)
+            {
+                var ok = await SyncAsync(ct);
+                await Task.Delay(ok ? interval : retry, ct);
+            }
         }, ct);
     }
 

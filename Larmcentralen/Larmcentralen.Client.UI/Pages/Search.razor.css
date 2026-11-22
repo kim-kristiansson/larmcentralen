@@ -1,0 +1,32 @@
+/* Sticky so the search field stays reachable while scrolling long result lists. */
+.search-box { position: sticky; top: 0; z-index: 1; padding-top: var(--space-2); padding-bottom: var(--space-2); background: var(--background); }
+.search-box::before {
+  content: ""; position: absolute; left: 18px; top: 50%; width: 24px; height: 24px; transform: translateY(-50%);
+  background: var(--muted); pointer-events: none;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M15.5 15.5L21 21'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M15.5 15.5L21 21'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.search-input {
+  width: 100%; min-height: var(--control-h-lg); padding: 0 20px 0 52px; font: inherit; font-size: var(--text-xl); color: var(--ink);
+  border: 2px solid var(--border-strong); border-radius: var(--radius); background: var(--surface);
+}
+.search-input:focus { border-color: var(--focus); outline: none; box-shadow: 0 0 0 2px var(--focus); }
+
+.filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto auto; gap: var(--space-3); align-items: end; margin: var(--space-4) 0 var(--space-5); }
+.filters label { display: flex; flex-direction: column; gap: var(--space-1); font-size: var(--text-xs); color: var(--ink-soft); font-weight: 600; }
+.filters select { min-height: var(--control-h); width: 100%; font: inherit; font-size: var(--text-md); color: var(--ink); padding: 0 var(--space-2); border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); }
+.filters select:has(option:checked:not([value=""])) { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); background: var(--surface-2); font-weight: 600; }
+.filters .spacer { display: none; }
+.filters > :last-child:not(label) { grid-column: 5; }
+.result-count { color: var(--ink-soft); font-size: var(--text-sm); margin: 0 0 var(--space-2); }
+.hint { margin-top: var(--space-5); text-align: center; }
+
+@media (max-width: 800px) {
+  .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .filters > :last-child:not(label) { grid-column: auto; }
+}
+
+/* High contrast: a masked background would vanish, so paint the icon in the system text colour. */
+@media (forced-colors: active) {
+  .search-box::before { forced-color-adjust: none; background: CanvasText; }
+}

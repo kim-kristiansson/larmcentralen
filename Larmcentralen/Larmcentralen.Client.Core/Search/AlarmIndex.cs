@@ -30,6 +30,7 @@ public sealed class AlarmIndex
     private readonly Dictionary<int, Equipment> _equipment;
     private readonly Dictionary<int, IndexedAlarm> _alarms;
     private readonly ILookup<int, Solution> _solutionsByAlarm;
+    private readonly ILookup<int, int> _alarmIdsBySolution;
     private readonly Dictionary<int, Solution> _solutions;
 
     public static readonly AlarmIndex Empty = new(new SyncSnapshot(DateTime.MinValue, [], [], [], []));
@@ -38,8 +39,17 @@ public sealed class AlarmIndex
     {
         _areas = snapshot.Areas.ToDictionary(a => a.Id);
         _equipment = snapshot.Equipment.ToDictionary(e => e.Id);
-        _solutionsByAlarm = snapshot.Solutions.ToLookup(s => s.AlarmId);
         _solutions = snapshot.Solutions.ToDictionary(s => s.Id);
+
+        // A server without shared solutions sends no links: each solution then belongs to its AlarmId only,
+        // and the app hides everything about sharing.
+        SupportsSharing = snapshot.AlarmSolutions is not null;
+        var links = (snapshot.AlarmSolutions ?? snapshot.Solutions.Select(s => new AlarmSolution(s.AlarmId, s.Id)).ToList())
+            .Where(l => _solutions.ContainsKey(l.SolutionId))
+            .Distinct()
+            .ToList();
+        _solutionsByAlarm = links.ToLookup(l => l.AlarmId, l => _solutions[l.SolutionId]);
+        _alarmIdsBySolution = links.ToLookup(l => l.SolutionId, l => l.AlarmId);
 
         _alarms = new Dictionary<int, IndexedAlarm>(snapshot.Alarms.Count);
         foreach (var alarm in snapshot.Alarms)
@@ -76,14 +86,107 @@ public sealed class AlarmIndex
         => ids.Select(id => _alarms.TryGetValue(id, out var a) ? a.View : null).OfType<AlarmView>().ToList();
 
     /// <summary>
+    /// True when the server sends which alarms each solution belongs to. False for a server that
+    /// predates shared solutions; then the app shows no sharing features.
+    /// </summary>
+    public bool SupportsSharing { get; private init; }
+
+    /// <summary>The type name units without a type are grouped under, and that gets no suggestions.</summary>
+    public const string OtherType = "Övrigt";
+
+    /// <summary>Every alarm a solution belongs to, ordered by unit (natural order: T2 before T10).</summary>
+    public IReadOnlyList<AlarmView> AlarmsForSolution(int solutionId)
+        => _alarmIdsBySolution[solutionId]
+            .Select(id => _alarms.TryGetValue(id, out var a) ? a.View : null)
+            .OfType<AlarmView>()
+            .OrderBy(v => v.Equipment.Title, NaturalComparer.Instance)
+            .ThenBy(v => v.Alarm.Id)
+            .ToList();
+
+    /// <summary>
+    /// Alarms that are probably the same fault as <paramref name="alarmId"/> on another unit of the same kind:
+    /// units with the same <see cref="Models.Equipment.EquipmentType"/>, and the same alarm code or the same
+    /// alarm text (ignoring case, spacing and accents). Härdugnar never suggest anlöpningsugnar and so on;
+    /// units with no type, or <see cref="OtherType"/>, get no suggestions. A missing code never matches by code.
+    /// Ordered with same-text alarms first, then by unit.
+    /// </summary>
+    public IReadOnlyList<AlarmView> Siblings(int alarmId)
+    {
+        if (!_alarms.TryGetValue(alarmId, out var current)) return [];
+        var type = TypeOf(current.View.Equipment);
+        if (type is null || type == OtherType) return [];
+
+        var code = NormaliseCode(current.View.Alarm.AlarmCode);
+        var text = NormaliseText(current.View.Alarm.Title);
+
+        return _alarms.Values
+            .Where(a => a.View.Alarm.Id != alarmId && TypeOf(a.View.Equipment) == type)
+            .Select(a => (View: a.View, SameText: NormaliseText(a.View.Alarm.Title) == text,
+                SameCode: code is not null && NormaliseCode(a.View.Alarm.AlarmCode) == code))
+            .Where(x => x.SameText || x.SameCode)
+            .OrderByDescending(x => x.SameText)
+            .ThenBy(x => x.View.Equipment.Title, NaturalComparer.Instance)
+            .ThenBy(x => x.View.Alarm.AlarmCode ?? "", NaturalComparer.Instance)
+            .Select(x => x.View)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Units grouped by type for lists such as the unit filter: types alphabetically, <see cref="OtherType"/>
+    /// last (units without a type go there). One group with a null name when no unit has a type.
+    /// </summary>
+    public IReadOnlyList<(string? Type, IReadOnlyList<Equipment> Units)> EquipmentByType(int? areaId)
+    {
+        var units = EquipmentInArea(areaId).ToList();
+        if (units.All(e => TypeOf(e) is null)) return [(null, units)];
+
+        return units
+            .GroupBy(e => TypeOf(e) ?? OtherType)
+            .OrderBy(g => g.Key == OtherType ? 1 : 0)
+            .ThenBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase)
+            .Select(g => ((string?)g.Key, (IReadOnlyList<Equipment>)g.OrderBy(e => e.Title, NaturalComparer.Instance).ToList()))
+            .ToList();
+    }
+
+    /// <summary>The unit's type, trimmed; null when it has none.</summary>
+    public static string? TypeOf(Equipment equipment)
+        => string.IsNullOrWhiteSpace(equipment.EquipmentType) ? null : equipment.EquipmentType.Trim();
+
+    private static string? NormaliseCode(string? code)
+        => string.IsNullOrWhiteSpace(code) ? null : code.Trim().ToUpperInvariant();
+
+    /// <summary>Lower case, accents removed (å → a), runs of whitespace collapsed to one space.</summary>
+    public static string NormaliseText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return "";
+        var decomposed = text.Normalize(System.Text.NormalizationForm.FormD);
+        var sb = new System.Text.StringBuilder(decomposed.Length);
+        var space = false;
+        foreach (var ch in decomposed)
+        {
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch) == System.Globalization.UnicodeCategory.NonSpacingMark) continue;
+            if (char.IsWhiteSpace(ch)) { space = sb.Length > 0; continue; }
+            if (space) { sb.Append(' '); space = false; }
+            sb.Append(char.ToLowerInvariant(ch));
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>
     /// Searches the alarms. Every typed term must match the start of a word in the alarm's
     /// code, title, equipment (technical or everyday name), area or description.
-    /// An empty search returns nothing: filters only narrow a search, they never list everything.
+    /// Empty text with no filter returns nothing. Empty text with at least one filter lists every
+    /// matching alarm, ordered by alarm code (natural order), alarms without a code last, then title.
     /// </summary>
     public AlarmSearchResult Search(AlarmSearchQuery query)
     {
         var terms = Tokenize(query.Text);
-        if (terms.Count == 0) return AlarmSearchResult.Empty;
+        if (terms.Count == 0)
+        {
+            var hasFilter = query.AreaId is not null || query.EquipmentId is not null
+                || !string.IsNullOrEmpty(query.Severity);
+            return hasFilter ? ListFiltered(query) : AlarmSearchResult.Empty;
+        }
 
         var matches = new List<(IndexedAlarm Alarm, int Score)>();
         foreach (var alarm in _alarms.Values)
@@ -115,6 +218,59 @@ public sealed class AlarmIndex
             .ToList();
 
         return new AlarmSearchResult(ordered, matches.Count);
+    }
+
+    private AlarmSearchResult ListFiltered(AlarmSearchQuery query)
+    {
+        var matches = _alarms.Values
+            .Select(a => a.View)
+            .Where(v => query.AreaId is not { } areaId || v.Area.Id == areaId)
+            .Where(v => query.EquipmentId is not { } equipmentId || v.Equipment.Id == equipmentId)
+            .Where(v => string.IsNullOrEmpty(query.Severity) || v.Alarm.Severity == query.Severity)
+            .OrderBy(v => string.IsNullOrWhiteSpace(v.Alarm.AlarmCode) ? 1 : 0)
+            .ThenBy(v => v.Alarm.AlarmCode ?? "", NaturalComparer.Instance)
+            .ThenBy(v => v.Alarm.Title, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(v => v.Alarm.Id)
+            .ToList();
+
+        var page = matches.Skip(Math.Max(0, query.Skip)).Take(Math.Max(0, query.Take)).ToList();
+        return new AlarmSearchResult(page, matches.Count);
+    }
+
+    /// <summary>Compares strings so that digit runs are ordered by numeric value (M2.1 &lt; M10.1).</summary>
+    private sealed class NaturalComparer : IComparer<string>
+    {
+        public static readonly NaturalComparer Instance = new();
+
+        public int Compare(string? x, string? y)
+        {
+            x ??= ""; y ??= "";
+            int i = 0, j = 0;
+            while (i < x.Length && j < y.Length)
+            {
+                if (char.IsDigit(x[i]) && char.IsDigit(y[j]))
+                {
+                    var si = i; var sj = j;
+                    while (i < x.Length && char.IsDigit(x[i])) i++;
+                    while (j < y.Length && char.IsDigit(y[j])) j++;
+                    var a = x.AsSpan(si, i - si).TrimStart('0');
+                    var b = y.AsSpan(sj, j - sj).TrimStart('0');
+                    if (a.Length != b.Length) return a.Length.CompareTo(b.Length);
+                    var c = a.CompareTo(b, StringComparison.Ordinal);
+                    if (c != 0) return c;
+                    // Equal value: fewer leading zeros first, to keep the order deterministic.
+                    var lead = (i - si).CompareTo(j - sj);
+                    if (lead != 0) return lead;
+                }
+                else
+                {
+                    var c = char.ToUpperInvariant(x[i]).CompareTo(char.ToUpperInvariant(y[j]));
+                    if (c != 0) return c;
+                    i++; j++;
+                }
+            }
+            return (x.Length - i).CompareTo(y.Length - j);
+        }
     }
 
     internal static List<string> Tokenize(string? text)

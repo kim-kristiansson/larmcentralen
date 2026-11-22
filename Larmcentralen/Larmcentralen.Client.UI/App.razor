@@ -10,8 +10,10 @@
         </Found>
         <NotFound>
             <LayoutView Layout="typeof(MainLayout)">
-                <h1>Sidan finns inte</h1>
-                <p><a href="">Till sökningen</a></p>
+                <div class="empty-state">
+                    <h1>Sidan finns inte</h1>
+                    <a class="btn btn-primary" href="">Till sökningen</a>
+                </div>
             </LayoutView>
         </NotFound>
     </Router>
@@ -19,8 +21,15 @@
 else
 {
     <div class="startup">
-        <div class="brand-mark">Larmcentralen</div>
-        <p>@(_error ?? "Startar…")</p>
+        <BrandMark Stacked="true" />
+        @if (_error is null)
+        {
+            <p>Startar…</p>
+        }
+        else
+        {
+            <p class="error" role="alert">@_error</p>
+        }
     </div>
 }
 

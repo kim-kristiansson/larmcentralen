@@ -10,6 +10,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Equipment> Equipment => Set<Equipment>();
     public DbSet<Alarm> Alarms => Set<Alarm>();
     public DbSet<Solution> Solutions => Set<Solution>();
+    public DbSet<AlarmSolution> AlarmSolutions => Set<AlarmSolution>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -31,6 +32,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.Property(eq => eq.Title).HasMaxLength(200);
             e.Property(eq => eq.Category).HasMaxLength(50);
+            e.Property(eq => eq.EquipmentType).HasMaxLength(50);
 
             e.HasOne(eq => eq.Area)
                 .WithMany(a => a.Equipment)
@@ -57,10 +59,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(s => s.Title).HasMaxLength(300);
             e.Property(s => s.EstimatedTime).HasMaxLength(50);
 
-            e.HasOne(s => s.Alarm)
+            // Many-to-many: one solution can be shared by several alarms (the same fault on several units).
+            e.HasMany(s => s.Alarms)
                 .WithMany(a => a.Solutions)
-                .HasForeignKey(s => s.AlarmId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .UsingEntity<AlarmSolution>(
+                    l => l.HasOne(x => x.Alarm).WithMany().HasForeignKey(x => x.AlarmId).OnDelete(DeleteBehavior.Cascade),
+                    r => r.HasOne(x => x.Solution).WithMany().HasForeignKey(x => x.SolutionId).OnDelete(DeleteBehavior.Cascade),
+                    j =>
+                    {
+                        j.ToTable("AlarmSolutions");
+                        j.HasKey(x => new { x.AlarmId, x.SolutionId });
+                        j.HasIndex(x => x.SolutionId);
+                    });
         });
     }
 }

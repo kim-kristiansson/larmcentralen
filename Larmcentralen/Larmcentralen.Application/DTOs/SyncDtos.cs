@@ -3,18 +3,21 @@ namespace Larmcentralen.Application.DTOs;
 /// <summary>
 /// The whole knowledge base in one response, for clients that keep a local offline copy.
 /// Flat lists keyed by id, so the client can store them as tables without walking a tree.
+/// <see cref="AlarmSolutions"/> lists which alarms each solution belongs to (a solution can be
+/// shared by several units). Older clients ignore it and use <see cref="SyncSolutionDto.AlarmId"/>.
 /// </summary>
 public record SyncSnapshotDto(
     DateTime GeneratedAt,
     List<SyncAreaDto> Areas,
     List<SyncEquipmentDto> Equipment,
     List<SyncAlarmDto> Alarms,
-    List<SyncSolutionDto> Solutions
+    List<SyncSolutionDto> Solutions,
+    List<SyncAlarmSolutionDto> AlarmSolutions
 );
 
 public record SyncAreaDto(int Id, string Title, string? DisplayName, DateTime? UpdatedAt);
 
-public record SyncEquipmentDto(int Id, string Title, string? DisplayName, int AreaId, DateTime? UpdatedAt);
+public record SyncEquipmentDto(int Id, string Title, string? DisplayName, int AreaId, DateTime? UpdatedAt, string? EquipmentType);
 
 public record SyncAlarmDto(
     int Id,
@@ -27,6 +30,7 @@ public record SyncAlarmDto(
     DateTime? UpdatedAt
 );
 
+/// <summary><see cref="AlarmId"/> is the lowest linked alarm, kept so older clients still show the solution.</summary>
 public record SyncSolutionDto(
     int Id,
     string Title,
@@ -37,3 +41,5 @@ public record SyncSolutionDto(
     DateTime CreatedAt,
     DateTime? UpdatedAt
 );
+
+public record SyncAlarmSolutionDto(int AlarmId, int SolutionId);

@@ -1,4 +1,5 @@
-@* An in-page confirmation, instead of a browser dialog that would block the WebView. *@
+@* An in-page confirmation, instead of a browser dialog that would block the WebView.
+   An optional second action (SecondaryText/OnSecondary) offers a milder alternative to the main one. *@
 @if (Open)
 {
     <div class="dialog-backdrop" @onclick="Cancel">
@@ -7,6 +8,10 @@
             <p>@Message</p>
             <div class="actions">
                 <button type="button" class="btn" @onclick="Cancel">Avbryt</button>
+                @if (SecondaryText is not null)
+                {
+                    <button type="button" class="btn btn-danger-outline" @onclick="Secondary">@SecondaryText</button>
+                }
                 <button type="button" class="btn btn-danger" @onclick="Confirm">@ConfirmText</button>
             </div>
         </div>
@@ -18,9 +23,12 @@
     [Parameter] public string Title { get; set; } = "Är du säker?";
     [Parameter] public string Message { get; set; } = "";
     [Parameter] public string ConfirmText { get; set; } = "Ta bort";
+    [Parameter] public string? SecondaryText { get; set; }
     [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnSecondary { get; set; }
     [Parameter] public EventCallback OnCancel { get; set; }
 
     private Task Confirm() => OnConfirm.InvokeAsync();
+    private Task Secondary() => OnSecondary.InvokeAsync();
     private Task Cancel() => OnCancel.InvokeAsync();
 }

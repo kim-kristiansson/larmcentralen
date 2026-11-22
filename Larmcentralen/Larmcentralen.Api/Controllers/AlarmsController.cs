@@ -8,8 +8,33 @@ namespace Larmcentralen.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AlarmsController(IAlarmService service, ISolutionService solutionService) : ControllerBase
+public class AlarmsController(IAlarmService service) : ControllerBase
 {
+    /// <summary>Removes a shared solution from this alarm only. 409 when it is the solution's last alarm.</summary>
+    [HttpDelete("{alarmId:int}/solutions/{solutionId:int}")]
+    public async Task<IActionResult> UnlinkSolution(int alarmId, int solutionId,
+        [FromServices] ISolutionService solutions, [FromServices] ISharePointSyncService sync)
+    {
+        var result = await solutions.UnlinkAsync(alarmId, solutionId);
+        if (result.Status != SolutionWriteStatus.Ok) return this.ToError(result);
+        await this.SyncAlarmsAsync(sync, result);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Gives this alarm its own copy of a shared solution, so it can be edited without changing
+    /// the other units. Returns the copy.
+    /// </summary>
+    [HttpPost("{alarmId:int}/solutions/{solutionId:int}/detach")]
+    public async Task<IActionResult> DetachSolution(int alarmId, int solutionId,
+        [FromServices] ISolutionService solutions, [FromServices] ISharePointSyncService sync)
+    {
+        var result = await solutions.DetachAsync(alarmId, solutionId);
+        if (result.Status != SolutionWriteStatus.Ok) return this.ToError(result);
+        await this.SyncAlarmsAsync(sync, result);
+        return Ok(result.Solution);
+    }
+
     [HttpGet]
     public async Task<ActionResult<List<AlarmListDto>>> GetAll(
         [FromQuery] string? search,

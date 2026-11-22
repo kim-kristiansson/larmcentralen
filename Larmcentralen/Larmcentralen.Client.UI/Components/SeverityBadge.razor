@@ -1,5 +1,5 @@
 @* Colour, shape and text together, so severity reads without relying on colour alone. *@
-<span class="severity severity-@CssKey" title="Allvarlighet: @Value">
+<span class="severity severity-@KeyFor(Value)" title="Allvarlighet: @Value">
     <span class="severity-shape" aria-hidden="true">@Shape</span>
     <span class="severity-text">@Value</span>
 </span>
@@ -7,7 +7,8 @@
 @code {
     [Parameter, EditorRequired] public string Value { get; set; } = Severity.Medium;
 
-    private string CssKey => Value switch
+    /// <summary>CSS key for a severity value (low, medium, high, critical); unknown values count as medium.</summary>
+    public static string KeyFor(string? value) => value switch
     {
         Severity.Low => "low",
         Severity.High => "high",

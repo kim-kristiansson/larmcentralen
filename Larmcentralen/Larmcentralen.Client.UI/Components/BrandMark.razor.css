@@ -1,0 +1,6 @@
+.brandmark { display: inline-flex; align-items: center; gap: 0.5em; color: var(--ink); line-height: 1; }
+.brandmark-glyph { color: var(--brand); height: 1.4em; width: auto; flex: none; }
+.brandmark-word { font-weight: 400; letter-spacing: -0.01em; }
+.brandmark-larm { font-weight: 700; }
+.brandmark-stacked { flex-direction: column; gap: var(--space-4); font-size: var(--text-2xl); }
+.brandmark-stacked .brandmark-glyph { height: 72px; }

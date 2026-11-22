@@ -69,6 +69,7 @@ public class AlarmRepository(AppDbContext db) : Repository<Alarm>(db), IAlarmRep
             .Include(a => a.Equipment)
             .ThenInclude(e => e.Area)
             .Include(a => a.Solutions.OrderBy(s => s.SortOrder))
+            .ThenInclude(s => s.Alarms)
             .FirstOrDefaultAsync(a => a.Id == id);
     }
 
