@@ -29,6 +29,8 @@ public static class MauiProgram
 
         builder.Services.AddSingleton<INetworkStatus, MauiNetworkStatus>();
         builder.Services.AddSingleton<IFileSaveService, MauiFileSaveService>();
+        builder.Services.AddSingleton<MauiThemeStore>();
+        builder.Services.AddSingleton<IThemeStore>(sp => sp.GetRequiredService<MauiThemeStore>());
         builder.Services.AddLarmcentralenClient(databasePath, o =>
         {
             o.BaseAddress = settings.ApiBaseAddress;

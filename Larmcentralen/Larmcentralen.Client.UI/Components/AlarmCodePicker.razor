@@ -1,0 +1,210 @@
+@inherits KnowledgeBaseComponent
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@*
+    Searchable list of alarm codes (a combobox). Each code is listed once, whatever units use it. Typing filters by
+    any part of the code. Arrow keys move, Enter picks, Esc closes. "+ Ny larmkod" adds what is typed as a new code,
+    and "Ingen larmkod" is for alarm rows without one.
+*@
+
+<div class="code-picker">
+    <label class="code-picker-label" for="code-picker-input">Larmkod</label>
+    <div class="code-picker-field">
+        <input id="code-picker-input" @ref="_input" type="text" autocomplete="off" spellcheck="false"
+               role="combobox" aria-autocomplete="list" aria-expanded="@(_open ? "true" : "false")"
+               aria-controls="code-picker-list" aria-activedescendant="@(_open ? OptionId(_active) : null)"
+               placeholder="@(EquipmentId == 0 ? "Välj utrustning först" : "Sök larmkod, t.ex. M200.1")"
+               disabled="@(EquipmentId == 0 || Disabled)"
+               value="@_query" @oninput="OnInput" @onkeydown="OnKeyDown" @onfocus="Open" @onblur="OnBlur" />
+    </div>
+
+    @if (_open && EquipmentId != 0)
+    {
+        <ul id="code-picker-list" class="code-picker-list" role="listbox" aria-label="Larmkoder">
+            @for (var i = 0; i < _rows.Count; i++)
+            {
+                var index = i;
+                var row = _rows[i];
+                <li id="@OptionId(index)" role="option" aria-selected="@(index == _active ? "true" : "false")"
+                    aria-disabled="@(row.Disabled ? "true" : "false")"
+                    class="code-option @row.Css @(index == _active ? "active" : "") @(row.Disabled ? "disabled" : "")"
+                    @onmousedown="() => PickAsync(index)" @onmousedown:preventDefault="true">
+                    <span class="code-option-main">
+                        @if (row.Option is { } option)
+                        {
+                            <code class="alarm-code">@option.Code.Code</code>
+                        }
+                        else
+                        {
+                            <strong>@row.Label</strong>
+                        }
+                    </span>
+                    <span class="code-option-meta">@row.Meta</span>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    /// <summary>The unit the alarm is on. 0 when none is chosen yet.</summary>
+    [Parameter] public int EquipmentId { get; set; }
+
+    /// <summary>The alarm being edited, so its own code is not reported as already used on the unit.</summary>
+    [Parameter] public int? EditingAlarmId { get; set; }
+
+    [Parameter] public int? SelectedCodeId { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>A code from the list, or null for "Ingen larmkod".</summary>
+    [Parameter] public EventCallback<AlarmCode?> OnPick { get; set; }
+
+    /// <summary>"+ Ny larmkod": the code typed, to add to the list.</summary>
+    [Parameter] public EventCallback<string> OnCreate { get; set; }
+
+    private sealed record Row(CodeOption? Option, string Label, string Meta, bool Disabled, string Css, string? NewCode = null, bool None = false);
+
+    private ElementReference _input;
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _keys;
+    private string _query = "";
+    private bool _open;
+    private int _active;
+    private int? _shownCode = -1;
+    private int _shownFor = -1;
+    private List<Row> _rows = [];
+
+    private static string OptionId(int index) => $"code-option-{index}";
+
+    protected override void OnParametersSet()
+    {
+        // Show the picked code in the box when the selection changes from outside.
+        if (_shownCode != SelectedCodeId || _shownFor != EquipmentId)
+        {
+            _shownCode = SelectedCodeId;
+            _shownFor = EquipmentId;
+            _query = Shown();
+            Refresh();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Without the script the picker still works; only Enter and the arrows would also act on the page.
+        try
+        {
+            if (firstRender)
+            {
+                _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/Larmcentralen.Client.UI/js/combobox.js");
+                _keys = await _module.InvokeAsync<IJSObjectReference>("attach", _input);
+            }
+            if (_open && _module is not null)
+                await _module.InvokeVoidAsync("scrollIntoView", OptionId(_active));
+        }
+        catch (JSException) { }
+        catch (JSDisconnectedException) { }
+    }
+
+    private string Shown() => SelectedCodeId is { } id && Kb.Index.GetCode(id) is { } code ? code.Code : "";
+
+    private void Refresh()
+    {
+        // While the box shows the picked code, list everything; once the user types, filter by what they typed.
+        var typed = _query == Shown() ? null : _query;
+        var options = EquipmentId == 0 ? [] : Kb.Index.SearchCodes(typed, EquipmentId, EditingAlarmId);
+        _rows = options.Select(o => new Row(o, o.Code.Code,
+                o.DisabledReason ?? (o.UnitCount switch
+                {
+                    0 => "Ingen enhet har den än",
+                    1 => "Används på 1 enhet",
+                    var n => $"Används på {n} enheter"
+                }) + (o.Code.Description is { } d ? $" · {d}" : ""),
+                o.Disabled, o.Code.Id == SelectedCodeId ? "current" : ""))
+            .ToList();
+
+        var newCode = typed?.Trim().ToUpperInvariant();
+        if (!string.IsNullOrEmpty(newCode) && options.All(o => !string.Equals(o.Code.Code, newCode, StringComparison.OrdinalIgnoreCase)))
+            _rows.Add(new Row(null, $"+ Ny larmkod {newCode}", "Lägg till koden i listan och använd den här", false, "code-option-new", NewCode: newCode));
+        _rows.Add(new Row(null, "Ingen larmkod", "För larm som saknar kod i PLC:n", false, "code-option-none", None: true));
+
+        var current = _rows.FindIndex(r => r.Option?.Code.Id == SelectedCodeId && SelectedCodeId is not null);
+        _active = current >= 0 ? current : Math.Max(0, _rows.FindIndex(r => !r.Disabled));
+    }
+
+    private void Open()
+    {
+        if (EquipmentId == 0) return;
+        _open = true;
+        Refresh();
+    }
+
+    private void OnInput(ChangeEventArgs e)
+    {
+        _query = e.Value?.ToString() ?? "";
+        _open = true;
+        Refresh();
+    }
+
+    private void OnBlur()
+    {
+        _open = false;
+        _query = Shown();
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                if (!_open) { Open(); break; }
+                for (var i = _active + 1; i < _rows.Count; i++)
+                    if (!_rows[i].Disabled) { _active = i; break; }
+                break;
+            case "ArrowUp":
+                if (!_open) { Open(); break; }
+                for (var i = _active - 1; i >= 0; i--)
+                    if (!_rows[i].Disabled) { _active = i; break; }
+                break;
+            case "Enter":
+                if (_open) await PickAsync(_active);
+                else Open();
+                break;
+            case "Escape":
+                OnBlur();
+                break;
+        }
+    }
+
+    private async Task PickAsync(int index)
+    {
+        if (index < 0 || index >= _rows.Count || _rows[index].Disabled) return;
+        var row = _rows[index];
+        _open = false;
+        if (row.NewCode is { } code)
+        {
+            _query = code;
+            await OnCreate.InvokeAsync(code);
+        }
+        else if (row.None)
+        {
+            _query = "";
+            await OnPick.InvokeAsync(null);
+        }
+        else
+        {
+            _query = row.Option!.Code.Code;
+            await OnPick.InvokeAsync(row.Option.Code);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Dispose();
+        try
+        {
+            if (_keys is not null) { await _keys.InvokeVoidAsync("dispose"); await _keys.DisposeAsync(); }
+            if (_module is not null) await _module.DisposeAsync();
+        }
+        catch (JSDisconnectedException) { }
+    }
+}

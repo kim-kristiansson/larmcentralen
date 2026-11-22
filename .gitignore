@@ -541,3 +541,8 @@ local.settings.json
 *.sqlite
 *.sqlite3
 *.db-journal
+
+# Licensed brand fonts (Gotham, Hoefler&Co) for local builds only. Never commit them.
+Larmcentralen/Larmcentralen.Client.UI/wwwroot/fonts/local/
+*.otf
+**/Gotham*

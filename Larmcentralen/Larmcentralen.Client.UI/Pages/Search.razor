@@ -29,12 +29,28 @@
         <span>Utrustning</span>
         <select value="@State.EquipmentId" @onchange="OnEquipmentChanged">
             <option value="">Alla</option>
-            @foreach (var eq in Kb.Index.EquipmentInArea(State.AreaId))
+            @foreach (var (type, units) in Kb.Index.EquipmentByType(State.AreaId))
             {
-                <option value="@eq.Id">@EquipmentLabel(eq)</option>
+                @if (type is null)
+                {
+                    @foreach (var eq in units)
+                    {
+                        <option value="@eq.Id">@EquipmentLabel(eq)</option>
+                    }
+                }
+                else
+                {
+                    <optgroup label="@type">
+                        @foreach (var eq in units)
+                        {
+                            <option value="@eq.Id">@EquipmentLabel(eq)</option>
+                        }
+                    </optgroup>
+                }
             }
         </select>
     </label>
+    <CodeFilter Codes="_codes" OfferWithoutCode="_withoutCode" Value="@State.AlarmCode" ValueChanged="OnCodeChanged" />
     <label>
         <span>Allvarlighet</span>
         <select value="@State.Severity" @onchange="OnSeverityChanged">
@@ -65,11 +81,11 @@
         }
         else
         {
-            <p><strong>Ingen lokal kopia ännu.</strong> Anslut datorn till nätverket en gång, så sparas alla larm och lösningar och fungerar sedan även offline.</p>
+            <p><strong>Ingen lokal kopia ännu.</strong> Anslut datorn till nätverket en gång, så sparas alla larm och åtgärder och fungerar sedan även offline.</p>
         }
     </div>
 }
-else if (string.IsNullOrWhiteSpace(State.Text))
+else if (string.IsNullOrWhiteSpace(State.Text) && !HasFilters)
 {
     @if (_recent.Count > 0)
     {
@@ -88,7 +104,14 @@ else
     </p>
     @if (_result.TotalCount == 0)
     {
-        <p class="muted">Inga larm matchar. Prova färre ord, eller larmkoden utan bokstaven (”200.4”).</p>
+        <div class="empty-state">
+            <h2>Inga larm matchar</h2>
+            <p>Prova färre ord, eller larmkoden utan bokstaven (”200.4”).</p>
+            @if (HasFilters)
+            {
+                <button type="button" class="btn" @onclick="ClearFilters">Rensa filter</button>
+            }
+        </div>
     }
     else
     {
@@ -106,7 +129,12 @@ else
     private IReadOnlyList<int> _recentIds = [];
     private IReadOnlyList<AlarmView> _recent = [];
 
-    private bool HasFilters => State.AreaId is not null || State.EquipmentId is not null || State.Severity is not null;
+    private bool HasFilters => State.AreaId is not null || State.EquipmentId is not null || State.Severity is not null
+                               || State.AlarmCode is not null;
+
+    /// <summary>The codes offered by the code filter: those on alarms in the chosen area or unit.</summary>
+    private IReadOnlyList<string> _codes = [];
+    private bool _withoutCode;
 
     protected override async Task OnInitializedAsync()
     {
@@ -115,6 +143,10 @@ else
 
     protected override void Load()
     {
+        _codes = Kb.Index.CodesIn(State.AreaId, State.EquipmentId, out _withoutCode);
+        // A code no alarm in the chosen area or unit has any more (another filter changed, or a sync) goes back to "Alla".
+        if (State.AlarmCode is { } code && (code == AlarmSearchQuery.WithoutCode ? !_withoutCode : !_codes.Contains(code, StringComparer.OrdinalIgnoreCase)))
+            State.AlarmCode = null;
         _result = Kb.Index.Search(State.ToQuery());
         _recent = Kb.Index.GetByIds(_recentIds);
     }
@@ -154,6 +186,13 @@ else
         Load();
     }
 
+    private void OnCodeChanged(string? code)
+    {
+        State.AlarmCode = code;
+        State.ResetPaging();
+        Load();
+    }
+
     private void OnSeverityChanged(ChangeEventArgs e)
     {
         var value = e.Value?.ToString();
@@ -167,6 +206,7 @@ else
         State.AreaId = null;
         State.EquipmentId = null;
         State.Severity = null;
+        State.AlarmCode = null;
         State.ResetPaging();
         Load();
         await _input.FocusAsync();

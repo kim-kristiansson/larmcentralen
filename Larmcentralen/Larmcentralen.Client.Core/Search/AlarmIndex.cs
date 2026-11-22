@@ -2,15 +2,30 @@ using Larmcentralen.Client.Core.Models;
 
 namespace Larmcentralen.Client.Core.Search;
 
+/// <summary>
+/// A search. <see cref="AlarmCode"/>: only alarms with that code (any case), or <see cref="WithoutCode"/> for alarms
+/// that have none; null for all.
+/// </summary>
 public record AlarmSearchQuery(
     string? Text,
     int? AreaId = null,
     int? EquipmentId = null,
     string? Severity = null,
     int Skip = 0,
-    int Take = AlarmSearchQuery.PageSize)
+    int Take = AlarmSearchQuery.PageSize,
+    string? AlarmCode = null)
 {
     public const int PageSize = 10;
+
+    /// <summary>The code filter value for "Utan larmkod". Never a real code: codes have no spaces.</summary>
+    public const string WithoutCode = "utan larmkod";
+
+    /// <summary>True when the alarm passes the code filter.</summary>
+    public bool MatchesCode(string? alarmCode)
+        => AlarmCode is null
+           || (AlarmCode == WithoutCode
+               ? string.IsNullOrWhiteSpace(alarmCode)
+               : string.Equals(alarmCode?.Trim(), AlarmCode.Trim(), StringComparison.OrdinalIgnoreCase));
 }
 
 public record AlarmSearchResult(IReadOnlyList<AlarmView> Items, int TotalCount)
@@ -30,7 +45,9 @@ public sealed class AlarmIndex
     private readonly Dictionary<int, Equipment> _equipment;
     private readonly Dictionary<int, IndexedAlarm> _alarms;
     private readonly ILookup<int, Solution> _solutionsByAlarm;
+    private readonly ILookup<int, int> _alarmIdsBySolution;
     private readonly Dictionary<int, Solution> _solutions;
+    private readonly Dictionary<int, AlarmCode> _codes;
 
     public static readonly AlarmIndex Empty = new(new SyncSnapshot(DateTime.MinValue, [], [], [], []));
 
@@ -38,8 +55,19 @@ public sealed class AlarmIndex
     {
         _areas = snapshot.Areas.ToDictionary(a => a.Id);
         _equipment = snapshot.Equipment.ToDictionary(e => e.Id);
-        _solutionsByAlarm = snapshot.Solutions.ToLookup(s => s.AlarmId);
         _solutions = snapshot.Solutions.ToDictionary(s => s.Id);
+        _codes = (snapshot.AlarmCodes ?? []).ToDictionary(c => c.Id);
+        SupportsAlarmCodes = snapshot.AlarmCodes is not null;
+
+        // A server without shared solutions sends no links: each solution then belongs to its AlarmId only,
+        // and the app hides everything about sharing.
+        SupportsSharing = snapshot.AlarmSolutions is not null;
+        var links = (snapshot.AlarmSolutions ?? snapshot.Solutions.Select(s => new AlarmSolution(s.AlarmId, s.Id)).ToList())
+            .Where(l => _solutions.ContainsKey(l.SolutionId))
+            .Distinct()
+            .ToList();
+        _solutionsByAlarm = links.ToLookup(l => l.AlarmId, l => _solutions[l.SolutionId]);
+        _alarmIdsBySolution = links.ToLookup(l => l.SolutionId, l => l.AlarmId);
 
         _alarms = new Dictionary<int, IndexedAlarm>(snapshot.Alarms.Count);
         foreach (var alarm in snapshot.Alarms)
@@ -76,14 +104,129 @@ public sealed class AlarmIndex
         => ids.Select(id => _alarms.TryGetValue(id, out var a) ? a.View : null).OfType<AlarmView>().ToList();
 
     /// <summary>
+    /// True when the server sends which alarms each solution belongs to. False for a server that
+    /// predates shared solutions; then the app shows no sharing features.
+    /// </summary>
+    public bool SupportsSharing { get; private init; }
+
+    /// <summary>True when the server sends the shared list of alarm codes (then the code is picked from it).</summary>
+    public bool SupportsAlarmCodes { get; private init; }
+
+    public AlarmCode? GetCode(int codeId) => _codes.GetValueOrDefault(codeId);
+
+    /// <summary>
+    /// The same alarm code on other units of the same type: for M200.0 on T101, M200.0 on T102, T103 and T104 (with their
+    /// own text). Units with no type, or "Övrigt", are never related to other units. Alarms without a code have none.
+    /// Ordered by unit (natural order).
+    /// </summary>
+    public IReadOnlyList<AlarmView> SameCode(int alarmId)
+    {
+        if (!_alarms.TryGetValue(alarmId, out var current)) return [];
+        var type = TypeOf(current.View.Equipment);
+        var code = NormaliseCode(current.View.Alarm.AlarmCode);
+        if (code is null || type is null || type == OtherType) return [];
+
+        return _alarms.Values
+            .Select(a => a.View)
+            .Where(v => v.Equipment.Id != current.View.Equipment.Id && TypeOf(v.Equipment) == type
+                        && NormaliseCode(v.Alarm.AlarmCode) == code)
+            .OrderBy(v => v.Equipment.Title, NaturalComparer.Instance)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Alarm codes to pick from for an alarm on <paramref name="equipmentId"/>: each code once, filtered by what is typed
+    /// (anywhere in the code, any case), ordered by code (natural order: M2.1 before M10.1). A code the unit already has on
+    /// another alarm than <paramref name="editingAlarmId"/> is listed with the reason it cannot be picked.
+    /// </summary>
+    public IReadOnlyList<CodeOption> SearchCodes(string? text, int equipmentId, int? editingAlarmId = null, int take = 50)
+    {
+        var term = NormaliseCode(text);
+        var used = _alarms.Values.Select(a => a.View.Alarm)
+            .Where(a => a.AlarmCodeId is not null)
+            .ToLookup(a => a.AlarmCodeId!.Value);
+
+        return _codes.Values
+            .Where(c => term is null || c.Code.Contains(term, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(c => term is not null && !c.Code.StartsWith(term, StringComparison.OrdinalIgnoreCase) ? 1 : 0)
+            .ThenBy(c => c.Code, NaturalComparer.Instance)
+            .Take(Math.Max(0, take))
+            .Select(c =>
+            {
+                var alarms = used[c.Id].ToList();
+                var taken = alarms.Any(a => a.EquipmentId == equipmentId && a.Id != editingAlarmId);
+                return new CodeOption(c, alarms.Select(a => a.EquipmentId).Distinct().Count(),
+                    taken ? "Finns redan på den här enheten" : null);
+            })
+            .ToList();
+    }
+
+    /// <summary>The type name units without a type are grouped under, and that gets no suggestions.</summary>
+    public const string OtherType = "Övrigt";
+
+    /// <summary>Every alarm a solution belongs to, ordered by unit (natural order: T2 before T10).</summary>
+    public IReadOnlyList<AlarmView> AlarmsForSolution(int solutionId)
+        => _alarmIdsBySolution[solutionId]
+            .Select(id => _alarms.TryGetValue(id, out var a) ? a.View : null)
+            .OfType<AlarmView>()
+            .OrderBy(v => v.Equipment.Title, NaturalComparer.Instance)
+            .ThenBy(v => v.Alarm.Id)
+            .ToList();
+
+    /// <summary>
+    /// Units grouped by type for lists such as the unit filter: types alphabetically, <see cref="OtherType"/>
+    /// last (units without a type go there). One group with a null name when no unit has a type.
+    /// </summary>
+    public IReadOnlyList<(string? Type, IReadOnlyList<Equipment> Units)> EquipmentByType(int? areaId)
+    {
+        var units = EquipmentInArea(areaId).ToList();
+        if (units.All(e => TypeOf(e) is null)) return [(null, units)];
+
+        return units
+            .GroupBy(e => TypeOf(e) ?? OtherType)
+            .OrderBy(g => g.Key == OtherType ? 1 : 0)
+            .ThenBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase)
+            .Select(g => ((string?)g.Key, (IReadOnlyList<Equipment>)g.OrderBy(e => e.Title, NaturalComparer.Instance).ToList()))
+            .ToList();
+    }
+
+    /// <summary>The unit's type, trimmed; null when it has none.</summary>
+    public static string? TypeOf(Equipment equipment)
+        => string.IsNullOrWhiteSpace(equipment.EquipmentType) ? null : equipment.EquipmentType.Trim();
+
+    private static string? NormaliseCode(string? code)
+        => string.IsNullOrWhiteSpace(code) ? null : code.Trim().ToUpperInvariant();
+
+    /// <summary>
     /// Searches the alarms. Every typed term must match the start of a word in the alarm's
     /// code, title, equipment (technical or everyday name), area or description.
-    /// An empty search returns nothing: filters only narrow a search, they never list everything.
+    /// Empty text with no filter returns nothing. Empty text with at least one filter lists every
+    /// matching alarm, ordered by alarm code (natural order), alarms without a code last, then title.
     /// </summary>
+    /// <summary>
+    /// The codes that alarms in this area or on this unit have, each once (upper case), in natural order (M2.1 before
+    /// M10.1), for the code filter. <paramref name="withoutCode"/> is true when some alarm there has no code.
+    /// </summary>
+    public IReadOnlyList<string> CodesIn(int? areaId, int? equipmentId, out bool withoutCode)
+    {
+        var views = _alarms.Values.Select(a => a.View)
+            .Where(v => areaId is not { } area || v.Area.Id == area)
+            .Where(v => equipmentId is not { } unit || v.Equipment.Id == unit)
+            .ToList();
+        withoutCode = views.Any(v => string.IsNullOrWhiteSpace(v.Alarm.AlarmCode));
+        return views.Select(v => NormaliseCode(v.Alarm.AlarmCode)).OfType<string>().Distinct()
+            .Order(NaturalComparer.Instance).ToList();
+    }
+
     public AlarmSearchResult Search(AlarmSearchQuery query)
     {
         var terms = Tokenize(query.Text);
-        if (terms.Count == 0) return AlarmSearchResult.Empty;
+        if (terms.Count == 0)
+        {
+            var hasFilter = query.AreaId is not null || query.EquipmentId is not null
+                || !string.IsNullOrEmpty(query.Severity) || query.AlarmCode is not null;
+            return hasFilter ? ListFiltered(query) : AlarmSearchResult.Empty;
+        }
 
         var matches = new List<(IndexedAlarm Alarm, int Score)>();
         foreach (var alarm in _alarms.Values)
@@ -92,6 +235,7 @@ public sealed class AlarmIndex
             if (query.AreaId is { } areaId && view.Area.Id != areaId) continue;
             if (query.EquipmentId is { } equipmentId && view.Equipment.Id != equipmentId) continue;
             if (!string.IsNullOrEmpty(query.Severity) && view.Alarm.Severity != query.Severity) continue;
+            if (!query.MatchesCode(view.Alarm.AlarmCode)) continue;
 
             var total = 0;
             var all = true;
@@ -115,6 +259,60 @@ public sealed class AlarmIndex
             .ToList();
 
         return new AlarmSearchResult(ordered, matches.Count);
+    }
+
+    private AlarmSearchResult ListFiltered(AlarmSearchQuery query)
+    {
+        var matches = _alarms.Values
+            .Select(a => a.View)
+            .Where(v => query.AreaId is not { } areaId || v.Area.Id == areaId)
+            .Where(v => query.EquipmentId is not { } equipmentId || v.Equipment.Id == equipmentId)
+            .Where(v => string.IsNullOrEmpty(query.Severity) || v.Alarm.Severity == query.Severity)
+            .Where(v => query.MatchesCode(v.Alarm.AlarmCode))
+            .OrderBy(v => string.IsNullOrWhiteSpace(v.Alarm.AlarmCode) ? 1 : 0)
+            .ThenBy(v => v.Alarm.AlarmCode ?? "", NaturalComparer.Instance)
+            .ThenBy(v => v.Alarm.Title, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(v => v.Alarm.Id)
+            .ToList();
+
+        var page = matches.Skip(Math.Max(0, query.Skip)).Take(Math.Max(0, query.Take)).ToList();
+        return new AlarmSearchResult(page, matches.Count);
+    }
+
+    /// <summary>Compares strings so that digit runs are ordered by numeric value (M2.1 &lt; M10.1).</summary>
+    private sealed class NaturalComparer : IComparer<string>
+    {
+        public static readonly NaturalComparer Instance = new();
+
+        public int Compare(string? x, string? y)
+        {
+            x ??= ""; y ??= "";
+            int i = 0, j = 0;
+            while (i < x.Length && j < y.Length)
+            {
+                if (char.IsDigit(x[i]) && char.IsDigit(y[j]))
+                {
+                    var si = i; var sj = j;
+                    while (i < x.Length && char.IsDigit(x[i])) i++;
+                    while (j < y.Length && char.IsDigit(y[j])) j++;
+                    var a = x.AsSpan(si, i - si).TrimStart('0');
+                    var b = y.AsSpan(sj, j - sj).TrimStart('0');
+                    if (a.Length != b.Length) return a.Length.CompareTo(b.Length);
+                    var c = a.CompareTo(b, StringComparison.Ordinal);
+                    if (c != 0) return c;
+                    // Equal value: fewer leading zeros first, to keep the order deterministic.
+                    var lead = (i - si).CompareTo(j - sj);
+                    if (lead != 0) return lead;
+                }
+                else
+                {
+                    var c = char.ToUpperInvariant(x[i]).CompareTo(char.ToUpperInvariant(y[j]));
+                    if (c != 0) return c;
+                    i++; j++;
+                }
+            }
+            return (x.Length - i).CompareTo(y.Length - j);
+        }
     }
 
     internal static List<string> Tokenize(string? text)
@@ -182,4 +380,10 @@ public sealed class AlarmIndex
             return false;
         }
     }
+}
+
+/// <summary>An alarm code offered in the code picker, with how many units use it.</summary>
+public sealed record CodeOption(AlarmCode Code, int UnitCount, string? DisabledReason)
+{
+    public bool Disabled => DisabledReason is not null;
 }

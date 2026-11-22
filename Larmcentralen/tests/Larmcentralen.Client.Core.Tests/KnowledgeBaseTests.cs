@@ -67,6 +67,42 @@ public sealed class KnowledgeBaseTests : IDisposable
         Assert.Equal(6, kb.Index.AlarmCount);
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task Rejected_key_is_reported_as_a_key_problem_not_offline(HttpStatusCode status)
+    {
+        _handler.Respond = _ => new HttpResponseMessage(status);
+        await using var kb = Create();
+        await kb.InitializeAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(await kb.SyncAsync(TestContext.Current.CancellationToken));
+
+        Assert.True(kb.IsOnline);
+        Assert.Equal(KnowledgeBase.MissingKeyError, kb.LastSyncError);
+    }
+
+    [Fact]
+    public async Task Background_sync_retries_soon_after_a_failure_instead_of_waiting_a_full_interval()
+    {
+        // The API is down when the app starts and comes up right after.
+        var calls = 0;
+        _handler.Respond = _ => Interlocked.Increment(ref calls) == 1
+            ? throw new HttpRequestException("server not started yet")
+            : JsonResponse(TestData.Snapshot());
+        await using var kb = Create();
+        await kb.InitializeAsync(TestContext.Current.CancellationToken);
+
+        kb.StartBackgroundSync(interval: TimeSpan.FromHours(1), retryInterval: TimeSpan.FromMilliseconds(50));
+
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (kb.LastSyncedAt is null && DateTime.UtcNow < deadline)
+            await Task.Delay(20, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(kb.LastSyncedAt);
+        Assert.True(kb.IsOnline);
+    }
+
     [Fact]
     public async Task Sync_replaces_deleted_items()
     {
@@ -185,6 +221,120 @@ public sealed class KnowledgeBaseTests : IDisposable
         var ids = await recent.GetAsync(TestContext.Current.CancellationToken);
         Assert.Equal(RecentAlarms.MaxCount, ids.Count);
         Assert.Equal([5, 12, 11], ids.Take(3));
+    }
+
+    // --- Server reachability: the status bar must not say "Ansluten" when the server is down. ---
+
+    private async Task<KnowledgeBase> SyncedAsync()
+    {
+        _handler.Respond = _ => JsonResponse(TestData.Snapshot());
+        var kb = Create();
+        await kb.InitializeAsync(TestContext.Current.CancellationToken);
+        Assert.True(await kb.SyncAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(ConnectionState.Online, kb.Connection);
+        return kb;
+    }
+
+    public static TheoryData<string> ServerDownFailures => ["refused", "timeout", "502", "503", "504"];
+
+    private static HttpResponseMessage ServerDown(string how) => how switch
+    {
+        "refused" => throw new HttpRequestException("No connection could be made"),
+        "timeout" => throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout", new TimeoutException()),
+        _ => new HttpResponseMessage((HttpStatusCode)int.Parse(how))
+    };
+
+    [Theory]
+    [MemberData(nameof(ServerDownFailures))]
+    public async Task Health_check_marks_the_server_unreachable_when_it_does_not_answer(string how)
+    {
+        await using var kb = await SyncedAsync();
+        var syncedAt = kb.LastSyncedAt;
+        _handler.Respond = _ => ServerDown(how);
+
+        Assert.False(await kb.CheckServerAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(ConnectionState.ServerUnreachable, kb.Connection);
+        Assert.False(kb.IsOnline);
+        Assert.Equal(KnowledgeBase.ServerUnreachableError, kb.LastSyncError);
+        // The local copy and when it was synced are kept, so the operator knows how fresh it is.
+        Assert.Equal(syncedAt, kb.LastSyncedAt);
+        Assert.NotNull(kb.Index.GetDetails(100));
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    public async Task Any_other_answer_means_the_server_is_there(HttpStatusCode status)
+    {
+        await using var kb = await SyncedAsync();
+        _handler.Respond = _ => new HttpResponseMessage(status);
+
+        Assert.True(await kb.CheckServerAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(ConnectionState.Online, kb.Connection);
+    }
+
+    [Fact]
+    public async Task When_the_server_answers_again_it_is_online_and_syncs_straight_away()
+    {
+        await using var kb = await SyncedAsync();
+        _handler.Respond = _ => ServerDown("refused");
+        await kb.CheckServerAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(ConnectionState.ServerUnreachable, kb.Connection);
+
+        _handler.Requests.Clear();
+        _handler.Respond = _ => JsonResponse(TestData.Snapshot());
+        Assert.True(await kb.CheckServerAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(ConnectionState.Online, kb.Connection);
+        Assert.Null(kb.LastSyncError);
+        Assert.Equal(["GET api/me", "GET api/sync", "GET api/me"], _handler.Requests);
+    }
+
+    [Fact]
+    public async Task No_network_is_its_own_state_and_no_request_is_made()
+    {
+        await using var kb = await SyncedAsync();
+        _handler.Requests.Clear();
+        _network.HasNetwork = false;
+
+        Assert.False(await kb.CheckServerAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(ConnectionState.NoNetwork, kb.Connection);
+        Assert.Empty(_handler.Requests);
+    }
+
+    [Fact]
+    public async Task A_write_that_times_out_marks_the_server_unreachable()
+    {
+        await using var kb = await SyncedAsync();
+        _handler.Respond = _ => ServerDown("timeout");
+
+        await Assert.ThrowsAsync<OfflineException>(() =>
+            kb.WriteAsync((api, ct) => api.DeleteAlarmAsync(100, ct), TestContext.Current.CancellationToken));
+
+        Assert.Equal(ConnectionState.ServerUnreachable, kb.Connection);
+    }
+
+    [Fact]
+    public async Task The_background_health_check_notices_a_server_that_went_down_without_waiting_for_the_next_sync()
+    {
+        await using var kb = await SyncedAsync();
+        kb.StartBackgroundSync(interval: TimeSpan.FromHours(1), healthCheckInterval: TimeSpan.FromMilliseconds(50));
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+
+        _handler.Respond = _ => ServerDown("refused");
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (kb.Connection != ConnectionState.ServerUnreachable && DateTime.UtcNow < deadline)
+            await Task.Delay(20, TestContext.Current.CancellationToken);
+        Assert.Equal(ConnectionState.ServerUnreachable, kb.Connection);
+
+        _handler.Respond = _ => JsonResponse(TestData.Snapshot());
+        deadline = DateTime.UtcNow.AddSeconds(10);
+        while (kb.Connection != ConnectionState.Online && DateTime.UtcNow < deadline)
+            await Task.Delay(20, TestContext.Current.CancellationToken);
+        Assert.Equal(ConnectionState.Online, kb.Connection);
     }
 
     private static HttpResponseMessage JsonResponse<T>(T value)

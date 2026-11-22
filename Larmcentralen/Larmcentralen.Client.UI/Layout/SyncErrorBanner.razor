@@ -1,0 +1,12 @@
+@inherits KnowledgeBaseComponent
+@* A full-width strip under the top bar when the server answered but sync still failed (for example a
+   missing API key). Offline needs no strip: the status pill already says it. Shown in full, not as a
+   tooltip, because a touch screen never shows tooltips. *@
+<div class="sync-error-live" role="status" aria-live="polite">
+    @if (IsOnline && Kb.LastSyncError is { Length: > 0 } syncError)
+    {
+        <div class="sync-error">
+            <div class="content-container"><strong>Synkfel:</strong> @syncError</div>
+        </div>
+    }
+</div>

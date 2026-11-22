@@ -1,0 +1,18 @@
+@page "/losning/{Id:int}/redigera"
+@inherits KnowledgeBaseComponent
+@inject NavigationManager Nav
+@* Old address of the solution editor, from before solutions could be shared. Sends you to the editor for its first alarm. *@
+
+<p class="muted">Åtgärden finns inte.</p>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        var solution = Kb.Index.GetSolution(Id);
+        if (solution is null) return;
+        var alarmId = Kb.Index.AlarmsForSolution(Id).FirstOrDefault()?.Alarm.Id ?? solution.AlarmId;
+        Nav.NavigateTo($"larm/{alarmId}/losning/{Id}/redigera", replace: true);
+    }
+}

@@ -1,0 +1,8 @@
+/* Top bar and page frame. A plain surface that follows the theme, so the bar never competes with severity colours. */
+.topbar { border-top: 3px solid var(--brand); background: var(--surface); color: var(--ink); border-bottom: 1px solid var(--border); box-shadow: var(--shadow-1); }
+.topbar-inner { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); min-height: 64px; padding-top: var(--space-2); padding-bottom: var(--space-2); flex-wrap: wrap; }
+.topbar-tools { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-4); flex-wrap: wrap; }
+main { padding: var(--space-5) 0 var(--space-7); }
+/* Mark and wordmark live in BrandMark; the link only sets size and the hover underline. */
+.brand { display: inline-flex; align-items: center; min-height: var(--control-h-sm); font-size: var(--text-lg); text-decoration: none; }
+.brand:hover ::deep .brandmark-word { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.2em; }

@@ -3,6 +3,8 @@ using System.Globalization;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace Larmcentralen.Infrastructure.Data;
 
@@ -46,7 +48,50 @@ public static class SqliteSetup
         if (!string.IsNullOrEmpty(folder))
             Directory.CreateDirectory(folder);
 
-        await db.Database.MigrateAsync();
+        await BackupBeforeMigratingAsync(db, dataSource);
+        await MigrateAsync(db);
         await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
+    }
+
+    /// <summary>
+    /// Applies pending migrations. Two changes need a step in C# between their two migrations: alarm definitions
+    /// (group the alarms) and, after them, reusable alarm codes (give each alarm its own text and code back).
+    /// For each: migrate up to its first migration, run the step, then go on.
+    /// </summary>
+    public static async Task MigrateAsync(AppDbContext db, CancellationToken ct = default)
+    {
+        var migrator = db.GetService<IMigrator>();
+        var pending = (await db.Database.GetPendingMigrationsAsync(ct)).ToList();
+        if (pending.Contains(Migrations._20261121172920_MoveAlarmTextToDefinitions.Id))
+        {
+            await migrator.MigrateAsync(Migrations._20261121172910_AddAlarmDefinitions.Id, ct);
+            await AlarmDefinitionBackfill.RunAsync(db, ct);
+        }
+        if (pending.Contains(Migrations._20261121202256_DropAlarmDefinitions.Id))
+        {
+            await migrator.MigrateAsync(Migrations._20261121202250_AddAlarmCodes.Id, ct);
+            await AlarmCodeBackfill.RunAsync(db, ct);
+        }
+        await db.Database.MigrateAsync(ct);
+    }
+
+    /// <summary>
+    /// When an existing database is about to be migrated, writes a consistent copy next to it first
+    /// (larmcentralen.before-migration-20261121-160000.db), so a migration that goes wrong never costs data.
+    /// Returns the backup path, or null when nothing needed migrating (or the database is new).
+    /// </summary>
+    public static async Task<string?> BackupBeforeMigratingAsync(AppDbContext db, string dataSource)
+    {
+        if (string.IsNullOrEmpty(dataSource) || dataSource == ":memory:" || !File.Exists(dataSource)) return null;
+        if (!(await db.Database.GetPendingMigrationsAsync()).Any()) return null;
+        if (!(await db.Database.GetAppliedMigrationsAsync()).Any()) return null;
+
+        var full = Path.GetFullPath(dataSource);
+        var backup = Path.Combine(Path.GetDirectoryName(full)!,
+            $"{Path.GetFileNameWithoutExtension(full)}.before-migration-{DateTime.Now:yyyyMMdd-HHmmss}{Path.GetExtension(full)}");
+        // VACUUM INTO takes a consistent snapshot, WAL contents included. It cannot take parameters.
+        var sql = "VACUUM INTO '" + backup.Replace("'", "''") + "';";
+        await db.Database.ExecuteSqlRawAsync(sql);
+        return backup;
     }
 }

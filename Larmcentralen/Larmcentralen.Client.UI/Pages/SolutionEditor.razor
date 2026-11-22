@@ -1,30 +1,45 @@
 @page "/larm/{AlarmId:int}/losning/ny"
-@page "/losning/{Id:int}/redigera"
+@page "/larm/{AlarmId:int}/losning/{Id:int}/redigera"
 @inherits KnowledgeBaseComponent
 @inject NavigationManager Nav
 
-<PageTitle>@(IsNew ? "Ny lösning" : "Redigera lösning") · Larmcentralen</PageTitle>
+<PageTitle>@(IsNew ? "Ny åtgärd" : "Redigera åtgärd") · Larmcentralen</PageTitle>
 
-<p class="back"><a href="@BackUrl">← Avbryt</a></p>
+<p class="back"><a href="@BackUrl">← @(_alarm is null ? "Tillbaka till sökningen" : "Tillbaka till larmet")</a></p>
 
 @if (!CanEdit)
 {
-    <h1>@(IsNew ? "Ny lösning" : "Redigera lösning")</h1>
+    <h1 class="page-title">@(IsNew ? "Ny åtgärd" : "Redigera åtgärd")</h1>
     <NoEditAccess />
 }
-else if (_alarm is null)
+else if (_alarm is null || (!IsNew && !_solutionFound))
 {
-    <h1>@(IsNew ? "Ny lösning" : "Redigera lösning")</h1>
-    <p class="muted">@(IsNew ? "Larmet finns inte." : "Lösningen finns inte.")</p>
+    <h1 class="page-title">@(IsNew ? "Ny åtgärd" : "Redigera åtgärd")</h1>
+    <p class="muted">@(_alarm is null ? "Larmet finns inte." : "Åtgärden finns inte.")</p>
 }
 else
 {
-    <h1>@(IsNew ? "Ny lösning" : "Redigera lösning")</h1>
-    <p class="muted">För larm <strong>@(_alarm.AlarmCode is null ? "" : $"{_alarm.AlarmCode} · ")@_alarm.Title</strong></p>
+    var current = _alarm;
+    <h1 class="page-title">@(IsNew ? "Ny åtgärd" : "Redigera åtgärd")</h1>
+    <p class="muted">För larm <strong>@(current.Alarm.AlarmCode is null ? "" : $"{current.Alarm.AlarmCode} · ")@current.Alarm.Title</strong> på @UnitLabel(current)</p>
 
     @if (!IsOnline)
     {
         <p class="notice">Du är offline. Ändringar kan sparas när anslutningen är tillbaka.</p>
+    }
+
+    @if (Sharing && _selected.Count > 1)
+    {
+        <div class="notice shared-banner" role="status">
+            <p>Ändringen gäller @_selected.Count larm: @string.Join(", ", SelectedUnits())</p>
+            @if (!IsNew && _linkedAtLoad > 1)
+            {
+                <p>
+                    <OnlineButton Class="btn btn-small" OnClick="DetachAsync" Disabled="_saving"
+                                  Title="Kopierar åtgärden till bara det här larmet. De andra enheterna behåller originalet.">Gör en egen kopia för den här enheten</OnlineButton>
+                </p>
+            }
+        </div>
     }
 
     <EditForm Model="_form" OnValidSubmit="SaveAsync" class="form">
@@ -48,61 +63,256 @@ else
         </div>
 
         <div class="field">
-            <span class="field-label">Lösning, steg för steg</span>
+            <span class="field-label">Åtgärd, steg för steg</span>
             <QuillEditor @ref="_editor" InitialHtml="@_initialHtml" />
         </div>
+
+        @if (Sharing)
+        {
+            <fieldset class="also-for">
+                <legend>Gäller även</legend>
+                <p class="muted hint">Bocka i andra larm som har samma fel. Åtgärden visas då på alla, och en ändring gäller alla.</p>
+
+                @if (SameCodeSiblings() is { Count: > 0 } sameCode)
+                {
+                    var allTicked = sameCode.All(a => _selected.Contains(a.Alarm.Id));
+                    <button type="button" class="btn btn-small quick-select" @onclick="() => TickAll(sameCode, !allTicked)">
+                        @(allTicked ? "Avmarkera" : "Alla") @TypePlural(current.Equipment) med samma kod (@UnitRange(sameCode.Append(current)))
+                    </button>
+                }
+
+                @if (_rows.Count == 0)
+                {
+                    <p class="muted">@(AlarmIndex.TypeOf(current.Equipment) is null or AlarmIndex.OtherType
+                        ? "Inga förslag för den här enheten. Sök nedan för att lägga till ett larm."
+                        : $"Inga liknande larm på andra {TypePlural(current.Equipment)}. Sök nedan för att lägga till ett larm.")</p>
+                }
+                @if (_rows.Count > 0)
+                {
+                    @* One flat list by unit. The text is each alarm's own, shown for information only. *@
+                    <ul class="also-list">
+                        @foreach (var row in Rows())
+                        {
+                            var id = row.Alarm.Id;
+                            <li @key="id">
+                                <label class="also-row">
+                                    <input type="checkbox" checked="@_selected.Contains(id)" @onchange="e => Toggle(id, e.Value is true)" />
+                                    <span class="also-unit">@UnitLabel(row)</span>
+                                    @if (AlarmIndex.TypeOf(row.Equipment) is { } type)
+                                    {
+                                        <span class="also-type">@type</span>
+                                    }
+                                    <span class="also-text">@(row.Alarm.AlarmCode is null ? "" : $"{row.Alarm.AlarmCode} · ")@row.Alarm.Title</span>
+                                </label>
+                            </li>
+                        }
+                    </ul>
+                }
+
+                <div class="also-search">
+                    <label>
+                        <span>Lägg till ett annat larm</span>
+                        <input type="search" placeholder="Sök larmkod, larm eller utrustning" autocomplete="off" spellcheck="false"
+                               value="@_search" @oninput="OnSearch" />
+                    </label>
+                    @if (_searchHits.Count > 0)
+                    {
+                        <ul class="also-list also-hits">
+                            @foreach (var hit in _searchHits)
+                            {
+                                var hitId = hit.Alarm.Id;
+                                <li @key="hitId">
+                                    <div class="also-row">
+                                        <button type="button" class="btn btn-small" @onclick="() => Add(hit)">Lägg till</button>
+                                        <span class="also-unit">@UnitLabel(hit)</span>
+                                        @if (AlarmIndex.TypeOf(hit.Equipment) is { } type)
+                                        {
+                                            <span class="also-type">@type</span>
+                                        }
+                                        <span class="also-text">@(hit.Alarm.AlarmCode is null ? "" : $"{hit.Alarm.AlarmCode} · ")@hit.Alarm.Title</span>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(_search))
+                    {
+                        <p class="muted">Inga fler larm matchar.</p>
+                    }
+                </div>
+            </fieldset>
+        }
 
         @if (_error is not null)
         {
             <p class="error" role="alert">@_error</p>
         }
 
-        <div class="actions">
-            <OnlineButton Type="submit" Class="btn btn-primary" Disabled="_saving">@(_saving ? "Sparar…" : "Spara")</OnlineButton>
+        <div class="form-actions">
+            <OnlineButton Type="submit" Class="btn btn-primary" Disabled="_saving">@(_saving ? "Sparar…" : SaveText)</OnlineButton>
             <a class="btn" href="@BackUrl">Avbryt</a>
         </div>
     </EditForm>
 }
 
 @code {
-    [Parameter] public int? AlarmId { get; set; }
+    [Parameter] public int AlarmId { get; set; }
     [Parameter] public int? Id { get; set; }
 
     private bool IsNew => Id is null;
-    private Alarm? _alarm;
+    private bool Sharing => Kb.Index.SupportsSharing;
+    private string SaveText => Sharing && _selected.Count > 1 ? $"Spara för {_selected.Count} larm" : "Spara";
+
+    private AlarmView? _alarm;
+    private bool _solutionFound;
+    private int? _solutionId;
+    private int _linkedAtLoad;
     private QuillEditor? _editor;
     private string? _initialHtml;
     private readonly SolutionForm _form = new();
-    private bool _loaded;
+    private (int AlarmId, int? Id)? _loadedFor;
     private bool _saving;
     private string? _error;
 
-    private string BackUrl => _alarm is null ? "" : $"larm/{_alarm.Id}";
+    /// <summary>Alarms ticked to share this solution. Always includes the alarm being edited.</summary>
+    private readonly HashSet<int> _selected = [];
+    /// <summary>Rows in the "Gäller även" list: suggestions, current links and alarms added by search.</summary>
+    private List<AlarmView> _rows = [];
+    private string _search = "";
+    private IReadOnlyList<AlarmView> _searchHits = [];
+
+    private string BackUrl => _alarm is null ? "" : $"larm/{_alarm.Alarm.Id}";
 
     protected override void OnParametersSet()
     {
-        // Load once: a background sync must not overwrite what the user is typing.
-        if (_loaded) return;
+        // Load once per solution: a background sync must not overwrite what the user is typing.
+        if (_loadedFor == (AlarmId, Id)) return;
+        _loadedFor = (AlarmId, Id);
+
+        var details = Kb.Index.GetDetails(AlarmId);
+        _alarm = Kb.Index.GetByIds([AlarmId]).FirstOrDefault();
+        _selected.Clear();
+        _selected.Add(AlarmId);
+
         if (IsNew)
         {
-            var details = Kb.Index.GetDetails(AlarmId!.Value);
-            _alarm = details?.Alarm;
             // New solutions go last.
             _form.SortOrder = details is null || details.Solutions.Count == 0 ? 10 : details.Solutions.Max(s => s.SortOrder) + 10;
         }
         else
         {
             var solution = Kb.Index.GetSolution(Id!.Value);
+            _solutionFound = solution is not null;
             if (solution is not null)
             {
-                _alarm = Kb.Index.GetDetails(solution.AlarmId)?.Alarm;
+                _solutionId = solution.Id;
                 _form.Title = solution.Title;
                 _form.EstimatedTime = solution.EstimatedTime;
                 _form.SortOrder = solution.SortOrder;
                 _initialHtml = solution.Content;
+                var linked = Kb.Index.AlarmsForSolution(solution.Id);
+                _linkedAtLoad = linked.Count;
+                foreach (var a in linked) _selected.Add(a.Alarm.Id);
             }
         }
-        _loaded = true;
+
+        // Suggestions: the same code on units of the same type (nothing pre-ticked), plus the alarms the åtgärd already belongs to.
+        _rows = Kb.Index.SameCode(AlarmId)
+            .Concat(Kb.Index.GetByIds(_selected))
+            .Where(a => a.Alarm.Id != AlarmId)
+            .DistinctBy(a => a.Alarm.Id)
+            .ToList();
+    }
+
+    private IReadOnlyList<AlarmView> SameCodeSiblings()
+    {
+        var code = _alarm?.Alarm.AlarmCode;
+        if (string.IsNullOrWhiteSpace(code) || AlarmIndex.TypeOf(_alarm!.Equipment) is not { } type) return [];
+        return _rows
+            .Where(a => AlarmIndex.TypeOf(a.Equipment) == type
+                        && string.Equals(a.Alarm.AlarmCode?.Trim(), code.Trim(), StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private static readonly StringComparer Natural =
+        StringComparer.Create(System.Globalization.CultureInfo.InvariantCulture, System.Globalization.CompareOptions.NumericOrdering | System.Globalization.CompareOptions.IgnoreCase);
+
+    /// <summary>The rows as one flat list by unit (T101, T102 … in natural order), then code. No grouping by text.</summary>
+    private IEnumerable<AlarmView> Rows()
+        => _rows.OrderBy(r => r.Equipment.Title, Natural).ThenBy(r => r.Alarm.AlarmCode ?? "", Natural).ThenBy(r => r.Alarm.Id);
+
+    private void Toggle(int alarmId, bool on)
+    {
+        if (alarmId == AlarmId) return;
+        if (on) _selected.Add(alarmId); else _selected.Remove(alarmId);
+    }
+
+    private void TickAll(IEnumerable<AlarmView> alarms, bool on)
+    {
+        foreach (var a in alarms) Toggle(a.Alarm.Id, on);
+    }
+
+    private void OnSearch(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? "";
+        var listed = _rows.Select(r => r.Alarm.Id).Append(AlarmId).ToHashSet();
+        _searchHits = string.IsNullOrWhiteSpace(_search)
+            ? []
+            : Kb.Index.Search(new AlarmSearchQuery(_search, Take: 30)).Items.Where(a => !listed.Contains(a.Alarm.Id)).Take(8).ToList();
+    }
+
+    private void Add(AlarmView alarm)
+    {
+        if (_rows.All(r => r.Alarm.Id != alarm.Alarm.Id)) _rows.Add(alarm);
+        _selected.Add(alarm.Alarm.Id);
+        _searchHits = _searchHits.Where(h => h.Alarm.Id != alarm.Alarm.Id).ToList();
+    }
+
+    private IEnumerable<string> SelectedUnits()
+        => Kb.Index.GetByIds(_selected)
+            .OrderBy(a => a.Alarm.Id == AlarmId ? 0 : 1)
+            .Select(a => a.Equipment.Title)
+            .Distinct();
+
+    private static string UnitLabel(AlarmView a)
+        => string.IsNullOrWhiteSpace(a.Equipment.DisplayName) ? a.Equipment.Title : $"{a.Equipment.Title} ({a.Equipment.DisplayName})";
+
+    /// <summary>"härdugnar", "anlöpningsugnar", "tvättar"; "enheter" for units without a type.</summary>
+    private static string TypePlural(Equipment equipment)
+        => AlarmIndex.TypeOf(equipment) is { } type ? type.ToLowerInvariant() + "ar" : "enheter";
+
+    /// <summary>"T101–T104" for three or more units, otherwise "T101, T102".</summary>
+    private static string UnitRange(IEnumerable<AlarmView> alarms)
+    {
+        var units = alarms.Select(a => a.Equipment.Title).Distinct().Order(StringComparer.OrdinalIgnoreCase).ToList();
+        return units.Count >= 3 ? $"{units[0]}–{units[^1]}" : string.Join(", ", units);
+    }
+
+    private async Task DetachAsync()
+    {
+        if (_solutionId is not { } solutionId) return;
+        _saving = true;
+        _error = null;
+        try
+        {
+            var copyId = await Kb.WriteAsync((api, ct) => api.DetachSolutionAsync(AlarmId, solutionId, ct));
+            // Keep what is typed: from now on the form edits the copy, which only this alarm uses.
+            _solutionId = copyId;
+            _linkedAtLoad = 1;
+            _selected.Clear();
+            _selected.Add(AlarmId);
+            _rows = Kb.Index.SameCode(AlarmId).ToList();
+            _loadedFor = (AlarmId, copyId);
+            Nav.NavigateTo($"larm/{AlarmId}/losning/{copyId}/redigera", replace: true);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Kopian kunde inte skapas. {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
     }
 
     private async Task SaveAsync()
@@ -116,19 +326,21 @@ else
             var content = Format.IsEmptyHtml(html) ? null : html;
             var title = _form.Title.Trim();
             var time = string.IsNullOrWhiteSpace(_form.EstimatedTime) ? null : _form.EstimatedTime.Trim();
+            // Only send links to a server that knows about sharing; older ones keep their single AlarmId.
+            List<int>? alarmIds = Sharing ? _selected.Order().ToList() : null;
 
             if (IsNew)
                 await Kb.WriteAsync((api, ct) => api.CreateSolutionAsync(
-                    new CreateSolutionRequest(title, content, _form.SortOrder, time, _alarm.Id), ct));
+                    new CreateSolutionRequest(title, content, _form.SortOrder, time, AlarmId, alarmIds), ct));
             else
                 await Kb.WriteAsync((api, ct) => api.UpdateSolutionAsync(
-                    Id!.Value, new UpdateSolutionRequest(title, content, _form.SortOrder, time), ct));
+                    _solutionId!.Value, new UpdateSolutionRequest(title, content, _form.SortOrder, time, alarmIds), ct));
 
-            Nav.NavigateTo($"larm/{_alarm.Id}");
+            Nav.NavigateTo($"larm/{AlarmId}");
         }
         catch (Exception ex)
         {
-            _error = $"Lösningen kunde inte sparas. {ex.Message}";
+            _error = $"Åtgärden kunde inte sparas. {ex.Message}";
         }
         finally
         {

@@ -10,6 +10,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Equipment> Equipment => Set<Equipment>();
     public DbSet<Alarm> Alarms => Set<Alarm>();
     public DbSet<Solution> Solutions => Set<Solution>();
+    public DbSet<AlarmSolution> AlarmSolutions => Set<AlarmSolution>();
+    public DbSet<AlarmCode> AlarmCodes => Set<AlarmCode>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -31,6 +33,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.Property(eq => eq.Title).HasMaxLength(200);
             e.Property(eq => eq.Category).HasMaxLength(50);
+            e.Property(eq => eq.EquipmentType).HasMaxLength(50);
 
             e.HasOne(eq => eq.Area)
                 .WithMany(a => a.Equipment)
@@ -38,10 +41,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<AlarmCode>(e =>
+        {
+            e.ToTable("AlarmCodes");
+            // Stored upper case (AlarmText.NormaliseCode), so a plain unique index is case-insensitive in practice.
+            e.Property(c => c.Code).HasMaxLength(50);
+            e.HasIndex(c => c.Code).IsUnique();
+        });
+
         modelBuilder.Entity<Alarm>(e =>
         {
             e.Property(a => a.Title).HasMaxLength(300);
-            e.Property(a => a.AlarmCode).HasMaxLength(50);
             e.Property(a => a.Severity).HasMaxLength(20);
 
             e.HasOne(a => a.Equipment)
@@ -49,7 +59,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .HasForeignKey(a => a.EquipmentId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            e.HasIndex(a => new { a.AlarmCode, a.EquipmentId }).IsUnique();
+            e.HasOne(a => a.AlarmCode)
+                .WithMany(c => c.Alarms)
+                .HasForeignKey(a => a.AlarmCodeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // One alarm per code on a unit. SQLite treats NULLs as distinct, so alarms without a code are not limited.
+            e.HasIndex(a => new { a.EquipmentId, a.AlarmCodeId }).IsUnique();
         });
 
         modelBuilder.Entity<Solution>(e =>
@@ -57,10 +73,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(s => s.Title).HasMaxLength(300);
             e.Property(s => s.EstimatedTime).HasMaxLength(50);
 
-            e.HasOne(s => s.Alarm)
+            // Many-to-many: one solution can be shared by several alarms (the same fault on several units).
+            e.HasMany(s => s.Alarms)
                 .WithMany(a => a.Solutions)
-                .HasForeignKey(s => s.AlarmId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .UsingEntity<AlarmSolution>(
+                    l => l.HasOne(x => x.Alarm).WithMany().HasForeignKey(x => x.AlarmId).OnDelete(DeleteBehavior.Cascade),
+                    r => r.HasOne(x => x.Solution).WithMany().HasForeignKey(x => x.SolutionId).OnDelete(DeleteBehavior.Cascade),
+                    j =>
+                    {
+                        j.ToTable("AlarmSolutions");
+                        j.HasKey(x => new { x.AlarmId, x.SolutionId });
+                        j.HasIndex(x => x.SolutionId);
+                    });
         });
     }
 }

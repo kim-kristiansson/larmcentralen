@@ -30,12 +30,14 @@ builder.Services.AddScoped<IAreaRepository, AreaRepository>();
 builder.Services.AddScoped<IEquipmentRepository, EquipmentRepository>();
 builder.Services.AddScoped<IAlarmRepository, AlarmRepository>();
 builder.Services.AddScoped<ISolutionRepository, SolutionRepository>();
+builder.Services.AddScoped<IAlarmCodeRepository, AlarmCodeRepository>();
 
 // Services
 builder.Services.AddScoped<IAreaService, AreaService>();
 builder.Services.AddScoped<IEquipmentService, EquipmentService>();
 builder.Services.AddScoped<IAlarmService, AlarmService>();
 builder.Services.AddScoped<ISolutionService, SolutionService>();
+builder.Services.AddScoped<IAlarmCodeService, AlarmCodeService>();
 builder.Services.AddScoped<ISyncService, SyncService>();
 builder.Services.AddScoped<ISharePointSyncService, SharePointSyncService>();
 builder.Services.AddScoped<SharePointUploadService>();

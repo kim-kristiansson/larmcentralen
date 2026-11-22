@@ -15,7 +15,7 @@ public class EquipmentService(IEquipmentRepository repo) : IEquipmentService
 
         return items.Select(e => new EquipmentDto(
             e.Id, e.Title, e.DisplayName, e.Category, e.Description,
-            e.AreaId, e.Area.Title, e.Alarms.Count
+            e.AreaId, e.Area.Title, e.Alarms.Count, e.EquipmentType
         )).ToList();
     }
 
@@ -26,7 +26,7 @@ public class EquipmentService(IEquipmentRepository repo) : IEquipmentService
 
         return new EquipmentDto(
             e.Id, e.Title, e.DisplayName, e.Category, e.Description,
-            e.AreaId, e.Area.Title, e.Alarms.Count
+            e.AreaId, e.Area.Title, e.Alarms.Count, e.EquipmentType
         );
     }
 
@@ -38,7 +38,8 @@ public class EquipmentService(IEquipmentRepository repo) : IEquipmentService
             DisplayName = dto.DisplayName,
             Category = dto.Category,
             Description = dto.Description,
-            AreaId = dto.AreaId
+            AreaId = dto.AreaId,
+            EquipmentType = NormaliseType(dto.EquipmentType)
         };
 
         await repo.AddAsync(equipment);
@@ -47,7 +48,7 @@ public class EquipmentService(IEquipmentRepository repo) : IEquipmentService
         var created = await repo.GetByIdWithDetailsAsync(equipment.Id);
         return new EquipmentDto(
             created!.Id, created.Title, created.DisplayName, created.Category, created.Description,
-            created.AreaId, created.Area.Title, 0
+            created.AreaId, created.Area.Title, 0, created.EquipmentType
         );
     }
 
@@ -61,6 +62,7 @@ public class EquipmentService(IEquipmentRepository repo) : IEquipmentService
         equipment.Category = dto.Category;
         equipment.Description = dto.Description;
         equipment.AreaId = dto.AreaId;
+        if (dto.EquipmentType is not null) equipment.EquipmentType = NormaliseType(dto.EquipmentType);
         equipment.UpdatedAt = DateTime.UtcNow;
 
         repo.Update(equipment);
@@ -77,4 +79,6 @@ public class EquipmentService(IEquipmentRepository repo) : IEquipmentService
         await repo.SaveChangesAsync();
         return true;
     }
+
+    private static string? NormaliseType(string? type) => string.IsNullOrWhiteSpace(type) ? null : type.Trim();
 }
