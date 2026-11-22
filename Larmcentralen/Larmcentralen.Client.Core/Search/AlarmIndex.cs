@@ -174,34 +174,6 @@ public sealed class AlarmIndex
             .ToList();
 
     /// <summary>
-    /// Alarms that are probably the same fault as <paramref name="alarmId"/> on another unit of the same kind:
-    /// units with the same <see cref="Models.Equipment.EquipmentType"/>, and the same alarm code or the same
-    /// alarm text (ignoring case, spacing and accents). Härdugnar never suggest anlöpningsugnar and so on;
-    /// units with no type, or <see cref="OtherType"/>, get no suggestions. A missing code never matches by code.
-    /// Ordered with same-text alarms first, then by unit.
-    /// </summary>
-    public IReadOnlyList<AlarmView> Siblings(int alarmId)
-    {
-        if (!_alarms.TryGetValue(alarmId, out var current)) return [];
-        var type = TypeOf(current.View.Equipment);
-        if (type is null || type == OtherType) return [];
-
-        var code = NormaliseCode(current.View.Alarm.AlarmCode);
-        var text = NormaliseText(current.View.Alarm.Title);
-
-        return _alarms.Values
-            .Where(a => a.View.Alarm.Id != alarmId && TypeOf(a.View.Equipment) == type)
-            .Select(a => (View: a.View, SameText: NormaliseText(a.View.Alarm.Title) == text,
-                SameCode: code is not null && NormaliseCode(a.View.Alarm.AlarmCode) == code))
-            .Where(x => x.SameText || x.SameCode)
-            .OrderByDescending(x => x.SameText)
-            .ThenBy(x => x.View.Equipment.Title, NaturalComparer.Instance)
-            .ThenBy(x => x.View.Alarm.AlarmCode ?? "", NaturalComparer.Instance)
-            .Select(x => x.View)
-            .ToList();
-    }
-
-    /// <summary>
     /// Units grouped by type for lists such as the unit filter: types alphabetically, <see cref="OtherType"/>
     /// last (units without a type go there). One group with a null name when no unit has a type.
     /// </summary>
@@ -224,23 +196,6 @@ public sealed class AlarmIndex
 
     private static string? NormaliseCode(string? code)
         => string.IsNullOrWhiteSpace(code) ? null : code.Trim().ToUpperInvariant();
-
-    /// <summary>Lower case, accents removed (å → a), runs of whitespace collapsed to one space.</summary>
-    public static string NormaliseText(string? text)
-    {
-        if (string.IsNullOrWhiteSpace(text)) return "";
-        var decomposed = text.Normalize(System.Text.NormalizationForm.FormD);
-        var sb = new System.Text.StringBuilder(decomposed.Length);
-        var space = false;
-        foreach (var ch in decomposed)
-        {
-            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch) == System.Globalization.UnicodeCategory.NonSpacingMark) continue;
-            if (char.IsWhiteSpace(ch)) { space = sb.Length > 0; continue; }
-            if (space) { sb.Append(' '); space = false; }
-            sb.Append(char.ToLowerInvariant(ch));
-        }
-        return sb.ToString();
-    }
 
     /// <summary>
     /// Searches the alarms. Every typed term must match the start of a word in the alarm's

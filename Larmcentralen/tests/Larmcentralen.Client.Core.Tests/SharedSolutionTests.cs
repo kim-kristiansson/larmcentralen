@@ -28,11 +28,11 @@ public sealed class SharedSolutionTests : IDisposable
             new Alarm(101, "Temperatur  för HÖG ", "M200.0", Severity.High, null, 11, Created, null),
             new Alarm(102, "Temperatur för hög", "M200.0", Severity.High, null, 12, Created, null),
             new Alarm(103, "Nödstopp", "M200.0", Severity.Critical, null, 13, Created, null),
-            // Same text, other code, same type: suggested (text match).
+            // Same text, other code, same type: NOT suggested (no matching by text).
             new Alarm(104, "Temperatur for hog", "M999.9", Severity.High, null, 11, Created, null),
-            // Same code, other text, same type: suggested (code match), text shown so the difference is visible.
+            // Same code, other text, same type: suggested (the code is what counts).
             new Alarm(105, "Gasflöde lågt", "M200.0", Severity.High, null, 11, Created, null),
-            // No code, other text: never matched by a missing code.
+            // No code: never suggested, and never suggests anything.
             new Alarm(106, "Lampa trasig", null, Severity.Low, null, 10, Created, null),
             new Alarm(107, "Dörr öppen", null, Severity.Low, null, 11, Created, null),
             new Alarm(108, "Temperatur för hög", "M200.0", Severity.High, null, 14, Created, null),
@@ -67,13 +67,15 @@ public sealed class SharedSolutionTests : IDisposable
     }
 
     [Fact]
-    public void Siblings_are_alarms_of_the_same_unit_type_with_the_same_code_or_text()
+    public void Suggestions_are_the_same_code_on_units_of_the_same_type_never_matched_by_text()
     {
         var index = new AlarmIndex(Snapshot());
 
-        // T101 M200.0 suggests T102's alarms only: never MAIN (Övrigt), A03 (Anlöpningsugn) or untyped W1.
-        // Same text first (101, 104), then same code with other text (105).
-        Assert.Equal([101, 104, 105], index.Siblings(100).Select(a => a.Alarm.Id));
+        // T101 M200.0 suggests T102's M200.0 alarms, whatever their text: never MAIN (Övrigt), A03 (Anlöpningsugn),
+        // untyped W1, or T102's alarm with the same text but code M999.9.
+        Assert.Equal([101, 105], index.SameCode(100).Select(a => a.Alarm.Id));
+        Assert.DoesNotContain(104, index.SameCode(100).Select(a => a.Alarm.Id));
+        Assert.Empty(index.SameCode(104));
     }
 
     [Fact]
@@ -81,24 +83,20 @@ public sealed class SharedSolutionTests : IDisposable
     {
         var index = new AlarmIndex(Snapshot());
 
-        Assert.Empty(index.Siblings(103)); // MAIN, Övrigt
-        Assert.Empty(index.Siblings(108)); // W1, no type
-        Assert.Empty(index.Siblings(102)); // A03: the only anlöpningsugn
+        Assert.Empty(index.SameCode(103)); // MAIN, Övrigt
+        Assert.Empty(index.SameCode(108)); // W1, no type
+        Assert.Empty(index.SameCode(102)); // A03: the only anlöpningsugn
     }
 
     [Fact]
-    public void A_missing_code_never_matches_by_code()
+    public void Alarms_without_a_code_are_never_suggested()
     {
         var index = new AlarmIndex(Snapshot());
 
-        Assert.Empty(index.Siblings(106));
+        Assert.Empty(index.SameCode(106));
+        Assert.Empty(index.SameCode(107));
+        Assert.All(index.SameCode(100), a => Assert.NotNull(a.Alarm.AlarmCode));
     }
-
-    [Theory]
-    [InlineData("Temperatur för hög", "temperatur  for HOG ")]
-    [InlineData("Nivå\tlåg", "niva lag")]
-    public void Text_normalising_ignores_case_spacing_and_accents(string a, string b)
-        => Assert.Equal(AlarmIndex.NormaliseText(a), AlarmIndex.NormaliseText(b));
 
     [Fact]
     public void Units_are_grouped_by_type_with_Ovrigt_last()
