@@ -28,7 +28,7 @@ else
             <h1>@alarm.Title</h1>
             <dl class="facts">
                 <div><dt>Utrustning</dt><dd>@_details.Equipment.Title@(string.IsNullOrWhiteSpace(_details.Equipment.DisplayName) ? "" : $" ({_details.Equipment.DisplayName})")</dd></div>
-                <div><dt>Område</dt><dd>@_details.Area.Name</dd></div>
+                <div><dt>Avdelning</dt><dd>@_details.Area.Name</dd></div>
                 @if (AlarmIndex.TypeOf(_details.Equipment) is { } unitType)
                 {
                     <div><dt>Typ</dt><dd>@unitType</dd></div>

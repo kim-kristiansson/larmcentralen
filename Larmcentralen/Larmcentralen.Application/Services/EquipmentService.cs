@@ -95,7 +95,7 @@ public class EquipmentService(IEquipmentRepository repo, IAreaRepository areas) 
         if (title.Length == 0) return WriteResult<EquipmentDto>.Invalid("Ange enhetens beteckning, t.ex. T101.");
         if (title.Length > TitleMaxLength) return WriteResult<EquipmentDto>.Invalid($"Beteckningen får vara högst {TitleMaxLength} tecken.");
         if (type is { Length: > TypeMaxLength }) return WriteResult<EquipmentDto>.Invalid($"Typen får vara högst {TypeMaxLength} tecken.");
-        if (await areas.GetByIdAsync(areaId) is null) return WriteResult<EquipmentDto>.Invalid("Välj ett område.");
+        if (await areas.GetByIdAsync(areaId) is null) return WriteResult<EquipmentDto>.Invalid("Välj en avdelning.");
 
         // The import finds a unit by its title within the area, so two units in one area may not share a title.
         var existing = await repo.GetByAreaIdAsync(areaId);

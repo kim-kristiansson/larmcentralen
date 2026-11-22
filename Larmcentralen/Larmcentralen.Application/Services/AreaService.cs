@@ -66,7 +66,7 @@ public class AreaService(IAreaRepository repo) : IAreaService
         if (area.Equipment.Count > 0)
         {
             var units = area.Equipment.Count == 1 ? "1 enhet" : $"{area.Equipment.Count} enheter";
-            return WriteResult<AreaDto>.Conflict($"Området har {units}. Flytta eller ta bort dem först.");
+            return WriteResult<AreaDto>.Conflict($"Avdelningen har {units}. Flytta eller ta bort dem först.");
         }
 
         repo.Remove(area);
@@ -76,12 +76,12 @@ public class AreaService(IAreaRepository repo) : IAreaService
 
     private async Task<WriteResult<AreaDto>?> ValidateAsync(string title, int? id)
     {
-        if (title.Length == 0) return WriteResult<AreaDto>.Invalid("Ange områdets namn.");
+        if (title.Length == 0) return WriteResult<AreaDto>.Invalid("Ange avdelningens namn.");
         if (title.Length > TitleMaxLength) return WriteResult<AreaDto>.Invalid($"Namnet får vara högst {TitleMaxLength} tecken.");
 
         var all = await repo.GetAllAsync();
         if (all.Any(a => a.Id != id && string.Equals(a.Title.Trim(), title, StringComparison.CurrentCultureIgnoreCase)))
-            return WriteResult<AreaDto>.Conflict($"Det finns redan ett område som heter {title}.");
+            return WriteResult<AreaDto>.Conflict($"Det finns redan en avdelning som heter {title}.");
         return null;
     }
 

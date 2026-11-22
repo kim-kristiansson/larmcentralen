@@ -18,15 +18,15 @@ else
         <p class="notice">Du är offline. Ändringar kan sparas när anslutningen är tillbaka.</p>
     }
 
-    <p class="muted intro">Lägg till, ändra och ta bort områden och enheter. En enhet som har larm kan inte tas bort, och inte heller ett område som har enheter.</p>
+    <p class="muted intro">Lägg till, ändra och ta bort avdelningar och enheter. En enhet som har larm kan inte tas bort, och inte heller en avdelning som har enheter.</p>
 
     @if (_mode == Mode.None)
     {
         <div class="toolbar">
             <OnlineButton Class="btn btn-primary" Disabled="@(Kb.Index.Areas.Count == 0)"
-                          Title="@(Kb.Index.Areas.Count == 0 ? "Lägg till ett område först" : null)"
+                          Title="@(Kb.Index.Areas.Count == 0 ? "Lägg till en avdelning först" : null)"
                           OnClick="@(() => StartNewUnit(null))">Ny enhet</OnlineButton>
-            <OnlineButton Class="btn" OnClick="StartNewArea">Nytt område</OnlineButton>
+            <OnlineButton Class="btn" OnClick="StartNewArea">Ny avdelning</OnlineButton>
         </div>
     }
     else if (_mode is Mode.NewArea or Mode.EditArea)
@@ -34,7 +34,7 @@ else
         <div class="editor">
         <EditForm Model="_area" OnValidSubmit="SaveAreaAsync" class="form">
             <DataAnnotationsValidator />
-            <h2 class="form-title">@(_mode == Mode.NewArea ? "Nytt område" : "Byt namn på området")</h2>
+            <h2 class="form-title">@(_mode == Mode.NewArea ? "Ny avdelning" : "Byt namn på avdelningen")</h2>
             <label>
                 <span>Namn</span>
                 <InputText @bind-Value="_area.Title" placeholder="t.ex. SQ-linjen (OCSS)" />
@@ -79,9 +79,9 @@ else
                     </InputSelect>
                 </label>
                 <label>
-                    <span>Område</span>
+                    <span>Avdelning</span>
                     <InputSelect @bind-Value="_unit.AreaId">
-                        <option value="0">Välj område…</option>
+                        <option value="0">Välj avdelning…</option>
                         @foreach (var area in Kb.Index.Areas)
                         {
                             <option value="@area.Id">@area.Name</option>
@@ -113,7 +113,7 @@ else
 
     @if (Kb.Index.Areas.Count == 0)
     {
-        <p class="muted">Inga områden ännu.</p>
+        <p class="muted">Inga avdelningar ännu.</p>
     }
 
     @foreach (var area in Kb.Index.Areas)
@@ -132,7 +132,7 @@ else
             </header>
             @if (units.Count == 0)
             {
-                <p class="muted empty">Inga enheter i området.</p>
+                <p class="muted empty">Inga enheter på avdelningen.</p>
             }
             else
             {
@@ -260,19 +260,19 @@ else
             if (_mode == Mode.NewArea)
             {
                 await Kb.WriteAsync((api, ct) => api.CreateAreaAsync(request, ct));
-                _message = $"Området {title} är tillagt.";
+                _message = $"Avdelningen {title} är tillagd.";
             }
             else
             {
                 var id = _editingId!.Value;
                 await Kb.WriteAsync((api, ct) => api.UpdateAreaAsync(id, request, ct));
-                _message = $"Området heter nu {title}.";
+                _message = $"Avdelningen heter nu {title}.";
             }
             _mode = Mode.None;
         }
         catch (Exception ex)
         {
-            _error = $"Området kunde inte sparas. {Reason(ex)}";
+            _error = $"Avdelningen kunde inte sparas. {Reason(ex)}";
         }
         finally
         {
@@ -317,9 +317,9 @@ else
         Reset();
         _confirm = new PendingDelete(
             $"Ta bort {area.Name}?",
-            "Området tas bort för alla. Det går inte att ångra.",
+            "Avdelningen tas bort för alla. Det går inte att ångra.",
             () => Kb.WriteAsync((api, ct) => api.DeleteAreaAsync(area.Id, ct)),
-            $"Området {area.Name} är borttaget.");
+            $"Avdelningen {area.Name} är borttagen.");
     }
 
     private void AskDeleteUnit(Equipment unit)
@@ -354,7 +354,7 @@ else
 
     private sealed class AreaForm
     {
-        [Required(ErrorMessage = "Ange områdets namn.")]
+        [Required(ErrorMessage = "Ange avdelningens namn.")]
         [MaxLength(100, ErrorMessage = "Högst 100 tecken.")]
         public string Title { get; set; } = "";
     }
@@ -370,7 +370,7 @@ else
 
         public string? EquipmentType { get; set; }
 
-        [Range(1, int.MaxValue, ErrorMessage = "Välj ett område.")]
+        [Range(1, int.MaxValue, ErrorMessage = "Välj en avdelning.")]
         public int AreaId { get; set; }
     }
 }

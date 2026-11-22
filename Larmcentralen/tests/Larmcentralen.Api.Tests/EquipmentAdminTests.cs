@@ -33,8 +33,8 @@ public sealed class EquipmentAdminTests(ApiFactory factory) : IClassFixture<ApiF
     public async Task Admin_can_add_change_and_remove_a_unit()
     {
         using var c = Admin();
-        var area = await PostAsync(c, "api/areas", new { title = Unique("Område ") });
-        var other = await PostAsync(c, "api/areas", new { title = Unique("Område ") });
+        var area = await PostAsync(c, "api/areas", new { title = Unique("Avdelning ") });
+        var other = await PostAsync(c, "api/areas", new { title = Unique("Avdelning ") });
         var title = Unique("T");
 
         var id = await PostAsync(c, "api/equipment", new { title = $"  {title} ", areaId = area, equipmentType = "Härdugn" });
@@ -57,7 +57,7 @@ public sealed class EquipmentAdminTests(ApiFactory factory) : IClassFixture<ApiF
     public async Task Update_without_optional_fields_keeps_them_and_an_empty_string_clears()
     {
         using var c = Admin();
-        var area = await PostAsync(c, "api/areas", new { title = Unique("Område "), description = "Larm från OCSS." });
+        var area = await PostAsync(c, "api/areas", new { title = Unique("Avdelning "), description = "Larm från OCSS." });
         var title = Unique("W");
         var id = await PostAsync(c, "api/equipment", new { title, displayName = "Tvätt 1", description = "Står vid porten", areaId = area });
 
@@ -78,8 +78,8 @@ public sealed class EquipmentAdminTests(ApiFactory factory) : IClassFixture<ApiF
     public async Task A_unit_title_taken_in_the_same_area_is_409_in_any_case_but_another_area_may_use_it()
     {
         using var c = Admin();
-        var a1 = await PostAsync(c, "api/areas", new { title = Unique("Område ") });
-        var a2 = await PostAsync(c, "api/areas", new { title = Unique("Område ") });
+        var a1 = await PostAsync(c, "api/areas", new { title = Unique("Avdelning ") });
+        var a2 = await PostAsync(c, "api/areas", new { title = Unique("Avdelning ") });
         var title = Unique("A");
         var first = await PostAsync(c, "api/equipment", new { title, areaId = a1 });
 
@@ -126,7 +126,7 @@ public sealed class EquipmentAdminTests(ApiFactory factory) : IClassFixture<ApiF
     public async Task A_unit_with_alarms_cannot_be_removed()
     {
         using var c = Admin();
-        var area = await PostAsync(c, "api/areas", new { title = Unique("Område ") });
+        var area = await PostAsync(c, "api/areas", new { title = Unique("Avdelning ") });
         var unit = await PostAsync(c, "api/equipment", new { title = Unique("T"), areaId = area });
         var alarm = await PostAsync(c, "api/alarms", new { title = "Temperatur för hög", severity = "Hög", equipmentId = unit });
 
@@ -147,7 +147,7 @@ public sealed class EquipmentAdminTests(ApiFactory factory) : IClassFixture<ApiF
     public async Task An_area_with_units_cannot_be_removed()
     {
         using var c = Admin();
-        var area = await PostAsync(c, "api/areas", new { title = Unique("Område ") });
+        var area = await PostAsync(c, "api/areas", new { title = Unique("Avdelning ") });
         var unit = await PostAsync(c, "api/equipment", new { title = Unique("N"), areaId = area });
 
         using (var refused = await c.DeleteAsync($"api/areas/{area}", Ct))
@@ -166,7 +166,7 @@ public sealed class EquipmentAdminTests(ApiFactory factory) : IClassFixture<ApiF
     public async Task The_area_list_counts_its_units()
     {
         using var c = Admin();
-        var area = await PostAsync(c, "api/areas", new { title = Unique("Område ") });
+        var area = await PostAsync(c, "api/areas", new { title = Unique("Avdelning ") });
         await PostAsync(c, "api/equipment", new { title = Unique("T"), areaId = area });
         await PostAsync(c, "api/equipment", new { title = Unique("T"), areaId = area });
 
