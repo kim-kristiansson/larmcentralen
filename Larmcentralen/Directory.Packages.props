@@ -26,7 +26,6 @@
     <PackageVersion Include="Microsoft.Extensions.Http" Version="$(DotNetPackageVersion)" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="$(DotNetPackageVersion)" />
     <PackageVersion Include="Microsoft.Maui.Controls" Version="$(MauiPackageVersion)" />
-    <PackageVersion Include="ReverseMarkdown" Version="6.3.0" />
   </ItemGroup>
 
   <ItemGroup Label="Tests">

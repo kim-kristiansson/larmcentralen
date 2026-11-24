@@ -1,7 +1,7 @@
-@* Shows an åtgärd as written in the editor. Markdown is rendered with raw HTML off and only safe link
-   addresses (SolutionContent.ToHtml). Older åtgärder are HTML from Quill, written by staff, and are shown as stored. *@
-<div class="rich-content ql-editor-like">
-    @if (SolutionContent.IsEmpty(Html))
+@* Shows an åtgärd as written in the editor: Markdown rendered by SolutionContent.ToHtml with raw HTML switched off
+   and only safe link addresses, so anything that looks like HTML is shown as text. *@
+<div class="rich-content">
+    @if (SolutionContent.IsEmpty(Markdown))
     {
         <p class="muted">Ingen beskrivning ännu.</p>
     }
@@ -15,14 +15,14 @@
     private string? _rendered;
     private string _html = "";
 
-    /// <summary>The stored content: Markdown, or legacy HTML from Quill.</summary>
-    [Parameter] public string? Html { get; set; }
+    /// <summary>The stored content (Markdown).</summary>
+    [Parameter] public string? Markdown { get; set; }
 
     protected override void OnParametersSet()
     {
         // Render only when the text changed, not on every re-render of the page.
-        if (_rendered == Html && _rendered is not null) return;
-        _rendered = Html;
-        _html = SolutionContent.ToHtml(Html);
+        if (_rendered == Markdown && _rendered is not null) return;
+        _rendered = Markdown;
+        _html = SolutionContent.ToHtml(Markdown);
     }
 }

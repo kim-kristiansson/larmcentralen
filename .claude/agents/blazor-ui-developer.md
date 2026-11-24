@@ -1,6 +1,6 @@
 ---
 name: blazor-ui-developer
-description: Builds and changes screens in the Larmcentralen Blazor Hybrid client (shared Razor library Client.UI hosted by the MAUI app), including the Quill editor and its JS interop. Use for new pages, components, layout, styling and UI behaviour.
+description: Builds and changes screens in the Larmcentralen Blazor Hybrid client (shared Razor library Client.UI hosted by the MAUI app), including the Milkdown editor and its JS interop. Use for new pages, components, layout, styling and UI behaviour.
 model: sonnet
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
@@ -11,9 +11,10 @@ Where things are:
 
 - `Larmcentralen.Client.UI` – every screen as Razor components (`Pages/`, `Components/`,
   `Layout/`), UI services in `Services/`, static assets in `wwwroot/`.
-- Quill 2 is bundled locally in `wwwroot/lib/quill/` (do not edit vendored files). Interop is in
-  `wwwroot/js/quill-interop.js` with `Components/QuillEditor.razor`; read-only HTML is shown by
-  `Components/RichContent.razor`.
+- The åtgärd editor is Milkdown (Markdown), written in TypeScript in `scripts/src` and built with
+  `npm run build` to `wwwroot/js/milkdown-interop.js` (built files are committed). Razor side:
+  `Components/MarkdownEditor.razor`. Read-only Markdown is rendered by `Components/RichContent.razor`
+  (Markdig, raw HTML off).
 - `Larmcentralen.App` – the MAUI Blazor Hybrid host (Windows). Keep platform code there and out
   of `Client.UI`, so the Razor library stays reusable (for example by a web host later).
 - Data comes from `Larmcentralen.Client.Core` (local SQLite copy loaded into memory, sync,

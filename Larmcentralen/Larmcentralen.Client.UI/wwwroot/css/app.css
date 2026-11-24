@@ -110,10 +110,10 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: var(--background); }
-a, .btn-link, .ql-editor a, .ql-tooltip a {
+a, .btn-link {
   color: var(--ink); text-decoration: underline; text-decoration-thickness: 0.08em; text-underline-offset: 0.18em;
 }
-a:hover, .btn-link:hover:not(:disabled), .ql-editor a:hover, .ql-tooltip a:hover { color: var(--ink); text-decoration-thickness: 0.16em; }
+a:hover, .btn-link:hover:not(:disabled) { color: var(--ink); text-decoration-thickness: 0.16em; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 /* FocusOnNavigate moves focus to the page's h1 for screen readers; it is not interactive, so no ring. */
 h1[tabindex="-1"]:focus { outline: none; }
@@ -169,9 +169,8 @@ code { font-family: var(--font-mono); }
 .empty-state h2, .empty-state h3 { font-size: var(--text-lg); margin: 0; }
 .empty-state p { margin: 0; color: var(--muted); }
 
-/* Rich text, the same in reading (RichContent, HTML via MarkupString) and editing
-   (Quill's .ql-editor, styled in Components/QuillEditor.razor.css). Kept global because the
-   HTML is not Razor markup. */
+/* Rich text, the same in reading (RichContent: Markdown rendered by Markdig) and editing (the Milkdown editor
+   gives its text area this class too). Kept global because the HTML is not Razor markup. */
 .rich-content { font-size: var(--text-lg); line-height: 1.65; max-width: 68ch; overflow-wrap: anywhere; }
 .rich-content h2 { font-size: 1.2rem; margin: 1em 0 0.4em; }
 .rich-content h3 { font-size: 1.05rem; margin: 0.9em 0 0.3em; }
@@ -188,7 +187,7 @@ code { font-family: var(--font-mono); }
 .rich-content table { border-collapse: collapse; width: 100%; margin: 0.8em 0; }
 .rich-content td, .rich-content th { border: 1px solid var(--border); padding: 8px; text-align: left; }
 .rich-content th { background: var(--surface-2); }
-/* Markdown wraps text in <p> inside quotes, list items and cells; Quill did not. Keep the spacing the same. */
+/* Markdown wraps text in <p> inside quotes, list items and cells: no extra space at their edges. */
 .rich-content blockquote > :first-child, .rich-content li > p:first-child, .rich-content td > p, .rich-content th > p { margin-top: 0; }
 .rich-content blockquote > :last-child, .rich-content li > p:last-child, .rich-content td > p, .rich-content th > p { margin-bottom: 0; }
 .rich-content pre code { background: none; padding: 0; font-weight: 400; font-size: inherit; }
@@ -199,7 +198,7 @@ code { font-family: var(--font-mono); }
 
 /* Forms. Global because EditForm and the Input* components render the elements. */
 .form { display: grid; gap: var(--space-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-1); padding: var(--space-5); }
-/* Spara/Avbryt stays at the bottom of the window while a long form (the Quill editor) scrolls.
+/* Spara/Avbryt stays at the bottom of the window while a long form (the åtgärd editor) scrolls.
    Negative margins make the bar span the card's padding. */
 .form-actions {
   position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center;

@@ -19,7 +19,7 @@ Current shape (verify in the code, it may have moved on):
   (`Client.UI`), with `Client.Core` keeping a local SQLite copy loaded into memory. It pulls a
   full snapshot from `GET /api/sync` every five minutes and on reconnect. Offline is essential:
   read and search always work; writes need a connection in v1.
-- Solution content is HTML edited with Quill.
+- Solution content is Markdown edited with Milkdown, rendered with Markdig (raw HTML off).
 - Hosting is open: a pilot on the owner's own Azure account, and it is unclear whether a server
   can be placed at the plant.
 

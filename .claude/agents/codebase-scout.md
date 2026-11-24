@@ -15,7 +15,7 @@ The solution lives in `Larmcentralen/`:
 - `Larmcentralen.Infrastructure` – EF Core on PostgreSQL, repositories, migrations
 - `Larmcentralen.Api` – ASP.NET Core Web API, controllers, SharePoint and SMS (46elks) services
 - `Larmcentralen.Client.Core` – client logic without UI: API client, local SQLite store, sync, offline search
-- `Larmcentralen.Client.UI` – Razor components (Swedish UI), Quill editor and its JS interop in `wwwroot/js/quill-interop.js`
+- `Larmcentralen.Client.UI` – Razor components (Swedish UI), Milkdown Markdown editor (TypeScript in `scripts/src`, built to `wwwroot/js/milkdown-interop.js`)
 - `Larmcentralen.App` – .NET MAUI Blazor Hybrid host (Windows)
 - `tests/Larmcentralen.Client.Core.Tests` – tests for search, sync and the offline store
 - Shared build settings: `Directory.Build.props`, `Directory.Packages.props`, `global.json`

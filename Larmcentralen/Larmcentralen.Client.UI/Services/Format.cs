@@ -44,8 +44,4 @@ public static class Format
             _ => string.Join(", ", parts[..^1]) + " och " + parts[^1]
         };
     }
-
-    /// <summary>Quill leaves "&lt;p&gt;&lt;br&gt;&lt;/p&gt;" in an empty editor.</summary>
-    public static bool IsEmptyHtml(string? html)
-        => string.IsNullOrWhiteSpace(html) || html.Trim() is "<p><br></p>" or "<p></p>";
 }

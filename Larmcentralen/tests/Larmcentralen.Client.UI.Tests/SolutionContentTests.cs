@@ -7,24 +7,12 @@ public class SolutionContentTests
     private const char Nbsp = (char)0xA0;
 
     [Theory]
-    [InlineData("<p>Steg</p>", true)]
-    [InlineData("  \n <h2>Rubrik</h2>", true)]
-    [InlineData("## Rubrik", false)]
-    [InlineData("Byt säkring. Se <b>manualen</b>.", false)]
-    [InlineData("", false)]
-    [InlineData(null, false)]
-    public void Legacy_html_is_content_that_starts_with_a_tag(string? content, bool expected)
-        => Assert.Equal(expected, SolutionContent.IsLegacyHtml(content));
-
-    [Theory]
     [InlineData(null, true)]
     [InlineData("", true)]
     [InlineData("  \n\n ", true)]
-    [InlineData("<p><br></p>", true)]
-    [InlineData("<p></p>", true)]
-    [InlineData("<p>Steg</p>", false)]
     [InlineData("1. Stäng av ugnen", false)]
-    public void Empty_content_is_detected_for_markdown_and_html(string? content, bool expected)
+    [InlineData("<p></p>", false)]
+    public void Empty_content_is_blank_or_whitespace_only(string? content, bool expected)
         => Assert.Equal(expected, SolutionContent.IsEmpty(content));
 
     [Fact]
@@ -32,88 +20,39 @@ public class SolutionContentTests
         => Assert.True(SolutionContent.IsEmpty($" {Nbsp}{Nbsp} "));
 
     [Fact]
-    public void Editor_gets_markdown_unchanged()
-        => Assert.Equal("## Rubrik\n\nText", SolutionContent.ToEditorMarkdown("## Rubrik\n\nText"));
-
-    [Fact]
-    public void Editor_gets_an_empty_string_for_an_empty_quill_document()
-        => Assert.Equal("", SolutionContent.ToEditorMarkdown("<p><br></p>"));
-
-    [Fact]
-    public void Quill_headings_become_markdown_headings()
+    public void Text_starting_with_a_less_than_sign_is_markdown_not_html()
     {
-        var md = SolutionContent.HtmlToMarkdown("<h2>Felsökning</h2><h3>Kontrollera givaren</h3><p>Text</p>");
-        Assert.Contains("## Felsökning", md);
-        Assert.Contains("### Kontrollera givaren", md);
-        Assert.Contains("Text", md);
+        // Content is always Markdown: a leading "<" must neither switch off the formatting nor pass through as HTML.
+        var html = SolutionContent.ToHtml("<5 mA betyder trasig givare.\n\n- Byt givaren\n- **Kalibrera**");
+        Assert.StartsWith("<p>&lt;5 mA betyder trasig givare.</p>", html);
+        Assert.Contains("<li><strong>Kalibrera</strong></li>", html);
     }
 
-    [Fact]
-    public void Quill_lists_become_markdown_lists()
+    [Theory]
+    [InlineData("<img src=x onerror=alert(1)> står det i loggen.")]
+    [InlineData("Loggen: <img src=x onerror=alert(1)>")]
+    [InlineData("<svg onload=alert(1)></svg>")]
+    [InlineData("<h2>Steg</h2><ol><li>Ett</li></ol>")]
+    public void Html_tags_are_escaped_wherever_they_are(string markdown)
     {
-        var md = SolutionContent.HtmlToMarkdown(
-            "<ol><li>Stäng av ugnen</li><li>Vänta 10 min</li></ol><ul><li>Handskar</li><li>Skyddsglasögon</li></ul>");
-        Assert.Contains("1. Stäng av ugnen", md);
-        Assert.Contains("2. Vänta 10 min", md);
-        Assert.Matches(@"(?m)^[-*] Handskar$", md);
-        Assert.Matches(@"(?m)^[-*] Skyddsglasögon$", md);
+        var html = SolutionContent.ToHtml(markdown);
+        Assert.DoesNotContain("<img", html);
+        Assert.DoesNotContain("<svg", html);
+        Assert.DoesNotContain("<h2>", html);
+        Assert.Contains("&lt;", html);
     }
 
-    [Fact]
-    public void Bold_italic_and_strike_are_kept()
-    {
-        var md = SolutionContent.HtmlToMarkdown("<p><strong>Viktigt</strong> och <em>kursivt</em> och <s>gammalt</s></p>");
-        Assert.Contains("**Viktigt**", md);
-        Assert.Matches(@"[*_]kursivt[*_]", md);
-        Assert.Contains("~~gammalt~~", md);
-    }
+    [Theory]
+    [InlineData("==markerat==", "<mark>")]
+    [InlineData("++infogat++", "<ins>")]
+    [InlineData("x^2^", "<sup>")]
+    [InlineData("H~2~O", "<sub>")]
+    public void Only_the_markdown_the_editor_can_write_is_rendered(string markdown, string tag)
+        => Assert.DoesNotContain(tag, SolutionContent.ToHtml(markdown));
 
     [Fact]
-    public void Blockquote_inline_code_and_code_block_are_kept()
-    {
-        var md = SolutionContent.HtmlToMarkdown(
-            "<blockquote>Bryt strömmen först!</blockquote><p>Sätt <code>P-204</code> till 0.</p><pre data-language=\"plain\">\nRESET 1\nSTART\n</pre>");
-        Assert.Contains("> Bryt strömmen först!", md);
-        Assert.Contains("`P-204`", md);
-        Assert.Contains("```", md);
-        Assert.Contains("RESET 1", md);
-        Assert.Contains("START", md);
-    }
-
-    [Fact]
-    public void Links_are_kept()
-    {
-        var md = SolutionContent.HtmlToMarkdown("<p>Se <a href=\"https://example.com/manual.pdf\" rel=\"noopener noreferrer\" target=\"_blank\">manualen</a>.</p>");
-        Assert.Contains("[manualen](https://example.com/manual.pdf)", md);
-    }
-
-    [Fact]
-    public void Non_breaking_spaces_become_plain_spaces()
-    {
-        var md = SolutionContent.HtmlToMarkdown($"<p>Byt&nbsp;säkring&nbsp;F3{Nbsp}i skåpet</p>");
-        Assert.Equal("Byt säkring F3 i skåpet", md);
-    }
-
-    [Fact]
-    public void Tags_without_markdown_keep_their_text_but_leave_no_html()
-    {
-        var md = SolutionContent.HtmlToMarkdown("<p><u>Understruket</u> och <span class=\"x\">vanligt</span></p>");
-        Assert.Contains("Understruket", md);
-        Assert.Contains("vanligt", md);
-        Assert.DoesNotContain("<", md);
-    }
-
-    [Fact]
-    public void Converted_markdown_renders_back_to_the_same_structure()
-    {
-        var md = SolutionContent.HtmlToMarkdown("<h2>Steg</h2><ol><li>Ett</li><li><strong>Två</strong></li></ol><blockquote>Varm yta</blockquote>");
-        var html = SolutionContent.ToHtml(md);
-        Assert.Contains("<h2", html);
-        Assert.Contains("<ol>", html);
-        Assert.Contains("<strong>Två</strong>", html);
-        Assert.Contains("<blockquote>", html);
-    }
-
+    public void Strikethrough_from_the_editor_is_rendered()
+        => Assert.Contains("<del>gammalt</del>", SolutionContent.ToHtml("~~gammalt~~"));
     [Fact]
     public void Markdown_renders_tables_strike_and_task_lists()
     {
@@ -218,12 +157,5 @@ public class SolutionContentTests
         var html = SolutionContent.ToHtml("[film](film.mp4)");
         Assert.Contains("<a href=\"film.mp4\"", html);
         Assert.DoesNotContain("<video", html);
-    }
-
-    [Fact]
-    public void Legacy_html_is_shown_as_stored()
-    {
-        const string legacy = "<h2>Steg</h2><ol><li>Ett</li></ol>";
-        Assert.Equal(legacy, SolutionContent.ToHtml(legacy));
     }
 }

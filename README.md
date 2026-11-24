@@ -12,7 +12,7 @@ means and follow a step-by-step solution. It is a documentation platform, not an
 | `Larmcentralen.Infrastructure` | EF Core on SQLite, repositories, migrations. |
 | `Larmcentralen.Api` | ASP.NET Core Web API, SharePoint and SMS integrations. |
 | `Larmcentralen.Client.Core` | Client logic with no UI: HTTP API client, local SQLite copy, sync, offline search. |
-| `Larmcentralen.Client.UI` | Every screen as Razor components (Swedish UI), plus the bundled Quill editor. |
+| `Larmcentralen.Client.UI` | Every screen as Razor components (Swedish UI), plus the bundled Milkdown (Markdown) editor. |
 | `Larmcentralen.App` | .NET MAUI Blazor Hybrid desktop app (Windows) that hosts `Client.UI`. |
 | `tests/Larmcentralen.Client.Core.Tests` | Tests for search ranking, sync and the offline store. |
 
@@ -29,7 +29,7 @@ Everything targets **.NET 11**. The target framework is set once in `Directory.B
   in the alarm code, title, equipment (technical or everyday name), area or description.
   Alarm codes also match without their letter prefix (`200.4` finds `M200.4`).
 - Creating, editing and deleting need a connection in v1. After each write the app re-syncs.
-- Solutions are stored and edited as HTML with Quill 2 (MIT/BSD licensed, bundled locally).
+- Solutions (åtgärder) are stored as Markdown, edited with Milkdown (MIT, bundled locally) and shown with Markdig with raw HTML switched off.
 
 ## Server database
 
@@ -180,7 +180,7 @@ well, so simple work does not run on the most expensive model.
 | `build-test-runner` | Haiku | Build and test, report only the failures |
 | `swedish-ui-copy` | Haiku | Swedish text operators see in the app |
 | `feature-developer` | Sonnet | Backend and client-logic features across the layers, migrations |
-| `blazor-ui-developer` | Sonnet | Razor screens, components, Quill interop, MAUI host |
+| `blazor-ui-developer` | Sonnet | Razor screens, components, Milkdown editor interop, MAUI host |
 | `test-writer` | Sonnet | New and extended tests |
 | `code-reviewer` | Sonnet | Read-only review of a diff before a PR |
 | `architect` | Opus | Sync/offline design, data model, hosting, big refactors (plans, no code) |

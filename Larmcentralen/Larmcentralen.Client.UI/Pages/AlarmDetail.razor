@@ -93,7 +93,7 @@ else
                             <span class="shared-label">Gäller även:</span> @string.Join(", ", alsoFor.Select(a => a.Equipment.Title).Distinct())
                         </p>
                     }
-                    <RichContent Html="@solution.Content" />
+                    <RichContent Markdown="@solution.Content" />
                     @if (CanEdit)
                     {
                         <footer class="actions">
@@ -135,7 +135,7 @@ else
                                                       Title="Åtgärden visas då även på det här larmet. En ändring gäller båda.">Använd även här</OnlineButton>
                                     }
                                 </summary>
-                                <RichContent Html="@solution.Content" />
+                                <RichContent Markdown="@solution.Content" />
                             </details>
                         }
                     </div>

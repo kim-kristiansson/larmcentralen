@@ -16,7 +16,7 @@ Architecture rules:
 - Persistence is EF Core on PostgreSQL in `Larmcentralen.Infrastructure`. A model change needs a
   migration (`dotnet ef migrations add <Name> --project Larmcentralen.Infrastructure
   --startup-project Larmcentralen.Api`). Never edit an existing migration.
-- Solution content is HTML (written with Quill). Treat it as untrusted on output and keep it
+- Solution content is Markdown (written with Milkdown). Treat it as untrusted on output and keep it
   HTML end to end; do not convert to Markdown.
 - Every change visible to the client must also reach `GET /api/sync`, because the client reads
   from its local SQLite copy. Update the snapshot DTOs and `Larmcentralen.Client.Core` together.

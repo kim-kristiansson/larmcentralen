@@ -168,7 +168,7 @@ else
     private int? _solutionId;
     private int _linkedAtLoad;
     private MarkdownEditor? _editor;
-    /// <summary>The åtgärd as Markdown. Older ones (Quill HTML) are converted when opened and saved as Markdown.</summary>
+    /// <summary>The åtgärd as Markdown.</summary>
     private string? _initialMarkdown;
     private readonly SolutionForm _form = new();
     private (int AlarmId, int? Id)? _loadedFor;
@@ -210,7 +210,7 @@ else
                 _form.Title = solution.Title;
                 _form.EstimatedTime = solution.EstimatedTime;
                 _form.SortOrder = solution.SortOrder;
-                _initialMarkdown = SolutionContent.ToEditorMarkdown(solution.Content);
+                _initialMarkdown = solution.Content ?? "";
                 var linked = Kb.Index.AlarmsForSolution(solution.Id);
                 _linkedAtLoad = linked.Count;
                 foreach (var a in linked) _selected.Add(a.Alarm.Id);
