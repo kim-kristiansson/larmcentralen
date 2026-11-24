@@ -1,8 +1,2 @@
-// Runs before the first paint so a forced light or dark theme does not flash.
-// The key and values match Larmcentralen.Client.UI/wwwroot/js/theme.js.
-(function () {
-  try {
-    var mode = localStorage.getItem("larmcentralen-theme");
-    if (mode === "light" || mode === "dark") document.documentElement.dataset.theme = mode;
-  } catch (e) { /* storage unavailable: follow the OS */ }
-})();
+/* Built from Larmcentralen.Client.UI/scripts/src. Do not edit: change the .ts file and run `npm run build`. */
+"use strict";(()=>{var t="larmcentralen-theme";try{let e=localStorage.getItem(t);(e==="light"||e==="dark")&&(document.documentElement.dataset.theme=e)}catch{}})();

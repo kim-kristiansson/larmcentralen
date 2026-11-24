@@ -1,13 +1,2 @@
-// Keeps the keys a combobox uses (arrows, Enter, Esc) from scrolling the page or submitting the form.
-// Blazor still gets the keydown event and moves the selection.
-const keys = new Set(["ArrowDown", "ArrowUp", "Enter", "Escape"]);
-
-export function attach(input) {
-    const handler = e => { if (keys.has(e.key)) e.preventDefault(); };
-    input.addEventListener("keydown", handler);
-    return { dispose: () => input.removeEventListener("keydown", handler) };
-}
-
-export function scrollIntoView(id) {
-    document.getElementById(id)?.scrollIntoView({ block: "nearest" });
-}
+/* Built from Larmcentralen.Client.UI/scripts/src. Do not edit: change the .ts file and run `npm run build`. */
+var o=new Set(["ArrowDown","ArrowUp","Enter","Escape"]);function r(e){let n=t=>{o.has(t.key)&&t.preventDefault()};return e.addEventListener("keydown",n),{dispose:()=>e.removeEventListener("keydown",n)}}function s(e){document.getElementById(e)?.scrollIntoView({block:"nearest"})}export{r as attach,s as scrollIntoView};

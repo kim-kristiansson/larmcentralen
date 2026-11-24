@@ -7,8 +7,17 @@ const banner = "/* Built from Larmcentralen.Client.UI/scripts/src. Do not edit: 
 const common = { bundle: true, minify: true, target: "es2022", legalComments: "eof", banner: { js: banner }, logLevel: "info" };
 
 // ES modules loaded on demand by the Razor components with import().
-const modules = [];
+await build({
+  ...common,
+  entryPoints: ["src/theme.ts", "src/combobox.ts"],
+  outdir: "../wwwroot/js",
+  format: "esm",
+});
 
-if (modules.length > 0) {
-  await build({ ...common, entryPoints: modules, outdir: "../wwwroot/js", format: "esm" });
-}
+// theme-init runs as a classic <script> in the app's index.html before the first paint, so no module.
+await build({
+  ...common,
+  entryPoints: ["src/theme-init.ts"],
+  outfile: "../../Larmcentralen.App/wwwroot/theme-init.js",
+  format: "iife",
+});
