@@ -66,6 +66,24 @@ The app calls `https://localhost:7094/` by default. Point it elsewhere (for exam
 API on Azure) with the `LARMCENTRALEN_API_URL` environment variable, or by editing
 `Larmcentralen.App/Resources/Raw/appsettings.json`.
 
+### JavaScript is written in TypeScript
+
+The app's JavaScript is built from TypeScript in `Larmcentralen.Client.UI/scripts/src/` with esbuild
+(bundled, minified, every dependency included, no CDN). The built files are committed
+(`Larmcentralen.Client.UI/wwwroot/js/*.js` and `Larmcentralen.App/wwwroot/theme-init.js`), so
+`dotnet build` needs no Node. Only after changing a `.ts` file, rebuild them (Node 22 or newer):
+
+```bash
+cd Larmcentralen/Larmcentralen.Client.UI/scripts
+npm ci          # first time: installs the exact versions in package-lock.json
+npm run build   # type-checks (tsc, strict) and writes the .js files; commit them with the .ts change
+npm run check   # type-check only
+```
+
+Do not edit the built `.js` files by hand. `theme-init.js` is a classic script (it runs before the
+first paint from `index.html`); the others are ES modules the Razor components `import()`.
+Vendored libraries in `wwwroot/lib/` are not built from here.
+
 ## API keys and secrets
 
 This repository is public. Real keys, passwords and phone numbers never go in a tracked file:

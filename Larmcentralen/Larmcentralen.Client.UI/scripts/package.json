@@ -1,0 +1,17 @@
+{
+  "name": "larmcentralen-client-ui-scripts",
+  "private": true,
+  "description": "TypeScript sources for the JavaScript in Larmcentralen.Client.UI/wwwroot/js and Larmcentralen.App/wwwroot. The built files are committed, so dotnet build needs no Node.",
+  "type": "module",
+  "scripts": {
+    "check": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node build.mjs"
+  },
+  "dependencies": {
+    "@milkdown/kit": "7.23.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  }
+}
