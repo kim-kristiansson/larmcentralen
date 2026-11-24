@@ -76,18 +76,35 @@
     private IJSObjectReference? _module;
     private IJSObjectReference? _editor;
     private string? _loadError;
+    /// <summary>Set by DisposeAsync. The editor starts asynchronously, so the page can close while it starts.</summary>
+    private bool _disposed;
 
     /// <summary>The Markdown the editor starts with. Read the current text with <see cref="GetMarkdownAsync"/>.</summary>
     [Parameter] public string? InitialMarkdown { get; set; }
     [Parameter] public string Placeholder { get; set; } = "Skriv åtgärden här…";
+    /// <summary>Accessible name of the text area, read by screen readers.</summary>
+    [Parameter] public string Label { get; set; } = "Åtgärd, steg för steg";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
         try
         {
-            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/Larmcentralen.Client.UI/js/milkdown-interop.js");
-            _editor = await _module.InvokeAsync<IJSObjectReference>("create", _root, InitialMarkdown ?? "", Placeholder);
+            var module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/Larmcentralen.Client.UI/js/milkdown-interop.js");
+            if (_disposed)
+            {
+                await module.DisposeAsync();
+                return;
+            }
+            _module = module;
+            var editor = await module.InvokeAsync<IJSObjectReference>("create", _root, InitialMarkdown ?? "", Placeholder, Label);
+            if (_disposed)
+            {
+                // The page closed while the editor was starting: DisposeAsync found nothing to clean up, so do it here.
+                await DestroyAsync(module, editor);
+                return;
+            }
+            _editor = editor;
         }
         catch (JSDisconnectedException)
         {
@@ -95,6 +112,7 @@
         }
         catch (JSException ex)
         {
+            if (_disposed) return;
             _loadError = $"Textredigeraren kunde inte startas. Stäng sidan och öppna den igen. ({ex.Message})";
             StateHasChanged();
         }
@@ -119,13 +137,23 @@
 
     public async ValueTask DisposeAsync()
     {
+        if (_disposed) return;
+        _disposed = true;
+        var (module, editor) = (_module, _editor);
+        _module = null;
+        _editor = null;
+        await DestroyAsync(module, editor);
+    }
+
+    private static async Task DestroyAsync(IJSObjectReference? module, IJSObjectReference? editor)
+    {
         try
         {
-            if (_module is not null && _editor is not null) await _module.InvokeVoidAsync("destroy", _editor);
-            if (_editor is not null) await _editor.DisposeAsync();
-            if (_module is not null) await _module.DisposeAsync();
+            if (module is not null && editor is not null) await module.InvokeVoidAsync("destroy", editor);
+            if (editor is not null) await editor.DisposeAsync();
+            if (module is not null) await module.DisposeAsync();
         }
-        catch (Exception ex) when (ex is JSDisconnectedException or JSException)
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException)
         {
             // The WebView is already gone, or the editor never started; nothing to clean up.
         }
