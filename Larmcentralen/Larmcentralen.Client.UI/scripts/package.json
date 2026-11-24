@@ -9,7 +9,8 @@
     "test": "node test.mjs"
   },
   "dependencies": {
-    "@milkdown/kit": "7.23.0"
+    "@milkdown/kit": "7.23.0",
+    "mdast-util-to-markdown": "2.2.4"
   },
   "devDependencies": {
     "esbuild": "0.28.2",

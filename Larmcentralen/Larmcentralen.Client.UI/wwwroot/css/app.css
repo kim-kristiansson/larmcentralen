@@ -57,6 +57,10 @@
   --warn: light-dark(#7A4A00, #FCD34D);
   --warn-bg: light-dark(#FEF3C7, #3A2E0A);
   --warn-edge: light-dark(#B45309, #EAB308);
+  /* Info box in åtgärder: a calm steel blue, quieter than Varning. */
+  --info: light-dark(#1E3A5F, #C3D8F0);
+  --info-bg: light-dark(#E9F1F9, #172636);
+  --info-edge: light-dark(#4A6FA5, #7FA7D6);
 
   /* Severity: text, background, edge (stripe) */
   --sev-low: light-dark(#3D3D3D, #C8C8C8);
@@ -178,10 +182,29 @@ code { font-family: var(--font-mono); }
 .rich-content li { margin: 0.6em 0; }
 .rich-content li::marker { font-weight: 700; }
 .rich-content strong, .rich-content b { font-weight: 700; }
+/* A plain quote (no [!KIND]) is neutral. The Varning and Info boxes are GitHub alerts: .callout-* in the editor,
+   .markdown-alert-* from Markdig in the reader. CAUTION looks like Varning, TIP and IMPORTANT like Info. */
 .rich-content blockquote {
-  border-left: 6px solid var(--warn-edge); background: var(--warn-bg); color: var(--warn);
-  margin: 0.8em 0; padding: 10px 16px; border-radius: 0 6px 6px 0; font-weight: 600;
+  border-left: 6px solid var(--border-strong); color: var(--ink-soft);
+  margin: 0.8em 0; padding: 10px 16px; border-radius: 0 6px 6px 0;
 }
+.rich-content :is(.callout, .markdown-alert) {
+  position: relative; margin: 0.8em 0; padding: 10px 16px 10px 52px; border-left: 6px solid; border-radius: 0 6px 6px 0;
+}
+.rich-content :is(.callout, .markdown-alert)::before {
+  content: ""; position: absolute; left: 16px; top: 12px; width: 24px; height: 24px; background: currentColor;
+  -webkit-mask: var(--callout-icon) center / contain no-repeat; mask: var(--callout-icon) center / contain no-repeat;
+}
+.rich-content :is(.callout-warning, .markdown-alert-warning, .markdown-alert-caution) {
+  border-color: var(--warn-edge); background: var(--warn-bg); color: var(--warn); font-weight: 600;
+  --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='M12 3.5 2.5 20h19z'/%3E%3Cpath d='M12 10v4.5' stroke-linecap='round'/%3E%3Ccircle cx='12' cy='17.2' r='1.2' fill='black' stroke='none'/%3E%3C/svg%3E");
+}
+.rich-content :is(.callout-note, .markdown-alert-note, .markdown-alert-tip, .markdown-alert-important) {
+  border-color: var(--info-edge); background: var(--info-bg); color: var(--info);
+  --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 11v5.5' stroke-linecap='round'/%3E%3Ccircle cx='12' cy='7.8' r='1.2' fill='black' stroke='none'/%3E%3C/svg%3E");
+}
+.rich-content .markdown-alert > :first-child { margin-top: 0; }
+.rich-content .markdown-alert > :last-child { margin-bottom: 0; }
 .rich-content code { font-family: var(--font-mono); font-weight: 600; background: var(--surface-2); padding: 1px 6px; border-radius: var(--radius-sm); font-size: 0.92em; }
 .rich-content pre { background: var(--surface-2); padding: 12px; border-radius: 6px; overflow-x: auto; font-family: var(--font-mono); }
 .rich-content table { border-collapse: collapse; width: 100%; margin: 0.8em 0; }

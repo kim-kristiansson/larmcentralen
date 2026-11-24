@@ -25,6 +25,7 @@ import { readTable, nextCellOrNewRow } from "./table-tools";
 import { createTableOverlay } from "./table-overlay";
 import { createEditor, markdownOf } from "./editor-setup";
 import { isAllowedUrl } from "./url";
+import type { AlertKind } from "./alerts";
 
 export { isAllowedUrl } from "./url";
 
@@ -40,7 +41,8 @@ interface ToolbarState {
   marks: Record<"strong" | "emphasis" | "strike_through" | "inlineCode" | "link", boolean>;
   bullet: boolean;
   ordered: boolean;
-  quote: boolean;
+  /** The alert kind of the blockquote the cursor is in: "warning", "note", "plain" (a quote without kind) or "". */
+  quote: AlertKind | "plain" | "";
   codeBlock: boolean;
 }
 
@@ -126,10 +128,8 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
     code: () => run(toggleInlineCodeCommand.key),
     bullet: () => toggleList("bullet_list"),
     ordered: () => toggleList("ordered_list"),
-    quote: () => {
-      if (readState(view().state).quote) lift(view().state, view().dispatch);
-      else run(wrapInBlockquoteCommand.key);
-    },
+    warning: () => toggleAlert("warning"),
+    note: () => toggleAlert("note"),
     codeBlock: () => {
       if (readState(view().state).codeBlock) run(turnIntoTextCommand.key);
       else run(createCodeBlockCommand.key);
@@ -141,6 +141,27 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
     redo: () => run(redoCommand.key),
   };
 
+
+  /**
+   * Varning / Info: the same kind again turns the box back into normal text; the other kind (or a plain quote)
+   * changes the box; outside a box, the current paragraph becomes one.
+   */
+  function toggleAlert(kind: AlertKind): void {
+    const v = view();
+    const quote = nearest(v.state.selection.$from, ["blockquote"]);
+    if (quote && quote.node.attrs["alert"] === kind) {
+      lift(v.state, v.dispatch);
+      return;
+    }
+    if (quote) {
+      v.dispatch(v.state.tr.setNodeMarkup(quote.pos, undefined, { ...quote.node.attrs, alert: kind }));
+      return;
+    }
+    run(wrapInBlockquoteCommand.key);
+    const after = view();
+    const made = nearest(after.state.selection.$from, ["blockquote"]);
+    if (made) after.dispatch(after.state.tr.setNodeMarkup(made.pos, undefined, { ...made.node.attrs, alert: kind }));
+  }
 
   function toggleList(type: "bullet_list" | "ordered_list"): void {
     const v = view();
@@ -383,9 +404,16 @@ function readState(state: EditorState): ToolbarState {
     },
     bullet: list?.node.type.name === "bullet_list",
     ordered: list?.node.type.name === "ordered_list",
-    quote: !!nearest($from, ["blockquote"]),
+    quote: quoteKind($from),
     codeBlock: parent.type.name === "code_block",
   };
+}
+
+function quoteKind($pos: ResolvedPos): AlertKind | "plain" | "" {
+  const quote = nearest($pos, ["blockquote"]);
+  if (!quote) return "";
+  const alert = quote.node.attrs["alert"];
+  return alert === "warning" || alert === "note" ? alert : "plain";
 }
 
 /** Whether a toolbar button shows as pressed; null for buttons that are actions, not states. */
@@ -398,7 +426,8 @@ function pressed(cmd: string, s: ToolbarState): boolean | null {
     case "link": return s.marks.link;
     case "bullet": return s.bullet;
     case "ordered": return s.ordered;
-    case "quote": return s.quote;
+    case "warning": return s.quote === "warning";
+    case "note": return s.quote === "note";
     case "codeBlock": return s.codeBlock;
     default: return null;
   }

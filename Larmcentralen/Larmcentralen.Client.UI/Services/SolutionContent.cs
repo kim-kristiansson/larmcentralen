@@ -16,10 +16,17 @@ namespace Larmcentralen.Client.UI.Services;
 public static partial class SolutionContent
 {
     /// <summary>
-    /// Only what the editor can produce: GFM pipe tables (with column alignment), ~~strikethrough~~, task lists and
-    /// autolinks. Raw HTML is off.
+    /// Only what the editor can produce: GFM pipe tables (with column alignment), ~~strikethrough~~, task lists,
+    /// autolinks and GitHub alerts (the Varning and Info boxes). Raw HTML is off.
     /// </summary>
+    /// <remarks>
+    /// Alerts: "&gt; [!WARNING]" is the Varning box and "&gt; [!NOTE]" the Info box. They render as
+    /// &lt;div class="markdown-alert markdown-alert-warning|note"&gt; without Markdig's English title; the look is in
+    /// app.css. A future Word export should map [!WARNING] to the Word style "Varning" and [!NOTE] to "Info"
+    /// (CAUTION like WARNING; TIP and IMPORTANT like NOTE).
+    /// </remarks>
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
+        .UseAlertBlocks(renderKind: static (_, _) => { })
         .UsePipeTables()
         .UseEmphasisExtras(EmphasisExtraOptions.Strikethrough)
         .UseTaskLists()

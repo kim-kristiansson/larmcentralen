@@ -12,6 +12,7 @@ import { $view, getMarkdown as readMarkdown, type $Prose } from "@milkdown/kit/u
 import type { Node as ProseNode } from "@milkdown/kit/prose/model";
 import type { NodeView } from "@milkdown/kit/prose/view";
 import { isAllowedUrl, isVideoUrl } from "./url";
+import { blockquoteHandler, configureAlerts, remarkAlerts } from "./alerts";
 
 /**
  * Markdown style, so text is written the same way every time: "-" bullets, "---" rules, "*" for emphasis and
@@ -35,7 +36,7 @@ function configureOutput(ctx: Ctx): void {
       strong: "*" as const,
       fence: "`" as const,
       fences: true,
-      handlers: { ...handlers, ...withoutMarker("emphasis"), ...withoutMarker("strong") } as typeof handlers,
+      handlers: { ...handlers, ...withoutMarker("emphasis"), ...withoutMarker("strong"), blockquote: blockquoteHandler } as typeof handlers,
     };
   });
   ctx.set(remarkGFMPlugin.options.key, { tablePipeAlign: false });
@@ -94,6 +95,7 @@ export async function createEditor(
       ctx.set(rootCtx, root);
       ctx.set(defaultValueCtx, markdown);
       configureOutput(ctx);
+      configureAlerts(ctx);
       extra?.config?.(ctx);
     })
     .use(commonmark)
@@ -102,7 +104,8 @@ export async function createEditor(
     .use(clipboard)
     // Always an empty paragraph after a table or code block at the end, so there is somewhere to keep writing.
     .use(trailing)
-    .use(mediaView);
+    .use(mediaView)
+    .use(remarkAlerts);
   for (const p of extra?.plugins ?? []) editor.use(p);
   // Milkdown writes an empty paragraph as a raw "<br />" line so blank lines survive a round trip. Åtgärder never
   // render raw HTML, so that plugin is taken out, the documented way.

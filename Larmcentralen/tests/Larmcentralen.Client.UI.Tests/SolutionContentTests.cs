@@ -158,4 +158,34 @@ public class SolutionContentTests
         Assert.Contains("<a href=\"film.mp4\"", html);
         Assert.DoesNotContain("<video", html);
     }
+
+    [Theory]
+    [InlineData("> [!WARNING]\n> Bryt strömmen innan skåpet öppnas!", "markdown-alert-warning")]
+    [InlineData("> [!NOTE]\n> Ugnen behöver 10 minuter för att svalna.", "markdown-alert-note")]
+    public void Varning_and_info_boxes_render_as_alerts_without_marker_or_title(string markdown, string cssClass)
+    {
+        var html = SolutionContent.ToHtml(markdown);
+        Assert.Contains($"class=\"markdown-alert {cssClass}\"", html);
+        Assert.DoesNotContain("[!", html);
+        Assert.DoesNotContain("markdown-alert-title", html);
+        Assert.DoesNotContain("<svg", html);
+        Assert.DoesNotContain("<blockquote", html);
+    }
+
+    [Fact]
+    public void Html_inside_an_alert_is_escaped()
+    {
+        var html = SolutionContent.ToHtml("> [!NOTE]\n> <img src=x onerror=alert(1)> och **fet**");
+        Assert.DoesNotContain("<img", html);
+        Assert.Contains("&lt;img", html);
+        Assert.Contains("<strong>fet</strong>", html);
+    }
+
+    [Fact]
+    public void A_plain_quote_stays_a_neutral_blockquote()
+    {
+        var html = SolutionContent.ToHtml("> Citat utan markering");
+        Assert.Contains("<blockquote>", html);
+        Assert.DoesNotContain("markdown-alert", html);
+    }
 }
