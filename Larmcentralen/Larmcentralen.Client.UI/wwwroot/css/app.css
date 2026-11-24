@@ -229,3 +229,6 @@ code { font-family: var(--font-mono); }
 @media (forced-colors: active) {
   .btn, .empty-state { border: 1px solid CanvasText; }
 }
+
+/* While a table row or column is dragged in the åtgärd editor (table-overlay.ts). */
+body.md-tbl-dragging, body.md-tbl-dragging * { cursor: grabbing !important; user-select: none; }

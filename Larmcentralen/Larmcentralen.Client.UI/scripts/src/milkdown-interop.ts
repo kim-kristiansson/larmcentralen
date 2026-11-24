@@ -16,7 +16,7 @@ import {
   liftListItemCommand,
   createCodeBlockCommand,
 } from "@milkdown/kit/preset/commonmark";
-import { gfm, toggleStrikethroughCommand, insertTableCommand, addRowBeforeCommand, addRowAfterCommand } from "@milkdown/kit/preset/gfm";
+import { gfm, toggleStrikethroughCommand, insertTableCommand, addRowAfterCommand } from "@milkdown/kit/preset/gfm";
 import { history, undoCommand, redoCommand } from "@milkdown/kit/plugin/history";
 import { listener } from "@milkdown/kit/plugin/listener";
 import { clipboard } from "@milkdown/kit/plugin/clipboard";
@@ -105,6 +105,9 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
       ctx.update(editorViewOptionsCtx, (prev) => ({
         ...prev,
         attributes: { class: "md-content rich-content", spellcheck: "true", lang: "sv", "aria-multiline": "true", role: "textbox" },
+        // Keep the cursor (and a table's column grips) clear of the sticky toolbar when the editor scrolls to it.
+        scrollMargin: { top: toolbar.offsetHeight + 48, bottom: 64, left: 8, right: 8 },
+        scrollThreshold: { top: toolbar.offsetHeight + 48, bottom: 64, left: 8, right: 8 },
       }));
     })
     .use(preset)
@@ -129,7 +132,7 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
   const linkError = linkBar.querySelector<HTMLElement>(".md-link-error");
   let ready = false;
   // Buttons on the table itself (rows, columns, alignment, remove).
-  const tables = createTableOverlay(surface, () => view(), () => run(addRowBeforeCommand.key), () => run(addRowAfterCommand.key));
+  const tables = createTableOverlay(surface, toolbar, () => view(), () => run(addRowAfterCommand.key));
 
   refresh = (v) => {
     if (!ready) return;
@@ -305,6 +308,11 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
   // Tab in a table's last cell adds a row (Milkdown alone would move focus out of the editor). Capture phase, so
   // this runs before ProseMirror's own Tab handling.
   const onTableTab = (e: KeyboardEvent): void => {
+    if (tables.handleKey(e)) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     if (e.key !== "Tab" || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
     const v = view();
     if (!readTable(v.state)) return;

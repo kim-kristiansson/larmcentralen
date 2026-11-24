@@ -78,6 +78,7 @@ cd Larmcentralen/Larmcentralen.Client.UI/scripts
 npm ci          # first time: installs the exact versions in package-lock.json
 npm run build   # type-checks (tsc, strict) and writes the .js files; commit them with the .ts change
 npm run check   # type-check only
+npm test        # table editing tests (node:test, no browser)
 ```
 
 Do not edit the built `.js` files by hand. `theme-init.js` is a classic script (it runs before the

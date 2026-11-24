@@ -8,7 +8,7 @@
   <PropertyGroup>
     <TargetFramework>$(LarmTargetFramework)</TargetFramework>
     <!-- scripts/ holds the TypeScript sources; its node_modules is tooling, never part of the build. -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);scripts/node_modules/**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);scripts/node_modules/**;scripts/.test-out/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
