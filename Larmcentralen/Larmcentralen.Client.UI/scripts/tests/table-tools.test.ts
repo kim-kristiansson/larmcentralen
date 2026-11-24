@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { Schema, type Node } from "@milkdown/kit/prose/model";
 import { EditorState, TextSelection, type Transaction } from "@milkdown/kit/prose/state";
 import { tableNodes } from "@milkdown/kit/prose/tables";
-import { alignColumns, canMoveRow, moveColumn, moveRow, removeColumns, removeRows, readTable } from "../src/table-tools";
+import { alignColumns, autoScrollStep, canMoveRow, moveColumn, moveRow, removeColumns, removeRows, readTable } from "../src/table-tools";
 
 const base = tableNodes({
   tableGroup: "block",
@@ -150,4 +150,19 @@ test("the only column can't be removed", () => {
 test("alignment is set on the column's header cell", () => {
   const { state } = run(stateAt(sample(), 2, 0), (s, d) => alignColumns(s, d, "right"));
   assert.match(toMarkdown(state.doc), /^\| Givare \| Värde \| Enhet \|\n\| -: \| :-: \| -: \|/);
+});
+
+test("dragging never scrolls when the table is fully visible, or when dragging a column", () => {
+  // Visible area 100..800 (toolbar above), table 120..400 fully visible.
+  assert.equal(autoScrollStep("row", 105, 100, 800, 120, 400, 40, 6), 0, "pointer near the top, table fully visible");
+  assert.equal(autoScrollStep("row", 795, 100, 800, 120, 400, 40, 6), 0, "pointer near the bottom, table fully visible");
+  assert.equal(autoScrollStep("col", 105, 100, 800, 20, 1400, 40, 6), 0, "column drags never scroll");
+  assert.equal(autoScrollStep("row", 400, 100, 800, 20, 1400, 40, 6), 0, "pointer away from the edges");
+});
+
+test("dragging a row near an edge scrolls gently towards hidden rows", () => {
+  const up = autoScrollStep("row", 102, 100, 800, 20, 1400, 40, 6);
+  const down = autoScrollStep("row", 799, 100, 800, 20, 1400, 40, 6);
+  assert.ok(up < 0 && up >= -6, `up ${up}`);
+  assert.ok(down > 0 && down <= 6, `down ${down}`);
 });

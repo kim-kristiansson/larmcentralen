@@ -21,6 +21,7 @@ import {
   removeColumns,
   removeRows,
   removeTable,
+  autoScrollStep,
   type Align,
 } from "./table-tools";
 
@@ -77,7 +78,10 @@ const REACH = 48;
 const HOVER_LEAVE_MS = 150;
 const LONG_PRESS_MS = 330;
 const DRAG_THRESHOLD = 4;
-const AUTOSCROLL_EDGE = 48;
+/** Auto-scroll while dragging a row only starts this close to the visible top or bottom edge, and only if part of
+ *  the table is hidden beyond that edge. */
+const AUTOSCROLL_EDGE = 40;
+const AUTOSCROLL_MAX_SPEED = 6; // px per frame
 
 type Command = (state: EditorState, dispatch: (tr: Transaction) => void) => boolean;
 type Axis = "row" | "col";
@@ -279,7 +283,10 @@ export function createTableOverlay(surface: HTMLElement, toolbar: HTMLElement, g
             startDrag(axis, at, index, ev.clientX, ev.clientY, grip);
           }
         }
-        if (dragging) updateDrag(ev.clientX, ev.clientY);
+        if (dragging) {
+          ev.preventDefault(); // no text selection or native panning while dragging
+          updateDrag(ev.clientX, ev.clientY);
+        }
       };
       const end = (ev: PointerEvent): void => {
         if (ev.pointerId !== pointerId) return;
@@ -386,11 +393,11 @@ export function createTableOverlay(surface: HTMLElement, toolbar: HTMLElement, g
     const allowed = d.axis === "row" ? canMoveRow(count, d.from, to) : canMoveColumn(count, d.from, to);
     d.slot = best && allowed ? best.index : null;
     if (d.axis === "row") {
-      d.ghost.style.top = `${y - s.top - d.ghost.offsetHeight / 2}px`;
+      d.ghost.style.top = `${Math.max(t.top, Math.min(t.bottom - d.ghost.offsetHeight, y - d.ghost.offsetHeight / 2)) - s.top}px`;
       d.ghost.style.left = `${t.left - s.left}px`;
       d.shade.style.top = `${rows[d.from]!.getBoundingClientRect().top - s.top}px`;
     } else {
-      d.ghost.style.left = `${x - s.left - d.ghost.offsetWidth / 2}px`;
+      d.ghost.style.left = `${Math.max(t.left, Math.min(t.right - d.ghost.offsetWidth, x - d.ghost.offsetWidth / 2)) - s.left}px`;
       d.ghost.style.top = `${t.top - s.top}px`;
       d.shade.style.top = `${t.top - s.top}px`;
     }
@@ -408,19 +415,37 @@ export function createTableOverlay(surface: HTMLElement, toolbar: HTMLElement, g
     }
   }
 
-  /** Scrolls the page while the pointer is near the top (under the sticky toolbar) or bottom of the window. */
+  /** The nearest ancestor that scrolls vertically; null means the page itself. */
+  function scroller(): HTMLElement | null {
+    for (let e = surface.parentElement; e && e !== document.body && e !== document.documentElement; e = e.parentElement) {
+      const overflow = getComputedStyle(e).overflowY;
+      if ((overflow === "auto" || overflow === "scroll") && e.scrollHeight > e.clientHeight) return e;
+    }
+    return null;
+  }
+
+  /**
+   * While a ROW is dragged near the visible top or bottom edge, scrolls gently so rows beyond it can be reached.
+   * Only when the table actually continues past that edge: a table that is fully visible never scrolls the page.
+   * The visible top is under the sticky toolbar only while the toolbar is stuck; column drags never scroll.
+   */
   function autoScroll(): void {
     const d = drag;
     if (!d) return;
-    const top = Math.max(0, toolbar.getBoundingClientRect().bottom);
-    let dy = 0;
-    if (d.y < top + AUTOSCROLL_EDGE) dy = -Math.ceil((top + AUTOSCROLL_EDGE - d.y) / 4);
-    else if (d.y > window.innerHeight - AUTOSCROLL_EDGE) dy = Math.ceil((d.y - (window.innerHeight - AUTOSCROLL_EDGE)) / 4);
-    if (dy !== 0) {
-      window.scrollBy(0, dy);
-      updateDrag(d.x, d.y);
-    }
     d.frame = requestAnimationFrame(autoScroll);
+    if (d.axis !== "row") return;
+    const box = scroller();
+    const area = box ? box.getBoundingClientRect() : new DOMRect(0, 0, window.innerWidth, window.innerHeight);
+    const tb = toolbar.getBoundingClientRect();
+    const stuck = tb.top <= area.top + 1 && tb.bottom > area.top;
+    const top = stuck ? tb.bottom : area.top;
+    const bottom = area.bottom;
+    const t = d.at.table.getBoundingClientRect();
+    const dy = autoScrollStep(d.axis, d.y, top, bottom, t.top, t.bottom, AUTOSCROLL_EDGE, AUTOSCROLL_MAX_SPEED);
+    if (dy === 0) return;
+    if (box) box.scrollTop += dy;
+    else window.scrollBy(0, dy);
+    updateDrag(d.x, d.y);
   }
 
   function endDrag(): Drag | null {

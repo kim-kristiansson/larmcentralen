@@ -153,3 +153,24 @@ export function nextCellOrNewRow(state: EditorState, dispatch: Dispatch, addRowA
   addRowAfter();
   return goToNextCell(1)(getState(), dispatch);
 }
+
+/**
+ * How far to scroll (px, negative = up) during one frame of a drag. Only row drags scroll, only when the pointer is
+ * within `edge` px of the visible top or bottom, and only if the table continues past that edge; never faster than
+ * `maxSpeed`. Everything is in viewport coordinates.
+ */
+export function autoScrollStep(
+  axis: "row" | "col",
+  pointerY: number,
+  visibleTop: number,
+  visibleBottom: number,
+  tableTop: number,
+  tableBottom: number,
+  edge: number,
+  maxSpeed: number,
+): number {
+  if (axis !== "row") return 0;
+  if (pointerY < visibleTop + edge && tableTop < visibleTop) return -Math.min(maxSpeed, Math.ceil((visibleTop + edge - pointerY) / 6));
+  if (pointerY > visibleBottom - edge && tableBottom > visibleBottom) return Math.min(maxSpeed, Math.ceil((pointerY - (visibleBottom - edge)) / 6));
+  return 0;
+}
