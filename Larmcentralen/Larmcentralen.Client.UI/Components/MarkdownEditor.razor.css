@@ -34,21 +34,6 @@
   color: var(--ink); background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
 }
 
-/* Table row of the toolbar: a full-width second row while the cursor is in a table. Text buttons, since
-   "Rad ovanför" says more than any icon. */
-.md-tablebar {
-  flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3);
-  padding-top: var(--space-2); border-top: 1px solid var(--border);
-}
-.md-tablebar[hidden] { display: none; }
-.md-tablebar-label { font-weight: 600; font-size: var(--text-md); color: var(--ink-soft); margin-right: var(--space-1); }
-.md-toolbar button.md-text {
-  width: auto; padding: 0 var(--space-3); font-size: var(--text-md); font-weight: 600; white-space: nowrap;
-  border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink);
-}
-.md-toolbar button.md-text:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--ink); }
-.md-toolbar button.md-danger { color: var(--error); border-color: var(--error); }
-
 /* Link bar under the toolbar. */
 .md-linkbar {
   display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-2) var(--space-3);
@@ -97,3 +82,58 @@
   position: absolute; right: -2px; top: 0; bottom: 0; width: 4px; background: var(--ink); pointer-events: none;
 }
 .md-surface ::deep .ProseMirror.resize-cursor { cursor: col-resize; }
+
+/* Table controls drawn by table-overlay.ts on top of the text: grips and + buttons around the table with the
+   cursor (or the mouse) in it. Visually small, but every hit area is at least 32px. Room for them is made with
+   margins around tables in the editor, and taller cells so a row grip and the + between rows never overlap. */
+.md-surface { position: relative; }
+.md-surface ::deep .ProseMirror table { margin: 44px 44px 48px 40px; width: calc(100% - 84px); }
+.md-surface ::deep .ProseMirror td, .md-surface ::deep .ProseMirror th { height: 66px; padding: 12px; }
+
+.md-surface ::deep .md-tbl-layer { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.md-surface ::deep .md-tbl-btn {
+  position: absolute; transform: translate(-50%, -50%); pointer-events: auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 0; border: none; background: transparent; color: var(--ink-soft); cursor: pointer;
+}
+.md-surface ::deep .md-tbl-btn svg { width: 22px; height: 22px; border-radius: var(--radius-pill); }
+.md-surface ::deep .md-tbl-grip svg { fill: currentColor; stroke: none; background: var(--surface-2); padding: 1px; }
+.md-surface ::deep .md-tbl-grip-col svg { width: 24px; height: 18px; }
+.md-surface ::deep .md-tbl-plus svg, .md-surface ::deep .md-tbl-bar svg, .md-surface ::deep .md-tbl-trash svg {
+  fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round;
+  background: var(--surface); box-shadow: 0 0 0 1px var(--border-strong); padding: 3px;
+}
+.md-surface ::deep .md-tbl-plus svg { width: 20px; height: 20px; }
+.md-surface ::deep .md-tbl-btn:hover, .md-surface ::deep .md-tbl-btn:focus-visible { color: var(--ink); }
+.md-surface ::deep .md-tbl-btn:hover svg { box-shadow: 0 0 0 2px var(--ink); background: var(--surface); }
+.md-surface ::deep .md-tbl-trash:hover { color: var(--error); }
+.md-surface ::deep .md-tbl-trash:hover svg { box-shadow: 0 0 0 2px var(--error); }
+
+/* "Lägg till rad" along the bottom, "Lägg till kolumn" down the right side: a thin line with a + in the middle. */
+.md-surface ::deep .md-tbl-bar { border-radius: var(--radius-sm); }
+.md-surface ::deep .md-tbl-bar::before {
+  content: ""; position: absolute; background: var(--border); border-radius: var(--radius-pill);
+}
+.md-surface ::deep .md-tbl-bar-row::before { left: 0; right: 0; top: 50%; height: 4px; transform: translateY(-50%); }
+.md-surface ::deep .md-tbl-bar-col::before { top: 0; bottom: 0; left: 50%; width: 4px; transform: translateX(-50%); }
+.md-surface ::deep .md-tbl-bar:hover::before { background: var(--ink-soft); }
+.md-surface ::deep .md-tbl-bar svg { position: relative; }
+
+/* The row/column menu */
+.md-surface ::deep .md-tbl-menu {
+  position: absolute; z-index: 3; pointer-events: auto; display: grid; min-width: 15rem; padding: var(--space-1);
+  background: var(--surface); color: var(--ink); border: 1px solid var(--border-strong); border-radius: var(--radius);
+  box-shadow: var(--shadow-2);
+}
+.md-surface ::deep .md-tbl-item {
+  display: flex; align-items: center; gap: var(--space-3); min-height: var(--control-h-sm); padding: 0 var(--space-3);
+  border: none; border-radius: var(--radius-sm); background: transparent; color: var(--ink); font: inherit;
+  font-size: var(--text-md); text-align: left; cursor: pointer;
+}
+.md-surface ::deep .md-tbl-item svg {
+  width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.md-surface ::deep .md-tbl-item:hover:not(:disabled), .md-surface ::deep .md-tbl-item:focus-visible { background: var(--surface-2); }
+.md-surface ::deep .md-tbl-item[aria-pressed="true"] { font-weight: 600; box-shadow: inset 3px 0 0 var(--ink); }
+.md-surface ::deep .md-tbl-item:disabled { color: var(--muted); cursor: default; }
+.md-surface ::deep .md-tbl-danger:not(:disabled) { color: var(--error); }

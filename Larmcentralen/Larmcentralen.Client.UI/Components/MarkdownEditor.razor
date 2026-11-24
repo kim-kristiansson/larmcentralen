@@ -51,35 +51,6 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></svg>
             </button>
         </div>
-
-        @* Shown only while the cursor is in a table. The first row is the header: it can't be removed. *@
-        <div class="md-tablebar" role="group" aria-label="Tabell" hidden>
-            <span class="md-tablebar-label" aria-hidden="true">Tabell</span>
-            <div class="md-group">
-                <button type="button" class="md-text" data-cmd="rowBefore" title="Lägg till en rad ovanför (inte ovanför rubrikraden)" disabled>Rad ovanför</button>
-                <button type="button" class="md-text" data-cmd="rowAfter" title="Lägg till en rad nedanför. Tab i sista cellen gör samma sak." disabled>Rad nedanför</button>
-                <button type="button" class="md-text" data-cmd="rowDelete" title="Ta bort raden (rubrikraden kan inte tas bort)" disabled>Ta bort rad</button>
-            </div>
-            <div class="md-group">
-                <button type="button" class="md-text" data-cmd="colBefore" title="Lägg till en kolumn till vänster" disabled>Kolumn till vänster</button>
-                <button type="button" class="md-text" data-cmd="colAfter" title="Lägg till en kolumn till höger" disabled>Kolumn till höger</button>
-                <button type="button" class="md-text" data-cmd="colDelete" title="Ta bort kolumnen" disabled>Ta bort kolumn</button>
-            </div>
-            <div class="md-group">
-                <button type="button" data-cmd="alignLeft" title="Vänsterjustera kolumnen" aria-label="Vänster" aria-pressed="false" disabled>
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 10h10M4 14h16M4 18h10" /></svg>
-                </button>
-                <button type="button" data-cmd="alignCenter" title="Centrera kolumnen" aria-label="Centrera" aria-pressed="false" disabled>
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 10h10M4 14h16M7 18h10" /></svg>
-                </button>
-                <button type="button" data-cmd="alignRight" title="Högerjustera kolumnen" aria-label="Höger" aria-pressed="false" disabled>
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M10 10h10M4 14h16M10 18h10" /></svg>
-                </button>
-            </div>
-            <div class="md-group">
-                <button type="button" class="md-text md-danger" data-cmd="tableDelete" title="Ta bort hela tabellen" disabled>Ta bort tabell</button>
-            </div>
-        </div>
     </div>
 
     <div class="md-linkbar" hidden>

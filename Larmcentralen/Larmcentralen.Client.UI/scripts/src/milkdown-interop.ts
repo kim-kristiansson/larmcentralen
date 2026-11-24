@@ -26,18 +26,8 @@ import { Plugin, PluginKey, TextSelection, type EditorState } from "@milkdown/ki
 import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
 import { lift } from "@milkdown/kit/prose/commands";
 import type { MarkType, Node as ProseNode, ResolvedPos } from "@milkdown/kit/prose/model";
-import {
-  readTable,
-  tableEnabled,
-  removeRows,
-  removeColumns,
-  removeTable,
-  columnBefore,
-  columnAfter,
-  alignColumns,
-  nextCellOrNewRow,
-  type Align,
-} from "./table-tools";
+import { readTable, nextCellOrNewRow } from "./table-tools";
+import { createTableOverlay } from "./table-overlay";
 
 export interface MarkdownEditorHandle {
   editor: Editor;
@@ -137,22 +127,19 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
   const blockSelect = toolbar.querySelector<HTMLSelectElement>("select[data-cmd='block']");
   const linkInput = linkBar.querySelector<HTMLInputElement>("input");
   const linkError = linkBar.querySelector<HTMLElement>(".md-link-error");
-  const tableBar = toolbar.querySelector<HTMLElement>(".md-tablebar");
   let ready = false;
+  // Buttons on the table itself (rows, columns, alignment, remove).
+  const tables = createTableOverlay(surface, () => view(), () => run(addRowBeforeCommand.key), () => run(addRowAfterCommand.key));
 
   refresh = (v) => {
     if (!ready) return;
     const s = readState(v.state);
-    const table = readTable(v.state);
     for (const b of buttons) {
-      const cmd = b.dataset.cmd ?? "";
-      const enabled = tableEnabled(cmd, table);
-      if (enabled !== null) b.disabled = !enabled;
-      const on = cmd.startsWith("align") ? table?.align === cmd.slice(5).toLowerCase() : pressed(cmd, s);
+      const on = pressed(b.dataset.cmd ?? "", s);
       if (on === null) continue;
       b.setAttribute("aria-pressed", on ? "true" : "false");
     }
-    if (tableBar) tableBar.hidden = table === null;
+    tables.update(v);
     if (blockSelect) blockSelect.value = s.block;
   };
 
@@ -173,24 +160,12 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
       else run(createCodeBlockCommand.key);
     },
     table: () => insertTable(),
-    rowBefore: () => run(addRowBeforeCommand.key),
-    rowAfter: () => run(addRowAfterCommand.key),
-    rowDelete: () => removeRows(view().state, view().dispatch),
-    colBefore: () => columnBefore(view().state, view().dispatch),
-    colAfter: () => columnAfter(view().state, view().dispatch),
-    colDelete: () => removeColumns(view().state, view().dispatch),
-    tableDelete: () => removeTable(view().state, view().dispatch),
-    alignLeft: () => align("left"),
-    alignCenter: () => align("center"),
-    alignRight: () => align("right"),
+
     link: () => openLinkBar(),
     undo: () => run(undoCommand.key),
     redo: () => run(redoCommand.key),
   };
 
-  function align(to: Align): void {
-    alignColumns(view().state, view().dispatch, to);
-  }
 
   function toggleList(type: "bullet_list" | "ordered_list"): void {
     const v = view();
@@ -355,6 +330,7 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
       linkInput?.removeEventListener("keydown", onLinkKey);
       surface.removeEventListener("keydown", onEditorKey);
       surface.removeEventListener("keydown", onTableTab, true);
+      tables.destroy();
       void editor.destroy();
     },
   };

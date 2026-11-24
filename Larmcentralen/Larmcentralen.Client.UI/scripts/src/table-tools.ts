@@ -41,34 +41,13 @@ export function readTable(state: EditorState): TableState | null {
   };
 }
 
-/** Whether a table button can be used right now; null for commands that aren't table commands. */
-export function tableEnabled(cmd: string, t: TableState | null): boolean | null {
-  switch (cmd) {
-    case "rowBefore":
-    case "rowDelete":
-      return !!t && !t.inHeader;
-    case "rowAfter":
-    case "colBefore":
-    case "colAfter":
-    case "tableDelete":
-    case "alignLeft":
-    case "alignCenter":
-    case "alignRight":
-      return !!t;
-    case "colDelete":
-      return !!t && t.columns > 1;
-    default:
-      return null;
-  }
-}
-
 /**
- * Removes the selected rows. Refused when the selection touches the header row: a Markdown table needs it.
- * Removing the last body row leaves a table with just its header, which is still valid Markdown.
+ * Removes the selected rows. Refused when the selection touches the header row (a Markdown table needs it) and
+ * for the last row under it (Milkdown's table needs at least one; remove the table instead).
  */
 export function removeRows(state: EditorState, dispatch: Dispatch): boolean {
   const t = readTable(state);
-  if (!t || t.inHeader) return false;
+  if (!t || t.inHeader || t.bodyRows <= 1) return false;
   return deleteRow(state, dispatch);
 }
 

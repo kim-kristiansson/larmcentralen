@@ -135,7 +135,7 @@ public class SolutionContentTests
     [Fact]
     public void A_table_with_only_its_header_row_still_renders()
     {
-        // Left when every body row is removed in the editor.
+        // The editor always keeps one row under the header, but pasted Markdown can have just the header.
         var html = SolutionContent.ToHtml("| Steg | Värde |\n| :- | :- |");
         Assert.Contains("<th", html);
         Assert.Contains("Steg", html);
