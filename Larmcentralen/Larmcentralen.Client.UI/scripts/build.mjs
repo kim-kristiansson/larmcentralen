@@ -9,7 +9,7 @@ const common = { bundle: true, minify: true, target: "es2022", legalComments: "e
 // ES modules loaded on demand by the Razor components with import().
 await build({
   ...common,
-  entryPoints: ["src/theme.ts", "src/combobox.ts"],
+  entryPoints: ["src/theme.ts", "src/combobox.ts", "src/milkdown-interop.ts"],
   outdir: "../wwwroot/js",
   format: "esm",
 });

@@ -1,0 +1,84 @@
+/* Milkdown editor themed with the app tokens, for light and dark. The text area reuses .rich-content
+   (app.css), so what is typed looks like what operators read. Milkdown builds its DOM in JS, so the
+   rules for the text start with ::deep. */
+
+.md-editor { background: var(--surface); color: var(--ink); border: 1px solid var(--border-strong); border-radius: var(--radius); }
+.md-editor:focus-within { border-color: var(--ink); }
+
+/* Fixed toolbar: 48px targets, icons in currentColor. */
+.md-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3);
+  padding: var(--space-2); background: var(--surface-2); border-bottom: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0;
+  position: sticky; top: 0; z-index: 2;
+}
+.md-group { display: inline-flex; align-items: center; gap: 2px; }
+.md-toolbar button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: var(--control-h); height: var(--control-h); padding: 0; border: none; border-radius: var(--radius-sm);
+  background: transparent; color: var(--ink-soft); cursor: pointer; font: inherit;
+}
+.md-toolbar button:hover:not(:disabled) { background: var(--surface); color: var(--ink); }
+.md-toolbar button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+.md-toolbar button:disabled, .md-toolbar select:disabled { opacity: 0.45; cursor: default; }
+.md-toolbar svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.md-toolbar svg .thin { stroke-width: 1.5; }
+.md-toolbar svg .dot { fill: currentColor; stroke: none; }
+.glyph { font-size: 1.15rem; line-height: 1; }
+.glyph-bold { font-weight: 700; }
+.glyph-italic { font-style: italic; font-family: Georgia, "Times New Roman", serif; font-size: 1.3rem; }
+.glyph-strike { text-decoration: line-through; text-decoration-thickness: 2px; font-size: 1rem; }
+
+.md-toolbar select {
+  height: var(--control-h); min-width: 11rem; padding: 0 var(--space-3); font: inherit; font-size: var(--text-md);
+  color: var(--ink); background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+}
+
+/* Link bar under the toolbar. */
+.md-linkbar {
+  display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-2) var(--space-3);
+  padding: var(--space-3); background: var(--surface-2); border-bottom: 1px solid var(--border);
+}
+.md-linkbar[hidden] { display: none; }
+.md-linkbar label { display: grid; gap: var(--space-1); flex: 1 1 18rem; font-weight: 600; font-size: var(--text-md); }
+.md-linkbar input {
+  height: var(--control-h); padding: 0 var(--space-3); font: inherit; font-weight: 400; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+}
+.md-link-error { flex-basis: 100%; margin: 0; color: var(--error); font-weight: 600; }
+.md-link-error[hidden] { display: none; }
+
+/* Editing area. Base ProseMirror rules (normally prosemirror.css) plus the reader styles. */
+.md-surface ::deep .ProseMirror {
+  position: relative; min-height: 320px; padding: var(--space-4); max-width: none;
+  word-wrap: break-word; white-space: pre-wrap; white-space: break-spaces; font-variant-ligatures: none;
+  outline: none; color: var(--ink);
+}
+.md-surface ::deep .ProseMirror pre { white-space: pre-wrap; }
+.md-surface ::deep .ProseMirror li { position: relative; }
+.md-surface ::deep .ProseMirror p { margin: 0 0 0.6em; }
+.md-surface ::deep .ProseMirror > :first-child { margin-top: 0; }
+.md-surface ::deep .ProseMirror a { cursor: text; }
+.md-surface ::deep .ProseMirror-hideselection *::selection { background: transparent; }
+.md-surface ::deep .ProseMirror-hideselection { caret-color: transparent; }
+.md-surface ::deep .ProseMirror-selectednode { outline: 2px solid var(--focus); }
+.md-surface ::deep .ProseMirror-gapcursor { display: none; pointer-events: none; position: absolute; }
+.md-surface ::deep .ProseMirror-gapcursor::after {
+  content: ""; display: block; position: absolute; top: -2px; width: 20px; border-top: 1px solid var(--ink);
+}
+.md-surface ::deep .ProseMirror-focused .ProseMirror-gapcursor { display: block; }
+.md-surface ::deep .md-placeholder::before {
+  content: attr(data-placeholder); color: var(--muted); pointer-events: none; position: absolute;
+}
+
+/* Tables (prosemirror-tables) */
+.md-surface ::deep .ProseMirror table { table-layout: fixed; overflow: hidden; }
+.md-surface ::deep .ProseMirror td, .md-surface ::deep .ProseMirror th { vertical-align: top; position: relative; min-width: 4em; }
+.md-surface ::deep .ProseMirror td p, .md-surface ::deep .ProseMirror th p { margin: 0; }
+.md-surface ::deep .ProseMirror .selectedCell::after {
+  content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--ink) 12%, transparent); pointer-events: none;
+}
+.md-surface ::deep .ProseMirror .column-resize-handle {
+  position: absolute; right: -2px; top: 0; bottom: 0; width: 4px; background: var(--ink); pointer-events: none;
+}
+.md-surface ::deep .ProseMirror.resize-cursor { cursor: col-resize; }
