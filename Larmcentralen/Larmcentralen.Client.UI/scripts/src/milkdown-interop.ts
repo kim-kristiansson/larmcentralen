@@ -41,7 +41,7 @@ interface ToolbarState {
   marks: Record<"strong" | "emphasis" | "strike_through" | "inlineCode" | "link", boolean>;
   bullet: boolean;
   ordered: boolean;
-  /** The alert kind of the blockquote the cursor is in: "warning", "note", "plain" (a quote without kind) or "". */
+  /** The alert kind of the blockquote the cursor is in: "caution", "warning", "note", "plain" (no kind) or "". */
   quote: AlertKind | "plain" | "";
   codeBlock: boolean;
 }
@@ -128,6 +128,7 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
     code: () => run(toggleInlineCodeCommand.key),
     bullet: () => toggleList("bullet_list"),
     ordered: () => toggleList("ordered_list"),
+    caution: () => toggleAlert("caution"),
     warning: () => toggleAlert("warning"),
     note: () => toggleAlert("note"),
     codeBlock: () => {
@@ -143,7 +144,7 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
 
 
   /**
-   * Varning / Info: the same kind again turns the box back into normal text; the other kind (or a plain quote)
+   * Fara / Varning / Info: the same kind again turns the box back into normal text; another kind (or a plain quote)
    * changes the box; outside a box, the current paragraph becomes one.
    */
   function toggleAlert(kind: AlertKind): void {
@@ -413,7 +414,7 @@ function quoteKind($pos: ResolvedPos): AlertKind | "plain" | "" {
   const quote = nearest($pos, ["blockquote"]);
   if (!quote) return "";
   const alert = quote.node.attrs["alert"];
-  return alert === "warning" || alert === "note" ? alert : "plain";
+  return alert === "caution" || alert === "warning" || alert === "note" ? alert : "plain";
 }
 
 /** Whether a toolbar button shows as pressed; null for buttons that are actions, not states. */
@@ -426,6 +427,7 @@ function pressed(cmd: string, s: ToolbarState): boolean | null {
     case "link": return s.marks.link;
     case "bullet": return s.bullet;
     case "ordered": return s.ordered;
+    case "caution": return s.quote === "caution";
     case "warning": return s.quote === "warning";
     case "note": return s.quote === "note";
     case "codeBlock": return s.codeBlock;

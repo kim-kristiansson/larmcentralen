@@ -182,8 +182,9 @@ code { font-family: var(--font-mono); }
 .rich-content li { margin: 0.6em 0; }
 .rich-content li::marker { font-weight: 700; }
 .rich-content strong, .rich-content b { font-weight: 700; }
-/* A plain quote (no [!KIND]) is neutral. The Varning and Info boxes are GitHub alerts: .callout-* in the editor,
-   .markdown-alert-* from Markdig in the reader. CAUTION looks like Varning, TIP and IMPORTANT like Info. */
+/* A plain quote (no [!KIND]) is neutral. The Fara, Varning and Info boxes are GitHub alerts: .callout-* in the
+   editor, .markdown-alert-* from Markdig in the reader. Fara = CAUTION (risk of injury, red: the colour kept for
+   Kritisk and destructive actions), Varning = WARNING, Info = NOTE (TIP and IMPORTANT look like Info). */
 .rich-content blockquote {
   border-left: 6px solid var(--border-strong); color: var(--ink-soft);
   margin: 0.8em 0; padding: 10px 16px; border-radius: 0 6px 6px 0;
@@ -195,7 +196,11 @@ code { font-family: var(--font-mono); }
   content: ""; position: absolute; left: 16px; top: 12px; width: 24px; height: 24px; background: currentColor;
   -webkit-mask: var(--callout-icon) center / contain no-repeat; mask: var(--callout-icon) center / contain no-repeat;
 }
-.rich-content :is(.callout-warning, .markdown-alert-warning, .markdown-alert-caution) {
+.rich-content :is(.callout-caution, .markdown-alert-caution) {
+  border-color: var(--error-fill); background: var(--error-bg); color: var(--error); font-weight: 600;
+  --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='M8.3 2.5h7.4l5.3 5.3v7.4l-5.3 5.3H8.3L3 15.2V7.8z'/%3E%3Cpath d='M12 7.5v5.5' stroke-linecap='round'/%3E%3Ccircle cx='12' cy='16.4' r='1.2' fill='black' stroke='none'/%3E%3C/svg%3E");
+}
+.rich-content :is(.callout-warning, .markdown-alert-warning) {
   border-color: var(--warn-edge); background: var(--warn-bg); color: var(--warn); font-weight: 600;
   --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='M12 3.5 2.5 20h19z'/%3E%3Cpath d='M12 10v4.5' stroke-linecap='round'/%3E%3Ccircle cx='12' cy='17.2' r='1.2' fill='black' stroke='none'/%3E%3C/svg%3E");
 }

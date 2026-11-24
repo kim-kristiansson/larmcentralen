@@ -17,13 +17,13 @@ public static partial class SolutionContent
 {
     /// <summary>
     /// Only what the editor can produce: GFM pipe tables (with column alignment), ~~strikethrough~~, task lists,
-    /// autolinks and GitHub alerts (the Varning and Info boxes). Raw HTML is off.
+    /// autolinks and GitHub alerts (the Fara, Varning and Info boxes). Raw HTML is off.
     /// </summary>
     /// <remarks>
-    /// Alerts: "&gt; [!WARNING]" is the Varning box and "&gt; [!NOTE]" the Info box. They render as
-    /// &lt;div class="markdown-alert markdown-alert-warning|note"&gt; without Markdig's English title; the look is in
-    /// app.css. A future Word export should map [!WARNING] to the Word style "Varning" and [!NOTE] to "Info"
-    /// (CAUTION like WARNING; TIP and IMPORTANT like NOTE).
+    /// Alerts: "&gt; [!CAUTION]" is the Fara box (risk of injury), "&gt; [!WARNING]" Varning and "&gt; [!NOTE]" Info.
+    /// They render as &lt;div class="markdown-alert markdown-alert-caution|warning|note"&gt; without Markdig's English
+    /// title; the look is in app.css. A future Word export should map [!CAUTION] to the Word style "Fara",
+    /// [!WARNING] to "Varning" and [!NOTE] to "Info" (TIP and IMPORTANT like NOTE).
     /// </remarks>
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAlertBlocks(renderKind: static (_, _) => { })

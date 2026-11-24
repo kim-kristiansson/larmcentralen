@@ -52,10 +52,11 @@ const canonical: Record<string, string> = {
   "numbered list from 3": "3. Tre\n4. Fyra",
   "nested list": "1. Öppna skåpet\n   - Kontrollera säkringen\n   - Mät spänningen\n2. Stäng skåpet",
   "plain quote (neutral)": "> Bryt strömmen innan skåpet öppnas!",
+  "Fara box": "> [!CAUTION]\n> Het yta, risk för brännskada. Bär handskar.",
   "Varning box": "> [!WARNING]\n> Bryt strömmen innan skåpet öppnas!",
   "Info box": "> [!NOTE]\n> Ugnen behöver 10 minuter för att svalna.",
   "Info box with a list": "> [!NOTE]\n> Kontrollera:\n>\n> - Säkringen\n> - Givaren",
-  "Varning and Info after each other": "> [!WARNING]\n> Het yta!\n\n> [!NOTE]\n> Bär handskar.",
+  "Fara, Varning and Info after each other": "> [!CAUTION]\n> Gas!\n\n> [!WARNING]\n> Het yta!\n\n> [!NOTE]\n> Bär handskar.",
   "bold, italic, strike": "**Fet** och *kursiv* och ~~struken~~.",
   "inline code": "Sätt `P-204` till 0.",
   "code block": "```\nRESET 1\nSTART\n```",
@@ -84,7 +85,8 @@ const normalised: [string, string, string][] = [
   ["*** rule", "Före\n\n***\n\nEfter", "Före\n\n---\n\nEfter"],
   ["padded table", "| A   | B   |\n| :-- | --: |\n| 1   | 2   |", "| A | B |\n| :- | -: |\n| 1 | 2 |"],
   ["two-space hard break", "Rad ett  \nRad två", "Rad ett\\\nRad två"],
-  ["CAUTION alert", "> [!CAUTION]\n> Het yta!", "> [!WARNING]\n> Het yta!"],
+  ["lower-case caution", "> [!caution]\n> Gas!", "> [!CAUTION]\n> Gas!"],
+  ["IMPORTANT alert", "> [!IMPORTANT]\n> Läs först.", "> [!NOTE]\n> Läs först."],
   ["TIP alert in lower case", "> [!tip]\n> Bär handskar.", "> [!NOTE]\n> Bär handskar."],
   ["image title that repeats its text", "![Film](film/givare.mp4 \"Film\")", "![Film](film/givare.mp4)"],
 ];
@@ -116,13 +118,19 @@ test("an .mp4 image is shown as a video in the editor", async () => {
   root.remove();
 });
 
-test("Varning and Info boxes are blockquotes with their kind in the editor, and no [!...] text", async () => {
+test("Fara, Varning and Info boxes are blockquotes with their kind in the editor, and no [!...] text", async () => {
   const root = document.createElement("div");
   document.body.appendChild(root);
-  const editor = await setup.createEditor(root, "> [!WARNING]\n> Het yta!\n\n> [!NOTE]\n> Bär handskar.\n\n> Citat");
+  const editor = await setup.createEditor(root, "> [!CAUTION]\n> Gas!\n\n> [!WARNING]\n> Het yta!\n\n> [!NOTE]\n> Bär handskar.\n\n> Citat");
   const quotes = Array.from(root.querySelectorAll("blockquote")).map((q) => q.getAttribute("data-alert") ?? "plain");
-  assert.deepEqual(quotes, ["warning", "note", "plain"]);
+  assert.deepEqual(quotes, ["caution", "warning", "note", "plain"]);
   assert.doesNotMatch(root.textContent ?? "", /\[!/);
   await editor.destroy();
   root.remove();
+});
+test("the toolbar offers the boxes in the order Fara, Varning, Info, with Swedish tooltips", async () => {
+  const { readFileSync } = await import("node:fs");
+  const razor = readFileSync(new URL("../../Components/MarkdownEditor.razor", import.meta.url), "utf8");
+  const boxes = [...razor.matchAll(/data-cmd="(caution|warning|note)" title="([^"]+)"/g)].map((m) => `${m[1]}:${m[2]}`);
+  assert.deepEqual(boxes, ["caution:Fara", "warning:Varning", "note:Info"]);
 });

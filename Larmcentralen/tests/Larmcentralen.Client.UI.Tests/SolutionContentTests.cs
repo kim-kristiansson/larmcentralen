@@ -160,9 +160,10 @@ public class SolutionContentTests
     }
 
     [Theory]
+    [InlineData("> [!CAUTION]\n> Het yta, risk för brännskada.", "markdown-alert-caution")]
     [InlineData("> [!WARNING]\n> Bryt strömmen innan skåpet öppnas!", "markdown-alert-warning")]
     [InlineData("> [!NOTE]\n> Ugnen behöver 10 minuter för att svalna.", "markdown-alert-note")]
-    public void Varning_and_info_boxes_render_as_alerts_without_marker_or_title(string markdown, string cssClass)
+    public void Fara_varning_and_info_boxes_render_as_alerts_without_marker_or_title(string markdown, string cssClass)
     {
         var html = SolutionContent.ToHtml(markdown);
         Assert.Contains($"class=\"markdown-alert {cssClass}\"", html);

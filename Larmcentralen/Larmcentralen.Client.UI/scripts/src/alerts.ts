@@ -1,21 +1,22 @@
-// The Varning and Info boxes: GitHub alert syntax, so åtgärder stay plain Markdown.
+// The Fara, Varning and Info boxes: GitHub alert syntax, so åtgärder stay plain Markdown.
 //
-//   > [!WARNING]          > [!NOTE]
-//   > Bryt strömmen!      > Ugnen behöver svalna.
+//   > [!CAUTION]                 > [!WARNING]          > [!NOTE]
+//   > Het yta, risk för brännskada.   > Bryt strömmen!      > Ugnen behöver svalna.
 //
-// In the editor both are a blockquote with an `alert` attribute ("warning" or "note"); a blockquote without one is a
-// plain, neutral quote. Reading: a remark plugin takes the "[!KIND]" line off and sets `alert`. Writing: the
-// blockquote handler puts the line back. CAUTION reads as warning and TIP / IMPORTANT as note; the editor only
-// writes WARNING and NOTE. (A future Word export maps WARNING to the style "Varning" and NOTE to "Info".)
+// Fara is for risk of personal injury, Varning for risk of damage or a wrong result, Info for good-to-know.
+// In the editor each is a blockquote with an `alert` attribute ("caution", "warning" or "note"); a blockquote without
+// one is a plain, neutral quote. Reading: a remark plugin takes the "[!KIND]" line off and sets `alert`. Writing: the
+// blockquote handler puts the line back. TIP and IMPORTANT read as note; the editor only writes CAUTION, WARNING and
+// NOTE. (A future Word export maps CAUTION to the style "Fara", WARNING to "Varning" and NOTE to "Info".)
 import { blockquoteSchema } from "@milkdown/kit/preset/commonmark";
 import { $remark } from "@milkdown/kit/utils";
 import type { Ctx } from "@milkdown/kit/ctx";
 import { defaultHandlers } from "mdast-util-to-markdown";
 
-export type AlertKind = "warning" | "note";
+export type AlertKind = "caution" | "warning" | "note";
 
-const kinds: Record<string, AlertKind> = { WARNING: "warning", CAUTION: "warning", NOTE: "note", TIP: "note", IMPORTANT: "note" };
-const marker: Record<AlertKind, string> = { warning: "WARNING", note: "NOTE" };
+const kinds: Record<string, AlertKind> = { CAUTION: "caution", WARNING: "warning", NOTE: "note", TIP: "note", IMPORTANT: "note" };
+const marker: Record<AlertKind, string> = { caution: "CAUTION", warning: "WARNING", note: "NOTE" };
 const markerLine = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*(?:\r?\n|$)/i;
 
 interface MdNode {
@@ -65,7 +66,7 @@ export function configureAlerts(ctx: Ctx): void {
           tag: "blockquote",
           getAttrs: (dom) => {
             const kind = dom instanceof HTMLElement ? dom.dataset["alert"] : undefined;
-            return { alert: kind === "warning" || kind === "note" ? kind : null };
+            return { alert: kind === "caution" || kind === "warning" || kind === "note" ? kind : null };
           },
         },
       ],

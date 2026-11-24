@@ -30,7 +30,7 @@ Everything targets **.NET 11**. The target framework is set once in `Directory.B
   Alarm codes also match without their letter prefix (`200.4` finds `M200.4`).
 - Creating, editing and deleting need a connection in v1. After each write the app re-syncs.
 - Solutions (åtgärder) are stored as Markdown, edited with Milkdown (MIT, bundled locally) and shown with Markdig with raw HTML switched off.
-- The Varning and Info boxes are GitHub alerts in that Markdown (`> [!WARNING]` and `> [!NOTE]`), so the text stays plain Markdown. A future Word export should map `[!WARNING]` to the Word style "Varning" and `[!NOTE]` to "Info".
+- The Fara, Varning and Info boxes are GitHub alerts in that Markdown (`> [!CAUTION]`, `> [!WARNING]` and `> [!NOTE]`), so the text stays plain Markdown. Fara is for risk of personal injury. A future Word export should map `[!CAUTION]` to the Word style "Fara", `[!WARNING]` to "Varning" and `[!NOTE]` to "Info" (`[!TIP]` and `[!IMPORTANT]` like Info).
 
 ## Server database
 
