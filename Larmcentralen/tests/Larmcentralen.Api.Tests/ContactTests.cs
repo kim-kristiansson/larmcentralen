@@ -169,4 +169,87 @@ public sealed class ContactTests(ApiFactory factory) : IClassFixture<ApiFactory>
         using var response = await client.SendAsync(request, Ct);
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
+
+    /// <summary>A fresh invented number in three ways of writing it: 0701234567, +46701234567 and 070-123 45 67.</summary>
+    private static (string Plain, string International, string Spaced) NewNumber()
+    {
+        var n = Random.Shared.Next(10000, 99999).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return ($"07000{n}", $"+467000{n}", $"070-00{n[0]} {n[1..3]} {n[3..]}");
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 2)]
+    [InlineData(2, 0)]
+    public async Task The_same_number_twice_is_409_however_it_is_written(int firstWay, int secondWay)
+    {
+        using var c = Admin();
+        var role = await CreatedAsync<RoleRow>(c, "api/contact-roles", new { name = Unique("Roll") });
+        var number = NewNumber();
+        string[] ways = [number.Plain, number.International, number.Spaced];
+        var first = await CreatedAsync<ContactRow>(c, "api/contacts", new { name = Unique("Maria Exempel"), phone = ways[firstWay], roleId = role.Id });
+
+        using var response = await c.PostAsJsonAsync("api/contacts", new { name = Unique("Någon Annan"), phone = ways[secondWay], roleId = role.Id }, Ct);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal($"Numret används redan av {first.Name}.", (await ProblemAsync(response))?.Detail);
+    }
+
+    [Fact]
+    public async Task The_same_name_twice_is_409_ignoring_case_and_spacing()
+    {
+        using var c = Admin();
+        var role = await CreatedAsync<RoleRow>(c, "api/contact-roles", new { name = Unique("Roll") });
+        var name = Unique("Åsa Exempel");
+        var first = await CreatedAsync<ContactRow>(c, "api/contacts", new { name = $"  {name.Replace(" ", "   ")} ", phone = NewNumber().Plain, roleId = role.Id });
+        Assert.Equal(name, first.Name);
+
+        using var response = await c.PostAsJsonAsync("api/contacts", new { name = name.ToUpperInvariant(), phone = NewNumber().Plain, roleId = role.Id }, Ct);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal($"Det finns redan en kontakt som heter {name}.", (await ProblemAsync(response))?.Detail);
+    }
+
+    [Fact]
+    public async Task Editing_into_another_contacts_name_or_number_is_409_but_keeping_your_own_is_fine()
+    {
+        using var c = Admin();
+        var role = await CreatedAsync<RoleRow>(c, "api/contact-roles", new { name = Unique("Roll") });
+        var takenNumber = NewNumber();
+        var taken = await CreatedAsync<ContactRow>(c, "api/contacts", new { name = Unique("Erik Exempel"), phone = takenNumber.Plain, roleId = role.Id });
+        var mine = NewNumber();
+        var me = await CreatedAsync<ContactRow>(c, "api/contacts", new { name = Unique("Sara Exempel"), phone = mine.Plain, roleId = role.Id });
+
+        using (var sameName = await c.PutAsJsonAsync($"api/contacts/{me.Id}", new { name = taken.Name.ToLowerInvariant(), phone = mine.Plain, roleId = role.Id }, Ct))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, sameName.StatusCode);
+            Assert.Equal($"Det finns redan en kontakt som heter {taken.Name}.", (await ProblemAsync(sameName))?.Detail);
+        }
+        using (var sameNumber = await c.PutAsJsonAsync($"api/contacts/{me.Id}", new { name = me.Name, phone = takenNumber.Spaced, roleId = role.Id }, Ct))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, sameNumber.StatusCode);
+            Assert.Equal($"Numret används redan av {taken.Name}.", (await ProblemAsync(sameNumber))?.Detail);
+        }
+        // Its own name and number, written another way, is not a clash with itself.
+        using (var own = await c.PutAsJsonAsync($"api/contacts/{me.Id}", new { name = me.Name.ToUpperInvariant(), phone = mine.International, roleId = role.Id, note = "kvällar" }, Ct))
+            Assert.Equal(HttpStatusCode.OK, own.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_role_name_is_stored_with_spaces_tidied_and_rename_checks_it_the_same_way()
+    {
+        using var c = Admin();
+        var name = Unique("Underhåll el");
+        var role = await CreatedAsync<RoleRow>(c, "api/contact-roles", new { name = $"  {name.Replace(" ", "   ")}  " });
+        Assert.Equal(name, role.Name);
+
+        using (var again = await c.PostAsJsonAsync("api/contact-roles", new { name = name.Replace(" ", "  ").ToUpperInvariant() }, Ct))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
+            Assert.Equal($"Det finns redan en roll som heter {name}.", (await ProblemAsync(again))?.Detail);
+        }
+
+        var other = await CreatedAsync<RoleRow>(c, "api/contact-roles", new { name = Unique("Underhåll mek") });
+        using var rename = await c.PutAsJsonAsync($"api/contact-roles/{other.Id}", new { name = $" {name.ToLowerInvariant().Replace(" ", "    ")} " }, Ct);
+        Assert.Equal(HttpStatusCode.Conflict, rename.StatusCode);
+        Assert.Equal($"Det finns redan en roll som heter {name}.", (await ProblemAsync(rename))?.Detail);
+    }
 }

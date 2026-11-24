@@ -65,7 +65,7 @@ public class ContactService(IContactRepository contacts, IContactRoleRepository 
 
     public async Task<WriteResult<ContactDto>> CreateContactAsync(SaveContactDto dto)
     {
-        var (values, invalid) = await ValidateContactAsync(dto);
+        var (values, invalid) = await ValidateContactAsync(dto, null);
         if (invalid is not null) return invalid;
 
         var contact = new Contact { Name = values.Name, Phone = values.Phone, RoleId = values.Role.Id, Role = values.Role, Note = values.Note };
@@ -78,7 +78,7 @@ public class ContactService(IContactRepository contacts, IContactRoleRepository 
     {
         var contact = await contacts.GetByIdWithRoleAsync(id);
         if (contact is null) return WriteResult<ContactDto>.NotFound();
-        var (values, invalid) = await ValidateContactAsync(dto);
+        var (values, invalid) = await ValidateContactAsync(dto, id);
         if (invalid is not null) return invalid;
 
         contact.Name = values.Name;
@@ -104,12 +104,12 @@ public class ContactService(IContactRepository contacts, IContactRoleRepository 
     {
         if (name.Length == 0) return WriteResult<ContactRoleDto>.Invalid("Ange rollens namn.");
         if (name.Length > NameMaxLength) return WriteResult<ContactRoleDto>.Invalid($"Namnet får vara högst {NameMaxLength} tecken.");
-        if ((await roles.GetAllAsync()).Any(r => r.Id != id && string.Equals(r.Name, name, StringComparison.CurrentCultureIgnoreCase)))
-            return WriteResult<ContactRoleDto>.Conflict($"Det finns redan en roll som heter {name}.");
+        if ((await roles.GetAllAsync()).FirstOrDefault(r => r.Id != id && SameName(r.Name, name)) is { } same)
+            return WriteResult<ContactRoleDto>.Conflict($"Det finns redan en roll som heter {Clean(same.Name)}.");
         return null;
     }
 
-    private async Task<((string Name, string Phone, ContactRole Role, string? Note) Values, WriteResult<ContactDto>? Error)> ValidateContactAsync(SaveContactDto dto)
+    private async Task<((string Name, string Phone, ContactRole Role, string? Note) Values, WriteResult<ContactDto>? Error)> ValidateContactAsync(SaveContactDto dto, int? id)
     {
         static WriteResult<ContactDto> Invalid(string error) => WriteResult<ContactDto>.Invalid(error);
 
@@ -127,6 +127,13 @@ public class ContactService(IContactRepository contacts, IContactRoleRepository 
         var note = AreaService.Clean(dto.Note);
         if (note?.Length > NoteMaxLength) return (default, Invalid($"Anmärkningen får vara högst {NoteMaxLength} tecken."));
 
+        // The same person twice, or two people on one number, is a mistake: the company has no shared numbers.
+        var others = (await contacts.GetAllAsync()).Where(c => c.Id != id).ToList();
+        if (others.FirstOrDefault(c => SameName(c.Name, name)) is { } sameName)
+            return (default, WriteResult<ContactDto>.Conflict($"Det finns redan en kontakt som heter {Clean(sameName.Name)}."));
+        if (others.FirstOrDefault(c => SwedishPhoneNumber.SameNumber(c.Phone, phone)) is { } sameNumber)
+            return (default, WriteResult<ContactDto>.Conflict($"Numret används redan av {Clean(sameNumber.Name)}."));
+
         return ((name, phone, role, note), null);
     }
 
@@ -138,7 +145,11 @@ public class ContactService(IContactRepository contacts, IContactRoleRepository 
         _ => string.Join(", ", names.Take(names.Count - 1)) + " och " + names[^1]
     };
 
-    private static string Clean(string? text) => text?.Trim() ?? "";
+    /// <summary>Trimmed, with runs of spaces inside made one: "  Anna   Berg " is "Anna Berg".</summary>
+    internal static string Clean(string? text) => string.Join(' ', (text ?? "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+    /// <summary>The same name however it is spaced or cased ("anna  berg" is "Anna Berg"), å, ä and ö included.</summary>
+    internal static bool SameName(string? a, string? b) => string.Equals(Clean(a), Clean(b), StringComparison.CurrentCultureIgnoreCase);
 
     private static ContactRoleDto ToDto(ContactRole r) => new(r.Id, r.Name, r.Contacts.Count);
 
