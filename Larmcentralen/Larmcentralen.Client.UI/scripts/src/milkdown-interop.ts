@@ -10,7 +10,6 @@ import {
   turnIntoTextCommand,
   wrapInBulletListCommand,
   wrapInOrderedListCommand,
-  wrapInBlockquoteCommand,
   liftListItemCommand,
   createCodeBlockCommand,
 } from "@milkdown/kit/preset/commonmark";
@@ -19,7 +18,7 @@ import { undoCommand, redoCommand } from "@milkdown/kit/plugin/history";
 import { $prose, callCommand } from "@milkdown/kit/utils";
 import { Plugin, PluginKey, TextSelection, type EditorState } from "@milkdown/kit/prose/state";
 import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
-import { lift } from "@milkdown/kit/prose/commands";
+import { findWrapping, liftTarget } from "@milkdown/kit/prose/transform";
 import type { MarkType, Node as ProseNode, ResolvedPos } from "@milkdown/kit/prose/model";
 import { readTable, nextCellOrNewRow } from "./table-tools";
 import { createTableOverlay } from "./table-overlay";
@@ -102,6 +101,9 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
 
   const buttons = Array.from(toolbar.querySelectorAll<HTMLButtonElement>("button[data-cmd]"));
   const blockSelect = toolbar.querySelector<HTMLSelectElement>("select[data-cmd='block']");
+  const boxButton = toolbar.querySelector<HTMLButtonElement>("button[data-cmd='box']");
+  const boxMenu = toolbar.querySelector<HTMLElement>(".md-box-menu") ?? document.createElement("span");
+  const boxItems = Array.from(boxMenu.querySelectorAll<HTMLButtonElement>(".md-box-item"));
   const linkInput = linkBar.querySelector<HTMLInputElement>("input");
   const linkError = linkBar.querySelector<HTMLElement>(".md-link-error");
   let ready = false;
@@ -118,6 +120,19 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
     }
     tables.update(v);
     if (blockSelect) blockSelect.value = s.block;
+    const kind = s.quote === "caution" || s.quote === "warning" || s.quote === "note" ? s.quote : "none";
+    if (boxButton) {
+      boxButton.dataset["kind"] = kind;
+      const name = kind === "none" ? "" : (boxMenu.querySelector(`[data-box="${kind}"] span`)?.textContent ?? "");
+      const title = name ? `${boxMenu.getAttribute("aria-label") ?? "Ruta"}: ${name}` : (boxMenu.getAttribute("aria-label") ?? "Ruta");
+      boxButton.title = title;
+      boxButton.setAttribute("aria-label", title);
+    }
+    for (const item of boxItems) {
+      const box = item.dataset["box"];
+      if (box === "none") item.disabled = s.quote === "";
+      else item.setAttribute("aria-checked", box === kind ? "true" : "false");
+    }
   };
 
   // --- Commands ---------------------------------------------------------------------------------
@@ -128,9 +143,7 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
     code: () => run(toggleInlineCodeCommand.key),
     bullet: () => toggleList("bullet_list"),
     ordered: () => toggleList("ordered_list"),
-    caution: () => toggleAlert("caution"),
-    warning: () => toggleAlert("warning"),
-    note: () => toggleAlert("note"),
+    box: () => (boxMenu.hidden ? openBoxMenu(false) : closeBoxMenu(false)),
     codeBlock: () => {
       if (readState(view().state).codeBlock) run(turnIntoTextCommand.key);
       else run(createCodeBlockCommand.key);
@@ -144,24 +157,29 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
 
 
   /**
-   * Fara / Varning / Info: the same kind again turns the box back into normal text; another kind (or a plain quote)
-   * changes the box; outside a box, the current paragraph becomes one.
+   * The Ruta menu: Fara / Varning / Info turn the current paragraph into that box or switch the box the cursor is in;
+   * null ("Ingen ruta") turns the whole box back into normal text.
    */
-  function toggleAlert(kind: AlertKind): void {
+  function setBox(kind: AlertKind | null): void {
     const v = view();
     const quote = nearest(v.state.selection.$from, ["blockquote"]);
-    if (quote && quote.node.attrs["alert"] === kind) {
-      lift(v.state, v.dispatch);
+    if (kind === null) {
+      if (!quote) return;
+      const range = v.state.doc.resolve(quote.pos + 1).blockRange(v.state.doc.resolve(quote.pos + quote.node.nodeSize - 1));
+      const target = range ? liftTarget(range) : null;
+      if (range && target !== null) v.dispatch(v.state.tr.lift(range, target));
       return;
     }
     if (quote) {
       v.dispatch(v.state.tr.setNodeMarkup(quote.pos, undefined, { ...quote.node.attrs, alert: kind }));
       return;
     }
-    run(wrapInBlockquoteCommand.key);
-    const after = view();
-    const made = nearest(after.state.selection.$from, ["blockquote"]);
-    if (made) after.dispatch(after.state.tr.setNodeMarkup(made.pos, undefined, { ...made.node.attrs, alert: kind }));
+    // Wrap the selected paragraphs in a box of this kind, in one step.
+    const quoteType = v.state.schema.nodes["blockquote"];
+    const { $from, $to } = v.state.selection;
+    const range = $from.blockRange($to);
+    const wrapping = range && quoteType ? findWrapping(range, quoteType, { alert: kind }) : null;
+    if (range && wrapping) v.dispatch(v.state.tr.wrap(range, wrapping).scrollIntoView());
   }
 
   function toggleList(type: "bullet_list" | "ordered_list"): void {
@@ -256,13 +274,19 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
   // --- DOM wiring -------------------------------------------------------------------------------
   const keepSelection = (e: MouseEvent): void => {
     // Clicking a toolbar button must not move focus (and the selection) out of the text.
-    if ((e.target as Element).closest("button[data-cmd]")) e.preventDefault();
+    if ((e.target as Element).closest("button[data-cmd], .md-box-item")) e.preventDefault();
   };
   const onToolbarClick = (e: MouseEvent): void => {
     const button = (e.target as Element).closest<HTMLButtonElement>("button[data-cmd]");
     const command = button?.dataset.cmd ? commands[button.dataset.cmd] : undefined;
     if (!command) return;
     e.preventDefault();
+    if (button?.dataset.cmd === "box") {
+      // Opened with Enter or Space (no pointer: detail 0): focus goes into the menu, as for ArrowDown.
+      if (boxMenu.hidden) openBoxMenu(e.detail === 0);
+      else closeBoxMenu(e.detail === 0);
+      return;
+    }
     command();
     if (button?.dataset.cmd !== "link") view().focus();
   };
@@ -306,6 +330,11 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
     const i = list.indexOf(document.activeElement as HTMLElement);
     if (i < 0) return;
     let next: HTMLElement | undefined;
+    if (e.key === "ArrowDown" && list[i] === boxButton) {
+      e.preventDefault();
+      openBoxMenu(true);
+      return;
+    }
     if (e.key === "ArrowRight") next = list[(i + 1) % list.length];
     else if (e.key === "ArrowLeft") next = list[(i - 1 + list.length) % list.length];
     else if (e.key === "Home") next = list[0];
@@ -319,6 +348,82 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
     const target = e.target as HTMLElement;
     if (controls().includes(target)) for (const c of controls()) c.tabIndex = c === target ? 0 : -1;
   };
+  // --- The Ruta menu -------------------------------------------------------------------------------
+  function openBoxMenu(focusFirst: boolean): void {
+    if (!boxButton) return;
+    boxMenu.hidden = false;
+    boxButton.setAttribute("aria-expanded", "true");
+    placeBoxMenu();
+    const items = enabledBoxItems();
+    const current = items.find((i) => i.getAttribute("aria-checked") === "true");
+    if (focusFirst) (current ?? items[0])?.focus();
+  }
+  function closeBoxMenu(returnFocus: boolean): void {
+    if (boxMenu.hidden) return;
+    boxMenu.hidden = true;
+    boxButton?.setAttribute("aria-expanded", "false");
+    if (returnFocus) boxButton?.focus();
+  }
+  const enabledBoxItems = (): HTMLButtonElement[] => boxItems.filter((i) => !i.disabled);
+  /** Under the button, shifted to stay inside the editor; above it if there is no room below in the window. */
+  function placeBoxMenu(): void {
+    if (!boxButton) return;
+    const holder = boxButton.parentElement as HTMLElement;
+    const editorBox = root.getBoundingClientRect();
+    const b = boxButton.getBoundingClientRect();
+    boxMenu.style.left = "0px";
+    boxMenu.style.top = `${b.height + 4}px`;
+    boxMenu.style.bottom = "";
+    const m = boxMenu.getBoundingClientRect();
+    const shift = Math.min(0, editorBox.right - 8 - m.right) + Math.max(0, editorBox.left + 8 - m.left);
+    boxMenu.style.left = `${shift}px`;
+    if (m.bottom > window.innerHeight - 8 && b.top - m.height - 4 > 8) {
+      boxMenu.style.top = "";
+      boxMenu.style.bottom = `${holder.offsetHeight + 4}px`;
+    }
+  }
+  const onBoxMenuClick = (e: MouseEvent): void => {
+    const item = (e.target as Element).closest<HTMLButtonElement>(".md-box-item");
+    if (!item || item.disabled) return;
+    e.preventDefault();
+    const box = item.dataset["box"];
+    setBox(box === "caution" || box === "warning" || box === "note" ? box : null);
+    closeBoxMenu(false);
+    view().focus();
+  };
+  const onBoxMenuKey = (e: KeyboardEvent): void => {
+    const items = enabledBoxItems();
+    const i = items.indexOf(document.activeElement as HTMLButtonElement);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      e.stopPropagation();
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      items[(i + step + items.length) % items.length]?.focus();
+    } else if (e.key === "Home" || e.key === "End") {
+      e.preventDefault();
+      e.stopPropagation();
+      (e.key === "Home" ? items[0] : items[items.length - 1])?.focus();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      closeBoxMenu(true);
+    } else if (e.key === "Tab") {
+      closeBoxMenu(false);
+    }
+  };
+  const onDocPointer = (e: Event): void => {
+    if (!boxMenu.hidden && !(e.target as Element).closest(".md-box")) closeBoxMenu(false);
+  };
+  // Escape closes the menu also when it was opened with the mouse and focus stayed in the text.
+  const onDocKey = (e: KeyboardEvent): void => {
+    if (e.key !== "Escape" || boxMenu.hidden || boxMenu.contains(document.activeElement)) return;
+    e.preventDefault();
+    closeBoxMenu(false);
+  };
+  boxMenu.addEventListener("click", onBoxMenuClick);
+  boxMenu.addEventListener("keydown", onBoxMenuKey);
+  document.addEventListener("pointerdown", onDocPointer, true);
+  document.addEventListener("keydown", onDocKey, true);
   toolbar.addEventListener("keydown", onToolbarKey);
   toolbar.addEventListener("focusin", onToolbarFocus);
   toolbar.addEventListener("mousedown", keepSelection);
@@ -356,6 +461,10 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
     dispose: () => {
       toolbar.removeEventListener("mousedown", keepSelection);
       toolbar.removeEventListener("keydown", onToolbarKey);
+      boxMenu.removeEventListener("click", onBoxMenuClick);
+      boxMenu.removeEventListener("keydown", onBoxMenuKey);
+      document.removeEventListener("pointerdown", onDocPointer, true);
+      document.removeEventListener("keydown", onDocKey, true);
       toolbar.removeEventListener("focusin", onToolbarFocus);
       toolbar.removeEventListener("click", onToolbarClick);
       blockSelect?.removeEventListener("change", onBlockChange);
@@ -427,9 +536,6 @@ function pressed(cmd: string, s: ToolbarState): boolean | null {
     case "link": return s.marks.link;
     case "bullet": return s.bullet;
     case "ordered": return s.ordered;
-    case "caution": return s.quote === "caution";
-    case "warning": return s.quote === "warning";
-    case "note": return s.quote === "note";
     case "codeBlock": return s.codeBlock;
     default: return null;
   }

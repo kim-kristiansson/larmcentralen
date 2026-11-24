@@ -128,9 +128,80 @@ test("Fara, Varning and Info boxes are blockquotes with their kind in the editor
   await editor.destroy();
   root.remove();
 });
-test("the toolbar offers the boxes in the order Fara, Varning, Info, with Swedish tooltips", async () => {
+
+const razorPath = new URL("../../Components/MarkdownEditor.razor", import.meta.url);
+
+/** The editor's markup as the Razor component renders it (Razor attributes and comments removed). */
+async function editorMarkup(): Promise<string> {
   const { readFileSync } = await import("node:fs");
-  const razor = readFileSync(new URL("../../Components/MarkdownEditor.razor", import.meta.url), "utf8");
-  const boxes = [...razor.matchAll(/data-cmd="(caution|warning|note)" title="([^"]+)"/g)].map((m) => `${m[1]}:${m[2]}`);
-  assert.deepEqual(boxes, ["caution:Fara", "warning:Varning", "note:Info"]);
+  const razor = readFileSync(razorPath, "utf8");
+  const start = razor.indexOf('<div class="md-editor"');
+  const end = razor.indexOf("@if (_loadError");
+  return razor.slice(start, end).replace(/@ref="[^"]*"/g, "").replace(/@\*[\s\S]*?\*@/g, "");
+}
+
+test("one Ruta button holds Fara, Varning, Info and Ingen ruta, in that order, in Swedish", async () => {
+  const host = document.createElement("div");
+  host.innerHTML = await editorMarkup();
+  const button = host.querySelector('[data-cmd="box"]');
+  assert.equal(button?.getAttribute("title"), "Ruta");
+  assert.equal(button?.getAttribute("aria-haspopup"), "menu");
+  const items = Array.from(host.querySelectorAll(".md-box-item")).map((i) => `${i.getAttribute("data-box")}:${i.querySelector("span")?.textContent}`);
+  assert.deepEqual(items, ["caution:Fara", "warning:Varning", "note:Info", "none:Ingen ruta"]);
+  assert.equal(host.querySelectorAll('[data-cmd="caution"], [data-cmd="warning"], [data-cmd="note"]').length, 0, "no separate box buttons any more");
+});
+
+test("the Ruta menu applies, switches and removes a box, with the mouse and the keyboard", async () => {
+  Object.defineProperty(globalThis, "ResizeObserver", {
+    value: class { observe() {} unobserve() {} disconnect() {} },
+    configurable: true,
+    writable: true,
+  });
+  const interop = await import("../src/milkdown-interop");
+  const host = document.createElement("div");
+  host.innerHTML = await editorMarkup();
+  document.body.appendChild(host);
+  const root = host.querySelector<HTMLElement>(".md-editor")!;
+  const handle = await interop.create(root, "Het yta.", "", "Åtgärd");
+  const button = root.querySelector<HTMLButtonElement>('[data-cmd="box"]')!;
+  const menu = root.querySelector<HTMLElement>(".md-box-menu")!;
+  const item = (kind: string) => menu.querySelector<HTMLButtonElement>(`[data-box="${kind}"]`)!;
+  const key = (target: Element, k: string) => target.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true }));
+
+  assert.equal(menu.hidden, true);
+  assert.equal(item("none").disabled, true, "Ingen ruta is off outside a box");
+  button.click();
+  assert.equal(menu.hidden, false, "the button opens the menu");
+  item("caution").click();
+  assert.equal(menu.hidden, true, "choosing closes the menu");
+  assert.equal(interop.getMarkdown(handle), "> [!CAUTION]\n> Het yta.");
+  assert.equal(button.dataset["kind"], "caution");
+  assert.equal(button.title, "Ruta: Fara");
+  assert.equal(item("caution").getAttribute("aria-checked"), "true");
+
+  button.click();
+  item("note").click();
+  assert.equal(interop.getMarkdown(handle), "> [!NOTE]\n> Het yta.", "switches the kind");
+  button.click();
+  item("none").click();
+  assert.equal(interop.getMarkdown(handle), "Het yta.", "Ingen ruta removes the box");
+  assert.equal(button.title, "Ruta");
+
+  // Keyboard: ArrowDown on the button opens the menu and focuses the first item; arrows move; Escape returns focus.
+  button.focus();
+  key(button, "ArrowDown");
+  assert.equal(menu.hidden, false);
+  assert.equal(document.activeElement, item("caution"));
+  key(document.activeElement!, "ArrowDown");
+  assert.equal(document.activeElement, item("warning"));
+  (document.activeElement as HTMLButtonElement).click();
+  assert.equal(interop.getMarkdown(handle), "> [!WARNING]\n> Het yta.");
+  key(button, "ArrowDown");
+  assert.equal(document.activeElement, item("warning"), "the current kind gets focus");
+  key(document.activeElement!, "Escape");
+  assert.equal(menu.hidden, true);
+  assert.equal(document.activeElement, button, "Escape returns focus to the button");
+
+  interop.destroy(handle);
+  host.remove();
 });

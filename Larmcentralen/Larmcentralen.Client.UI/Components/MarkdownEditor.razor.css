@@ -158,3 +158,36 @@
 .md-surface ::deep .md-tbl-danger:not(:disabled) { color: var(--error); }
 .md-surface ::deep .md-tbl-confirm:not(:disabled) { background: var(--error-fill); color: var(--on-error-fill); font-weight: 600; }
 .md-surface ::deep .md-tbl-confirm:hover:not(:disabled), .md-surface ::deep .md-tbl-confirm:focus-visible { background: var(--error-fill); box-shadow: inset 0 0 0 2px var(--focus); }
+
+/* The Ruta button (Fara / Varning / Info) and its menu, styled like the table menus. The button shows the box the
+   cursor is in, in that box's colour; a neutral box otherwise. */
+.md-box { position: relative; display: inline-flex; }
+.md-toolbar button.md-box-button { width: 56px; gap: 1px; }
+.md-box-button svg:not(.caret) { display: none; }
+.md-box-button[data-kind="none"] .kind-none,
+.md-box-button[data-kind="caution"] .kind-caution,
+.md-box-button[data-kind="warning"] .kind-warning,
+.md-box-button[data-kind="note"] .kind-note { display: block; }
+.md-toolbar .md-box-button .caret { width: 10px; height: 10px; stroke-width: 1.8; }
+.md-toolbar .kind-caution svg, .md-toolbar svg.kind-caution { color: var(--error); }
+.md-toolbar .kind-warning svg, .md-toolbar svg.kind-warning { color: var(--warn-edge); }
+.md-toolbar .kind-note svg, .md-toolbar svg.kind-note { color: var(--info-edge); }
+.md-box-button[aria-expanded="true"] { background: var(--surface); box-shadow: inset 0 0 0 2px var(--ink); }
+
+.md-box-menu {
+  position: absolute; z-index: 4; display: grid; width: 248px; padding: var(--space-1);
+  background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow-2);
+}
+.md-box-menu[hidden] { display: none; }
+.md-toolbar .md-box-item {
+  display: flex; align-items: center; justify-content: flex-start; gap: var(--space-3); width: 100%; height: auto;
+  min-height: var(--control-h); padding: 0 var(--space-3); border-radius: var(--radius-sm); color: var(--ink);
+  font-size: var(--text-md); text-align: left;
+}
+.md-toolbar .md-box-item svg { width: 22px; height: 22px; flex: none; }
+.md-toolbar .md-box-item:hover:not(:disabled), .md-toolbar .md-box-item:focus-visible { background: var(--surface-2); color: var(--ink); outline: none; }
+.md-toolbar .md-box-item[aria-checked="true"] { font-weight: 600; }
+.md-box-check { margin-left: auto; font-weight: 700; visibility: hidden; }
+.md-box-item[aria-checked="true"] .md-box-check { visibility: visible; }
+.md-box-sep { display: block; border-top: 1px solid var(--border); margin: var(--space-1) 0; }

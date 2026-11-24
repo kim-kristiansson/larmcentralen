@@ -27,15 +27,37 @@
             </button>
         </div>
         <div class="md-group">
-            <button type="button" data-cmd="caution" title="Fara" aria-label="Fara" aria-pressed="false" disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.3 2.5h7.4l5.3 5.3v7.4l-5.3 5.3H8.3L3 15.2V7.8z" /><path d="M12 7.5v5.5" /><circle cx="12" cy="16.4" r="1.1" class="dot" /></svg>
-            </button>
-            <button type="button" data-cmd="warning" title="Varning" aria-label="Varning" aria-pressed="false" disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 2.5 20h19z" /><path d="M12 10v4.5" /><circle cx="12" cy="17.2" r="1.1" class="dot" /></svg>
-            </button>
-            <button type="button" data-cmd="note" title="Info" aria-label="Info" aria-pressed="false" disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5.5" /><circle cx="12" cy="7.8" r="1.1" class="dot" /></svg>
-            </button>
+            @* One "Ruta" button for the Fara, Varning and Info boxes. Its icon shows the box the cursor is in;
+               the script fills in the title ("Ruta" or "Ruta: Fara") and opens the menu below. *@
+            <span class="md-box">
+                <button type="button" data-cmd="box" class="md-box-button" data-kind="none" title="Ruta" aria-label="Ruta"
+                        aria-haspopup="menu" aria-expanded="false" disabled>
+                    <svg class="kind-none" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2" /><path d="M7.5 5v14" /><path d="M11 10h6M11 14h4" /></svg>
+                    <svg class="kind-caution" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.3 2.5h7.4l5.3 5.3v7.4l-5.3 5.3H8.3L3 15.2V7.8z" /><path d="M12 7.5v5.5" /><circle cx="12" cy="16.4" r="1.1" class="dot" /></svg>
+                    <svg class="kind-warning" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 2.5 20h19z" /><path d="M12 10v4.5" /><circle cx="12" cy="17.2" r="1.1" class="dot" /></svg>
+                    <svg class="kind-note" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5.5" /><circle cx="12" cy="7.8" r="1.1" class="dot" /></svg>
+                    <svg class="caret" viewBox="0 0 10 10" aria-hidden="true"><path d="m2 3.5 3 3 3-3" /></svg>
+                </button>
+                <span class="md-box-menu" role="menu" aria-label="Ruta" hidden>
+                    <button type="button" role="menuitemradio" aria-checked="false" data-box="caution" class="md-box-item kind-caution">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.3 2.5h7.4l5.3 5.3v7.4l-5.3 5.3H8.3L3 15.2V7.8z" /><path d="M12 7.5v5.5" /><circle cx="12" cy="16.4" r="1.1" class="dot" /></svg>
+                        <span>Fara</span><span class="md-box-check" aria-hidden="true">✓</span>
+                    </button>
+                    <button type="button" role="menuitemradio" aria-checked="false" data-box="warning" class="md-box-item kind-warning">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 2.5 20h19z" /><path d="M12 10v4.5" /><circle cx="12" cy="17.2" r="1.1" class="dot" /></svg>
+                        <span>Varning</span><span class="md-box-check" aria-hidden="true">✓</span>
+                    </button>
+                    <button type="button" role="menuitemradio" aria-checked="false" data-box="note" class="md-box-item kind-note">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5.5" /><circle cx="12" cy="7.8" r="1.1" class="dot" /></svg>
+                        <span>Info</span><span class="md-box-check" aria-hidden="true">✓</span>
+                    </button>
+                    <span class="md-box-sep" role="separator"></span>
+                    <button type="button" role="menuitem" data-box="none" class="md-box-item" title="Gör rutan till vanlig text">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2" /><path d="m4 20 16-16" /></svg>
+                        <span>Ingen ruta</span>
+                    </button>
+                </span>
+            </span>
             <button type="button" data-cmd="code" title="Värde (kod)" aria-label="Värde (kod)" aria-pressed="false" disabled>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 7-5 5 5 5M16 7l5 5-5 5" /></svg>
             </button>
