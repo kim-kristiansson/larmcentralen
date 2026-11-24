@@ -1,10 +1,8 @@
 // Markdown editing for åtgärder with Milkdown core (ProseMirror underneath). Loaded on demand by
 // MarkdownEditor.razor. The toolbar, the link bar and every Swedish text are rendered by the Razor
 // component; this module wires them to the editor and keeps their pressed/selected state current.
-import { Editor, rootCtx, defaultValueCtx, editorViewCtx, editorViewOptionsCtx } from "@milkdown/kit/core";
+import { editorViewCtx, editorViewOptionsCtx, type Editor } from "@milkdown/kit/core";
 import {
-  commonmark,
-  remarkPreserveEmptyLinePlugin,
   toggleStrongCommand,
   toggleEmphasisCommand,
   toggleInlineCodeCommand,
@@ -16,18 +14,19 @@ import {
   liftListItemCommand,
   createCodeBlockCommand,
 } from "@milkdown/kit/preset/commonmark";
-import { gfm, toggleStrikethroughCommand, insertTableCommand, addRowAfterCommand } from "@milkdown/kit/preset/gfm";
-import { history, undoCommand, redoCommand } from "@milkdown/kit/plugin/history";
-import { listener } from "@milkdown/kit/plugin/listener";
-import { clipboard } from "@milkdown/kit/plugin/clipboard";
-import { trailing } from "@milkdown/kit/plugin/trailing";
-import { $prose, callCommand, getMarkdown as readMarkdown } from "@milkdown/kit/utils";
+import { toggleStrikethroughCommand, insertTableCommand, addRowAfterCommand } from "@milkdown/kit/preset/gfm";
+import { undoCommand, redoCommand } from "@milkdown/kit/plugin/history";
+import { $prose, callCommand } from "@milkdown/kit/utils";
 import { Plugin, PluginKey, TextSelection, type EditorState } from "@milkdown/kit/prose/state";
 import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
 import { lift } from "@milkdown/kit/prose/commands";
 import type { MarkType, Node as ProseNode, ResolvedPos } from "@milkdown/kit/prose/model";
 import { readTable, nextCellOrNewRow } from "./table-tools";
 import { createTableOverlay } from "./table-overlay";
+import { createEditor, markdownOf } from "./editor-setup";
+import { isAllowedUrl } from "./url";
+
+export { isAllowedUrl } from "./url";
 
 export interface MarkdownEditorHandle {
   editor: Editor;
@@ -45,24 +44,7 @@ interface ToolbarState {
   codeBlock: boolean;
 }
 
-// Milkdown writes an empty paragraph as a raw "<br />" line so blank lines survive a round trip. Raw HTML is
-// never rendered in åtgärder, so that plugin is left out (both its options slice and the remark plugin).
-const preset = commonmark.filter(
-  (p) => p !== (remarkPreserveEmptyLinePlugin.plugin as unknown) && p !== (remarkPreserveEmptyLinePlugin.options as unknown),
-);
-
-/** http, https and relative links only; javascript:, data: and the rest are refused. */
-export function isAllowedUrl(url: string): boolean {
-  const trimmed = url.trim();
-  if (!trimmed) return false;
-  // Browsers ignore tabs, newlines and control characters inside a scheme ("java\tscript:").
-  const compact = trimmed.replace(/[\u0000-\u0020\u007f-\u009f]/g, "");
-  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(compact)?.[1]?.toLowerCase();
-  if (scheme) return scheme === "http" || scheme === "https";
-  return !compact.startsWith("//") && !compact.startsWith("\\\\");
-}
-
-export async function create(root: HTMLElement, markdown: string, placeholder: string): Promise<MarkdownEditorHandle> {
+export async function create(root: HTMLElement, markdown: string, placeholder: string, label = "Åtgärd"): Promise<MarkdownEditorHandle> {
   const surface = root.querySelector<HTMLElement>(".md-surface");
   const toolbar = root.querySelector<HTMLElement>(".md-toolbar");
   const linkBar = root.querySelector<HTMLElement>(".md-linkbar");
@@ -98,28 +80,18 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
       }),
   );
 
-  const editor = await Editor.make()
-    .config((ctx) => {
-      ctx.set(rootCtx, surface);
-      ctx.set(defaultValueCtx, markdown);
+  const editor = await createEditor(surface, markdown, {
+    plugins: [toolbarPlugin, placeholderPlugin],
+    config: (ctx) => {
       ctx.update(editorViewOptionsCtx, (prev) => ({
         ...prev,
-        attributes: { class: "md-content rich-content", spellcheck: "true", lang: "sv", "aria-multiline": "true", role: "textbox" },
+        attributes: { class: "md-content rich-content", spellcheck: "true", lang: "sv", "aria-multiline": "true", role: "textbox", "aria-label": label },
         // Keep the cursor (and a table's column grips) clear of the sticky toolbar when the editor scrolls to it.
         scrollMargin: { top: toolbar.offsetHeight + 48, bottom: 64, left: 8, right: 8 },
         scrollThreshold: { top: toolbar.offsetHeight + 48, bottom: 64, left: 8, right: 8 },
       }));
-    })
-    .use(preset)
-    .use(gfm)
-    .use(history)
-    .use(listener)
-    .use(clipboard)
-    // Always an empty paragraph after a table or code block at the end, so there is somewhere to keep writing.
-    .use(trailing)
-    .use(toolbarPlugin)
-    .use(placeholderPlugin)
-    .create();
+    },
+  });
 
   const view = (): EditorView => editor.ctx.get(editorViewCtx);
   const run = (key: Parameters<typeof callCommand>[0], payload?: unknown): void => {
@@ -300,6 +272,33 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
     }
   };
 
+  // The toolbar is one Tab stop (ARIA toolbar pattern): arrow keys, Home and End move between its controls.
+  const controls = (): HTMLElement[] =>
+    Array.from(toolbar.querySelectorAll<HTMLElement>("button[data-cmd], select[data-cmd]")).filter((c) => !(c as HTMLButtonElement).disabled);
+  const focusControl = (target: HTMLElement): void => {
+    for (const c of controls()) c.tabIndex = c === target ? 0 : -1;
+    target.focus();
+  };
+  const onToolbarKey = (e: KeyboardEvent): void => {
+    const list = controls();
+    const i = list.indexOf(document.activeElement as HTMLElement);
+    if (i < 0) return;
+    let next: HTMLElement | undefined;
+    if (e.key === "ArrowRight") next = list[(i + 1) % list.length];
+    else if (e.key === "ArrowLeft") next = list[(i - 1 + list.length) % list.length];
+    else if (e.key === "Home") next = list[0];
+    else if (e.key === "End") next = list[list.length - 1];
+    if (!next) return;
+    e.preventDefault();
+    focusControl(next);
+  };
+  const onToolbarFocus = (e: FocusEvent): void => {
+    // Clicking a control also makes it the toolbar's Tab stop.
+    const target = e.target as HTMLElement;
+    if (controls().includes(target)) for (const c of controls()) c.tabIndex = c === target ? 0 : -1;
+  };
+  toolbar.addEventListener("keydown", onToolbarKey);
+  toolbar.addEventListener("focusin", onToolbarFocus);
   toolbar.addEventListener("mousedown", keepSelection);
   toolbar.addEventListener("click", onToolbarClick);
   blockSelect?.addEventListener("change", onBlockChange);
@@ -325,6 +324,8 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
   surface.addEventListener("keydown", onTableTab, true);
   for (const b of buttons) b.disabled = false;
   if (blockSelect) blockSelect.disabled = false;
+  // One Tab stop: the first control (the block type) until another one is used.
+  controls().forEach((c, i) => (c.tabIndex = i === 0 ? 0 : -1));
   ready = true;
   refresh(view());
 
@@ -332,6 +333,8 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
     editor,
     dispose: () => {
       toolbar.removeEventListener("mousedown", keepSelection);
+      toolbar.removeEventListener("keydown", onToolbarKey);
+      toolbar.removeEventListener("focusin", onToolbarFocus);
       toolbar.removeEventListener("click", onToolbarClick);
       blockSelect?.removeEventListener("change", onBlockChange);
       linkBar.removeEventListener("click", onLinkBarClick);
@@ -345,15 +348,9 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
 }
 
 /** The document as Markdown, without trailing blank lines. */
+/** The document as Markdown (links and images with a refused address are removed first). */
 export function getMarkdown(handle: MarkdownEditorHandle): string {
-  const markdown = handle.editor.action(readMarkdown());
-  // Safety net for the empty-line placeholder (see preset above): never store raw <br> lines.
-  return markdown
-    .split("\n")
-    .filter((line) => !/^\s*<br\s*\/?>\s*$/i.test(line))
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return markdownOf(handle.editor);
 }
 
 export function destroy(handle: MarkdownEditorHandle): void {

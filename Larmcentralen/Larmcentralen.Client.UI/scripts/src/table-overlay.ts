@@ -26,9 +26,9 @@ import {
 } from "./table-tools";
 
 const sv = {
-  rowGrip: "Flytta rad: håll och dra. Tryck för fler val.",
-  headerGrip: "Rubrikraden ligger alltid först. Tryck för fler val.",
-  colGrip: "Flytta kolumn: håll och dra. Tryck för fler val.",
+  rowGrip: "Flytta rad: håll och dra, eller Alt+pil upp/ner. Tryck för fler val (Alt+Enter).",
+  headerGrip: "Rubrikraden ligger alltid först. Tryck för fler val (Alt+Enter).",
+  colGrip: "Flytta kolumn: håll och dra, eller Alt+pil vänster/höger. Tryck för fler val (Alt+Skift+Enter).",
   addRow: "Lägg till rad under",
   addCol: "Lägg till kolumn till höger",
   menuRow: "Rad",
