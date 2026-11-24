@@ -1,0 +1,550 @@
+@page "/installningar/kontakter"
+@inherits KnowledgeBaseComponent
+@using Larmcentralen.Client.Core.Api
+
+<PageTitle>Kontakter · Larmcentralen</PageTitle>
+
+<p class="back"><a href="installningar">← Tillbaka till inställningar</a></p>
+<h1 class="page-title">Kontakter</h1>
+
+@if (!CanEdit)
+{
+    <NoEditAccess />
+}
+else
+{
+    <p class="muted intro">Personerna operatörerna kan ringa, och vilken roll de har. Operatörerna ser inte kontakterna ännu.</p>
+
+    @if (!IsOnline)
+    {
+        <p class="notice">Kontakterna kräver anslutning till servern.</p>
+    }
+    @if (_loadError is not null)
+    {
+        <p class="error" role="alert">@_loadError</p>
+    }
+    @if (_message is not null)
+    {
+        <p class="success" role="status">@_message</p>
+    }
+
+    @if (_contacts is null || _roles is null)
+    {
+        @if (IsOnline && _loadError is null)
+        {
+            <p class="muted">Hämtar kontakterna…</p>
+        }
+    }
+    else
+    {
+        <div class="tab-row">
+            <div class="tabs" role="tablist" aria-label="Kontakter">
+                <button type="button" role="tab" id="tab-contacts" class="tab" @ref="_contactsTab" aria-selected="@(_tab == Tab.Contacts ? "true" : "false")"
+                        aria-controls="panel-contacts" tabindex="@(_tab == Tab.Contacts ? 0 : -1)"
+                        @onclick="() => ShowTab(Tab.Contacts)" @onkeydown="TabKey">
+                    Kontaktpersoner <span class="tab-count">(@_contacts.Count)</span>
+                </button>
+                <button type="button" role="tab" id="tab-roles" class="tab" @ref="_rolesTab" aria-selected="@(_tab == Tab.Roles ? "true" : "false")"
+                        aria-controls="panel-roles" tabindex="@(_tab == Tab.Roles ? 0 : -1)"
+                        @onclick="() => ShowTab(Tab.Roles)" @onkeydown="TabKey">
+                    Roller <span class="tab-count">(@_roles.Count)</span>
+                </button>
+            </div>
+            @if (_tab == Tab.Contacts)
+            {
+                <OnlineButton Class="btn btn-primary" Disabled="@(_roles.Count == 0 || _busy)"
+                              Title="@(_roles.Count == 0 ? "Lägg till en roll först" : null)" OnClick="StartNewContact">Ny kontakt</OnlineButton>
+            }
+            else
+            {
+                <OnlineButton Class="btn btn-primary" Disabled="_busy" OnClick="StartNewRole">Ny roll</OnlineButton>
+            }
+        </div>
+
+        @if (_tab == Tab.Contacts)
+        {
+            <div id="panel-contacts" role="tabpanel" aria-labelledby="tab-contacts">
+                @if (_roles.Count == 0)
+                {
+                    <div class="empty-state">
+                        <h2>Lägg till roller först</h2>
+                        <p>Varje kontakt har en roll. Börja med rollerna, till exempel Teamledare och Underhåll el.</p>
+                        <button type="button" class="btn" @onclick="() => ShowTab(Tab.Roles)">Gå till Roller</button>
+                    </div>
+                }
+                else if (_contacts.Count == 0 && _form is null)
+                {
+                    <div class="empty-state">
+                        <h2>Inga kontakter ännu</h2>
+                        <p>Lägg till personerna operatörerna kan ringa, med namn, roll och telefonnummer.</p>
+                        <OnlineButton Class="btn btn-primary" OnClick="StartNewContact">Ny kontakt</OnlineButton>
+                    </div>
+                }
+                else
+                {
+                    <div class="master-detail">
+                        <div class="master">
+                            <div class="list-filters">
+                                <label class="search">
+                                    <span class="visually-hidden">Sök kontakt</span>
+                                    <input type="search" placeholder="Sök namn eller roll" @bind="_search" @bind:event="oninput" />
+                                </label>
+                                <label class="role-filter">
+                                    <span class="visually-hidden">Visa roll</span>
+                                    <select @bind="_roleFilter">
+                                        <option value="">Alla roller</option>
+                                        @foreach (var role in _roles)
+                                        {
+                                            <option value="@role.Id">@role.Name</option>
+                                        }
+                                    </select>
+                                </label>
+                            </div>
+                            @{ var shown = ContactDisplay.Filter(_contacts, _search, RoleFilterId); }
+                            @if (shown.Count == 0)
+                            {
+                                <p class="muted no-match">@(_contacts.Count == 0 ? "Inga kontakter ännu." : "Inga kontakter matchar.")</p>
+                            }
+                            else
+                            {
+                                <ul class="rows contact-list">
+                                    @foreach (var contact in shown)
+                                    {
+                                        var selected = _form?.Id == contact.Id;
+                                        <li @key="contact.Id">
+                                            <button type="button" class="row contact-row @(selected ? "selected" : "")"
+                                                    aria-current="@(selected ? "true" : null)" @onclick="() => Select(contact)">
+                                                <span class="avatar" aria-hidden="true">@ContactDisplay.Initials(contact.Name)</span>
+                                                <span class="who">
+                                                    <span class="name">@contact.Name</span>
+                                                    <span class="role muted">@contact.RoleName</span>
+                                                </span>
+                                                <span class="phone">@ContactDisplay.Phone(contact.Phone)</span>
+                                            </button>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        </div>
+
+                        <div class="detail">
+                            @if (_form is null)
+                            {
+                                <p class="muted pick-hint">Välj en kontakt i listan för att ändra den, eller lägg till en med Ny kontakt.</p>
+                            }
+                            else
+                            {
+                                <EditForm EditContext="_editContext" OnValidSubmit="SaveContactAsync" class="edit-panel" @key="_form">
+                                    <DataAnnotationsValidator />
+                                    <h2 class="panel-title">@(_form.Id is null ? "Ny kontakt" : _form.OriginalName)</h2>
+                                    <label>
+                                        <span>Namn</span>
+                                        <InputText @bind-Value="_form.Name" autocomplete="off" />
+                                        <ValidationMessage For="() => _form.Name" />
+                                    </label>
+                                    <label>
+                                        <span>Roll</span>
+                                        <InputSelect @bind-Value="_form.RoleId">
+                                            <option value="0">Välj roll…</option>
+                                            @foreach (var role in _roles)
+                                            {
+                                                <option value="@role.Id">@role.Name</option>
+                                            }
+                                        </InputSelect>
+                                        <ValidationMessage For="() => _form.RoleId" />
+                                    </label>
+                                    <label>
+                                        <span>Telefonnummer</span>
+                                        <InputText type="tel" class="mono" @bind-Value="_form.Phone" placeholder="070-123 45 67" autocomplete="off" />
+                                        <ValidationMessage For="() => _form.Phone" />
+                                    </label>
+                                    <label>
+                                        <span>Anmärkning <span class="optional">(valfritt)</span></span>
+                                        <InputText @bind-Value="_form.Note" />
+                                        <span class="field-help">Visas för operatören, t.ex. ”vardagar 07–16”.</span>
+                                        <ValidationMessage For="() => _form.Note" />
+                                    </label>
+                                    @if (_formError is not null)
+                                    {
+                                        <p class="error" role="alert">@_formError</p>
+                                    }
+                                    <div class="form-actions">
+                                        <OnlineButton Type="submit" Class="btn btn-primary" Disabled="_busy">@(_busy ? "Sparar…" : "Spara")</OnlineButton>
+                                        <button type="button" class="btn" disabled="@_busy" @onclick="CloseContact">Avbryt</button>
+                                    </div>
+                                    @if (_form.Id is not null)
+                                    {
+                                        <div class="danger-zone">
+                                            <OnlineButton Class="btn btn-link btn-quiet-danger" Disabled="_busy" OnClick="@(() => _confirmDeleteContact = true)">Ta bort kontakt…</OnlineButton>
+                                        </div>
+                                    }
+                                </EditForm>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div id="panel-roles" role="tabpanel" aria-labelledby="tab-roles">
+                @if (_roles.Count == 0 && !_newRole)
+                {
+                    <div class="empty-state">
+                        <h2>Inga roller ännu</h2>
+                        <p>Börja med rollerna, till exempel Teamledare och Underhåll el. Sedan lägger du till personerna under Kontaktpersoner.</p>
+                        <OnlineButton Class="btn btn-primary" OnClick="StartNewRole">Ny roll</OnlineButton>
+                    </div>
+                }
+                else
+                {
+                    <ul class="rows role-list">
+                        @if (_newRole)
+                        {
+                            <li class="role-edit">
+                                <RoleEditor Label="Namn på den nya rollen" @bind-Name="_roleName" Error="@_roleError" Busy="_busy"
+                                            OnSave="SaveNewRoleAsync" OnCancel="CloseRole" />
+                            </li>
+                        }
+                        @foreach (var role in _roles)
+                        {
+                            var open = _editingRoleId == role.Id;
+                            <li @key="role.Id" class="@(open ? "role-edit" : null)">
+                                <button type="button" class="row role-row @(open ? "selected" : "")" aria-expanded="@(open ? "true" : "false")"
+                                        @onclick="() => ToggleRole(role)">
+                                    <span class="name">@role.Name</span>
+                                    <span class="muted count">@Format.Count(role.ContactCount, "person", "personer")</span>
+                                </button>
+                                @if (open)
+                                {
+                                    <RoleEditor Label="Namn på rollen" @bind-Name="_roleName" Error="@_roleError" Busy="_busy"
+                                                OnSave="() => SaveRoleAsync(role)" OnCancel="CloseRole">
+                                        <div class="danger-zone">
+                                            <OnlineButton Class="btn btn-link btn-quiet-danger" Disabled="@(_busy || role.ContactCount > 0)"
+                                                          OnClick="@(() => _roleToDelete = role)">Ta bort roll</OnlineButton>
+                                            @if (role.ContactCount > 0)
+                                            {
+                                                <p class="muted field-help">Går inte att ta bort: @UsedBy(role) har rollen. Ge @(role.ContactCount == 1 ? "personen" : "dem") en annan roll först.</p>
+                                            }
+                                        </div>
+                                    </RoleEditor>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        }
+    }
+
+    <ConfirmDialog Open="_confirmDeleteContact"
+                   Title="@($"Ta bort {_form?.OriginalName}?")"
+                   Message="Kontakten tas bort för gott. Det går inte att ångra."
+                   ConfirmText="Ta bort kontakt"
+                   OnConfirm="DeleteContactAsync" OnCancel="@(() => _confirmDeleteContact = false)" />
+
+    <ConfirmDialog Open="@(_roleToDelete is not null)"
+                   Title="@($"Ta bort rollen {_roleToDelete?.Name}?")"
+                   Message="Ingen har rollen. Den tas bort för gott."
+                   ConfirmText="Ta bort roll"
+                   OnConfirm="DeleteRoleAsync" OnCancel="@(() => _roleToDelete = null)" />
+}
+
+@code {
+    private enum Tab { Contacts, Roles }
+
+    private Tab _tab = Tab.Contacts;
+    private List<Contact>? _contacts;
+    private List<ContactRole>? _roles;
+    private bool _loadedOnline;
+    private bool _busy;
+    private string? _loadError;
+    private string? _message;
+
+    private string? _search;
+    private string _roleFilter = "";
+    private int? RoleFilterId => int.TryParse(_roleFilter, out var id) ? id : null;
+
+    private ContactForm? _form;
+    private string? _formError;
+    private EditContext? _editContext;
+    private ValidationMessageStore? _serverErrors;
+    private bool _confirmDeleteContact;
+
+    private bool _newRole;
+    private int? _editingRoleId;
+    private string _roleName = "";
+    private string? _roleError;
+    private ContactRole? _roleToDelete;
+
+    protected override async Task OnInitializedAsync() => await RefreshAsync();
+
+    /// <summary>Loads the lists the first time the server can be reached (the page may open offline).</summary>
+    protected override void Load()
+    {
+        if (CanEdit && IsOnline && !_loadedOnline && !_busy) _ = InvokeAsync(RefreshAsync);
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (!CanEdit || !IsOnline) return;
+        try
+        {
+            _roles = await Kb.CallApiAsync((api, ct) => api.GetContactRolesAsync(ct));
+            _contacts = await Kb.CallApiAsync((api, ct) => api.GetContactsAsync(ct));
+            _loadedOnline = true;
+            _loadError = null;
+            // Start where the work is: no roles yet means there is nothing to add people to.
+            if (_roles.Count == 0 && _contacts.Count == 0 && _form is null && !_newRole) _tab = Tab.Roles;
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Kontakterna kunde inte hämtas. {Reason(ex)}";
+        }
+        StateHasChanged();
+    }
+
+    private void ShowTab(Tab tab)
+    {
+        _tab = tab;
+        _message = null;
+    }
+
+    /// <summary>Left and right arrows move between the two tabs, as in any tab list.</summary>
+    private async Task TabKey(KeyboardEventArgs e)
+    {
+        var next = e.Key switch
+        {
+            "ArrowLeft" or "ArrowRight" => _tab == Tab.Contacts ? Tab.Roles : Tab.Contacts,
+            "Home" => Tab.Contacts,
+            "End" => Tab.Roles,
+            _ => _tab
+        };
+        if (next == _tab) return;
+        ShowTab(next);
+        // The tab that had focus drops out of the tab order: move focus with the selection.
+        await Task.Yield();
+        await (next == Tab.Contacts ? _contactsTab : _rolesTab).FocusAsync();
+    }
+
+    private ElementReference _contactsTab;
+    private ElementReference _rolesTab;
+
+    // Kontaktpersoner
+
+    private void StartNewContact()
+    {
+        _tab = Tab.Contacts;
+        _message = null;
+        var role = RoleFilterId ?? (_roles?.Count == 1 ? _roles[0].Id : 0);
+        OpenForm(new ContactForm { RoleId = role });
+    }
+
+    private void Select(Contact contact)
+    {
+        _message = null;
+        OpenForm(new ContactForm
+        {
+            Id = contact.Id, OriginalName = contact.Name, Name = contact.Name, RoleId = contact.RoleId,
+            Phone = ContactDisplay.Phone(contact.Phone), Note = contact.Note
+        });
+    }
+
+    private void OpenForm(ContactForm form)
+    {
+        _form = form;
+        _formError = null;
+        // Reasons from the server go in the form's own validation, so they show under their field and mark it invalid.
+        _editContext = new EditContext(form);
+        var serverErrors = _serverErrors = new ValidationMessageStore(_editContext);
+        _editContext.OnFieldChanged += (_, e) => serverErrors.Clear(e.FieldIdentifier);
+        _editContext.OnValidationRequested += (_, _) => serverErrors.Clear();
+    }
+
+    private void CloseContact()
+    {
+        _form = null;
+        _formError = null;
+        _editContext = null;
+        _serverErrors = null;
+    }
+
+    private async Task SaveContactAsync()
+    {
+        if (_form is not { } form) return;
+        _busy = true;
+        _formError = null;
+        _message = null;
+        var request = new SaveContactRequest(form.Name.Trim(), form.Phone.Trim(), form.RoleId,
+            string.IsNullOrWhiteSpace(form.Note) ? "" : form.Note.Trim());
+        try
+        {
+            var saved = form.Id is { } id
+                ? await Kb.CallApiAsync((api, ct) => api.UpdateContactAsync(id, request, ct))
+                : await Kb.CallApiAsync((api, ct) => api.CreateContactAsync(request, ct));
+            await RefreshAsync();
+            // Keep the saved contact open, so the change can be checked (Select clears the message).
+            if (_contacts?.FirstOrDefault(c => c.Id == saved.Id) is { } fresh) Select(fresh);
+            _message = form.Id is null ? $"{saved.Name} är tillagd." : $"{saved.Name} är sparad.";
+        }
+        catch (Exception ex)
+        {
+            ShowContactError(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>The API's reason goes under the field it is about, when it is about one.</summary>
+    private void ShowContactError(Exception ex)
+    {
+        var reason = Reason(ex);
+        var field = ex is ApiException { Detail: { } detail } ? ContactDisplay.FieldFor(detail) : null;
+        if (field is null || _editContext is null || _serverErrors is null)
+        {
+            _formError = $"Kontakten kunde inte sparas. {reason}";
+            return;
+        }
+        _serverErrors.Add(_editContext.Field(field), reason);
+        _editContext.NotifyValidationStateChanged();
+    }
+
+    private async Task DeleteContactAsync()
+    {
+        _confirmDeleteContact = false;
+        if (_form?.Id is not { } id) return;
+        var name = _form.OriginalName;
+        _busy = true;
+        _message = null;
+        try
+        {
+            await Kb.CallApiAsync(async (api, ct) => { await api.DeleteContactAsync(id, ct); return true; });
+            CloseContact();
+            await RefreshAsync();
+            _message = $"{name} är borttagen.";
+        }
+        catch (Exception ex)
+        {
+            _formError = $"Kontakten kunde inte tas bort. {Reason(ex)}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // Roller
+
+    private void StartNewRole()
+    {
+        _tab = Tab.Roles;
+        _message = null;
+        _editingRoleId = null;
+        _newRole = true;
+        _roleName = "";
+        _roleError = null;
+    }
+
+    private void ToggleRole(ContactRole role)
+    {
+        _message = null;
+        _newRole = false;
+        _roleError = null;
+        if (_editingRoleId == role.Id) { _editingRoleId = null; return; }
+        _editingRoleId = role.Id;
+        _roleName = role.Name;
+    }
+
+    private void CloseRole()
+    {
+        _newRole = false;
+        _editingRoleId = null;
+        _roleError = null;
+    }
+
+    private Task SaveNewRoleAsync()
+        => SaveRoleCoreAsync(name => Kb.CallApiAsync((api, ct) => api.CreateContactRoleAsync(name, ct)), "är tillagd");
+
+    private Task SaveRoleAsync(ContactRole role)
+        => SaveRoleCoreAsync(name => Kb.CallApiAsync((api, ct) => api.UpdateContactRoleAsync(role.Id, name, ct)), "är sparad");
+
+    private async Task SaveRoleCoreAsync(Func<string, Task<ContactRole>> save, string done)
+    {
+        var name = _roleName.Trim();
+        if (name.Length == 0) { _roleError = "Ange rollens namn."; return; }
+        _busy = true;
+        _roleError = null;
+        _message = null;
+        try
+        {
+            var saved = await save(name);
+            CloseRole();
+            await RefreshAsync();
+            _message = $"Rollen {saved.Name} {done}.";
+        }
+        catch (Exception ex)
+        {
+            _roleError = Reason(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task DeleteRoleAsync()
+    {
+        var role = _roleToDelete;
+        _roleToDelete = null;
+        if (role is null) return;
+        _busy = true;
+        _message = null;
+        try
+        {
+            await Kb.CallApiAsync(async (api, ct) => { await api.DeleteContactRoleAsync(role.Id, ct); return true; });
+            CloseRole();
+            await RefreshAsync();
+            _message = $"Rollen {role.Name} är borttagen.";
+        }
+        catch (Exception ex)
+        {
+            _roleError = $"Rollen kunde inte tas bort. {Reason(ex)}";
+            await RefreshAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>"Anna Berg", "Anna Berg och Erik Lund": who has the role.</summary>
+    private string UsedBy(ContactRole role)
+    {
+        var names = (_contacts ?? []).Where(c => c.RoleId == role.Id).Select(c => c.Name).Order(StringComparer.CurrentCultureIgnoreCase).ToArray();
+        if (names.Length == 0) return Format.Count(role.ContactCount, "person", "personer");
+        return names.Length == 1 ? names[0] : string.Join(", ", names[..^1]) + " och " + names[^1];
+    }
+
+    private static string Reason(Exception ex) => ex is ApiException { Detail: { } detail } ? detail : ex.Message;
+
+    private sealed class ContactForm
+    {
+        public int? Id { get; init; }
+        public string OriginalName { get; init; } = "";
+
+        [Required(ErrorMessage = "Ange namnet.")]
+        [MaxLength(100, ErrorMessage = "Högst 100 tecken.")]
+        public string Name { get; set; } = "";
+
+        [Range(1, int.MaxValue, ErrorMessage = "Välj en roll.")]
+        public int RoleId { get; set; }
+
+        [Required(ErrorMessage = "Ange telefonnumret.")]
+        public string Phone { get; set; } = "";
+
+        [MaxLength(200, ErrorMessage = "Högst 200 tecken.")]
+        public string? Note { get; set; }
+    }
+}

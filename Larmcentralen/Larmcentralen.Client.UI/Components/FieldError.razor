@@ -1,0 +1,9 @@
+@* A reason from the server shown under the field it is about, styled like a validation message. *@
+@if (!string.IsNullOrEmpty(Text))
+{
+    <div class="validation-message" role="alert">@Text</div>
+}
+
+@code {
+    [Parameter] public string? Text { get; set; }
+}

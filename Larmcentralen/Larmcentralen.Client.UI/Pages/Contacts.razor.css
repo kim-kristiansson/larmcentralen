@@ -1,0 +1,94 @@
+/* Quiet lists with thin dividers; one surface per list, no cards inside cards. */
+.intro { margin: 0 0 var(--space-4); }
+
+.tab-row { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; border-bottom: 1px solid var(--border); margin-bottom: var(--space-4); }
+.tabs { display: flex; gap: var(--space-1); }
+.tab {
+  min-height: var(--control-h); padding: 0 var(--space-4); margin-bottom: -1px;
+  font: inherit; font-weight: 600; color: var(--ink-soft); background: none; cursor: pointer;
+  border: none; border-bottom: 3px solid transparent;
+}
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.tab:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
+.tab-count { font-weight: 400; color: var(--muted); }
+.tab-row ::deep .btn-primary { margin-bottom: var(--space-2); }
+
+.master-detail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-5); align-items: start; }
+
+.list-filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(9rem, 12rem); gap: var(--space-2); margin-bottom: var(--space-3); }
+.list-filters input, .list-filters select {
+  width: 100%; min-height: var(--control-h); font: inherit; color: var(--ink); padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface);
+}
+.list-filters select:has(option:checked:not([value=""])) { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); font-weight: 600; }
+.no-match { margin: var(--space-3) 0; }
+
+.rows { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.rows > li + li { border-top: 1px solid var(--border); }
+.row {
+  display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: 56px; padding: var(--space-2) var(--space-4);
+  font: inherit; color: var(--ink); text-align: left; background: none; border: none; cursor: pointer;
+}
+.rows > li:first-child > .row { border-radius: var(--radius) var(--radius) 0 0; }
+.rows > li:last-child > .row { border-radius: 0 0 var(--radius) var(--radius); }
+.row:hover { background: var(--surface-hover); }
+.row:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
+.row.selected { background: var(--surface-2); box-shadow: inset 4px 0 0 var(--ink); }
+
+.avatar {
+  display: inline-flex; align-items: center; justify-content: center; flex: none; width: 40px; height: 40px; border-radius: 50%;
+  background: var(--surface-2); color: var(--ink); border: 1px solid var(--border); font-size: var(--text-sm); font-weight: 700;
+}
+.row.selected .avatar { background: var(--surface); }
+.who { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.name { font-weight: 600; overflow-wrap: anywhere; }
+.role { font-size: var(--text-sm); }
+.phone { margin-left: auto; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink-soft); }
+
+.detail { position: sticky; top: var(--space-4); }
+.pick-hint { margin: var(--space-4) 0; }
+::deep .edit-panel { display: grid; gap: var(--space-4); padding: var(--space-5); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+::deep .edit-panel label { display: flex; flex-direction: column; gap: 6px; }
+::deep .edit-panel label > span:first-child { font-weight: 600; }
+::deep .edit-panel input, ::deep .edit-panel select {
+  font: inherit; color: var(--ink); padding: 10px 12px; min-height: var(--control-h);
+  border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface);
+}
+::deep .edit-panel input.mono { font-family: var(--font-mono); }
+.panel-title { font-size: var(--text-lg); margin: 0; }
+.optional { font-weight: 400; color: var(--muted); }
+.field-help { font-size: var(--text-sm); color: var(--muted); }
+
+/* Delete is kept apart from Spara, and quiet until hovered. */
+.danger-zone { padding-top: var(--space-3); border-top: 1px solid var(--border); }
+.danger-zone .field-help { margin: var(--space-1) 0 0; }
+::deep .btn-quiet-danger { color: var(--error); min-height: var(--control-h-sm); padding: 0; text-decoration: underline; text-underline-offset: 3px; }
+::deep .btn-quiet-danger:disabled { color: var(--muted); text-decoration: none; }
+
+.role-row .count { margin-left: auto; white-space: nowrap; }
+.role-edit { background: var(--surface-2); }
+.role-edit ::deep .inline-editor { display: grid; gap: var(--space-3); padding: var(--space-3) var(--space-4) var(--space-4); }
+.role-edit ::deep .inline-editor label { display: flex; flex-direction: column; gap: 6px; }
+.role-edit ::deep .inline-editor label > span:first-child { font-weight: 600; }
+.role-edit ::deep .inline-editor input {
+  font: inherit; color: var(--ink); padding: 10px 12px; min-height: var(--control-h); max-width: 28rem;
+  border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface);
+}
+.role-edit ::deep .form-actions { display: flex; gap: var(--space-3); }
+.role-edit ::deep .danger-zone { border-top-color: var(--border-strong); }
+
+
+@media (max-width: 900px) {
+  .master-detail { grid-template-columns: minmax(0, 1fr); }
+  .detail { position: static; }
+}
+@media (max-width: 520px) {
+  .list-filters { grid-template-columns: minmax(0, 1fr); }
+  .phone { font-size: var(--text-sm); }
+}
+
+/* The global Spara/Avbryt bar is sticky for long forms; these panels are short and have "Ta bort" below it. */
+::deep .edit-panel .form-actions, .role-edit ::deep .form-actions {
+  position: static; margin: 0; padding: 0; border: none; background: none; display: flex; gap: var(--space-3); flex-wrap: wrap;
+}

@@ -1,0 +1,48 @@
+@* Inline form for a contact role's name: Enter saves, Escape cancels. Anything extra (like "Ta bort roll") goes in ChildContent. *@
+<form class="inline-editor" @onsubmit="Save" @onsubmit:preventDefault>
+    <label>
+        <span>@Label</span>
+        <input value="@Name" @oninput="Changed" @onkeydown="Key" maxlength="100" autocomplete="off"
+               aria-invalid="@(Error is null ? "false" : "true")" @ref="_input" />
+        <FieldError Text="@Error" />
+    </label>
+    <div class="form-actions">
+        <OnlineButton Type="submit" Class="btn btn-primary" Disabled="Busy">@(Busy ? "Sparar…" : "Spara")</OnlineButton>
+        <button type="button" class="btn" disabled="@Busy" @onclick="OnCancel">Avbryt</button>
+    </div>
+    @ChildContent
+</form>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter] public string Name { get; set; } = "";
+    [Parameter] public EventCallback<string> NameChanged { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public EventCallback OnSave { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private ElementReference _input;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await _input.FocusAsync();
+    }
+
+    private async Task Changed(ChangeEventArgs e)
+    {
+        Name = e.Value?.ToString() ?? "";
+        await NameChanged.InvokeAsync(Name);
+    }
+
+    private async Task Save()
+    {
+        if (!Busy) await OnSave.InvokeAsync();
+    }
+
+    private async Task Key(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") await OnCancel.InvokeAsync();
+    }
+}

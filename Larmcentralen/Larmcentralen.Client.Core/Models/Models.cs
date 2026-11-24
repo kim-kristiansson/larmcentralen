@@ -147,3 +147,12 @@ public record SmsSettingsRequest(string ElksNumber, List<string> SenderNumbers, 
 
 /// <summary>Response of GET /api/me: what this app's API key may do. Only admins can edit.</summary>
 public record AccessInfo(string Role, bool CanEdit);
+
+/// <summary>A role for contact people (admin only, not synced). <see cref="ContactCount"/>: how many people have it.</summary>
+public record ContactRole(int Id, string Name, int ContactCount);
+
+/// <summary>A contact person (admin only, not synced). <see cref="Phone"/> comes back in international form (+46…).</summary>
+public record Contact(int Id, string Name, string Phone, int RoleId, string RoleName, string? Note);
+
+/// <summary>Create or change a contact. The number may be written any Swedish way.</summary>
+public record SaveContactRequest(string Name, string Phone, int RoleId, string? Note);

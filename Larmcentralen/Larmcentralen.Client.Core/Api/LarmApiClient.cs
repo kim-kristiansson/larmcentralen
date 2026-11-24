@@ -191,6 +191,61 @@ public class LarmApiClient(HttpClient http)
                ?? throw new InvalidOperationException("The API returned an empty test result.");
     }
 
+    /// <summary>Contact people (admin only). Not part of the sync: it needs a connection.</summary>
+    public async Task<List<Contact>> GetContactsAsync(CancellationToken ct = default)
+        => await http.GetFromJsonAsync<List<Contact>>("api/contacts", ct) ?? [];
+
+    /// <summary>400 (with a Swedish reason) without a name or role, or when the number isn't Swedish.</summary>
+    public async Task<Contact> CreateContactAsync(SaveContactRequest request, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsJsonAsync("api/contacts", request, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<Contact>(ct)
+               ?? throw new InvalidOperationException("The API did not return the new contact.");
+    }
+
+    public async Task<Contact> UpdateContactAsync(int id, SaveContactRequest request, CancellationToken ct = default)
+    {
+        using var response = await http.PutAsJsonAsync($"api/contacts/{id}", request, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<Contact>(ct)
+               ?? throw new InvalidOperationException("The API did not return the contact.");
+    }
+
+    public async Task DeleteContactAsync(int id, CancellationToken ct = default)
+    {
+        using var response = await http.DeleteAsync($"api/contacts/{id}", ct);
+        await EnsureSuccessAsync(response, ct);
+    }
+
+    /// <summary>Roles for contact people (admin only), with how many people have each.</summary>
+    public async Task<List<ContactRole>> GetContactRolesAsync(CancellationToken ct = default)
+        => await http.GetFromJsonAsync<List<ContactRole>>("api/contact-roles", ct) ?? [];
+
+    /// <summary>409 (with a reason) when another role already has the name.</summary>
+    public async Task<ContactRole> CreateContactRoleAsync(string name, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsJsonAsync("api/contact-roles", new { name }, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<ContactRole>(ct)
+               ?? throw new InvalidOperationException("The API did not return the new role.");
+    }
+
+    public async Task<ContactRole> UpdateContactRoleAsync(int id, string name, CancellationToken ct = default)
+    {
+        using var response = await http.PutAsJsonAsync($"api/contact-roles/{id}", new { name }, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<ContactRole>(ct)
+               ?? throw new InvalidOperationException("The API did not return the role.");
+    }
+
+    /// <summary>409 (with a reason naming them) while contacts have the role.</summary>
+    public async Task DeleteContactRoleAsync(int id, CancellationToken ct = default)
+    {
+        using var response = await http.DeleteAsync($"api/contact-roles/{id}", ct);
+        await EnsureSuccessAsync(response, ct);
+    }
+
     /// <summary>Downloads the alarm and its solutions as a .docx.</summary>
     public async Task<(byte[] Bytes, string FileName)> ExportAlarmAsync(int alarmId, CancellationToken ct = default)
     {
