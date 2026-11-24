@@ -16,7 +16,7 @@ import {
   liftListItemCommand,
   createCodeBlockCommand,
 } from "@milkdown/kit/preset/commonmark";
-import { gfm, toggleStrikethroughCommand, insertTableCommand } from "@milkdown/kit/preset/gfm";
+import { gfm, toggleStrikethroughCommand, insertTableCommand, addRowBeforeCommand, addRowAfterCommand } from "@milkdown/kit/preset/gfm";
 import { history, undoCommand, redoCommand } from "@milkdown/kit/plugin/history";
 import { listener } from "@milkdown/kit/plugin/listener";
 import { clipboard } from "@milkdown/kit/plugin/clipboard";
@@ -26,6 +26,18 @@ import { Plugin, PluginKey, TextSelection, type EditorState } from "@milkdown/ki
 import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
 import { lift } from "@milkdown/kit/prose/commands";
 import type { MarkType, Node as ProseNode, ResolvedPos } from "@milkdown/kit/prose/model";
+import {
+  readTable,
+  tableEnabled,
+  removeRows,
+  removeColumns,
+  removeTable,
+  columnBefore,
+  columnAfter,
+  alignColumns,
+  nextCellOrNewRow,
+  type Align,
+} from "./table-tools";
 
 export interface MarkdownEditorHandle {
   editor: Editor;
@@ -125,17 +137,24 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
   const blockSelect = toolbar.querySelector<HTMLSelectElement>("select[data-cmd='block']");
   const linkInput = linkBar.querySelector<HTMLInputElement>("input");
   const linkError = linkBar.querySelector<HTMLElement>(".md-link-error");
+  const tableBar = toolbar.querySelector<HTMLElement>(".md-tablebar");
+  let ready = false;
 
   refresh = (v) => {
+    if (!ready) return;
     const s = readState(v.state);
+    const table = readTable(v.state);
     for (const b of buttons) {
-      const on = pressed(b.dataset.cmd ?? "", s);
+      const cmd = b.dataset.cmd ?? "";
+      const enabled = tableEnabled(cmd, table);
+      if (enabled !== null) b.disabled = !enabled;
+      const on = cmd.startsWith("align") ? table?.align === cmd.slice(5).toLowerCase() : pressed(cmd, s);
       if (on === null) continue;
       b.setAttribute("aria-pressed", on ? "true" : "false");
     }
+    if (tableBar) tableBar.hidden = table === null;
     if (blockSelect) blockSelect.value = s.block;
   };
-  refresh(view());
 
   // --- Commands ---------------------------------------------------------------------------------
   const commands: Record<string, () => void> = {
@@ -154,10 +173,24 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
       else run(createCodeBlockCommand.key);
     },
     table: () => insertTable(),
+    rowBefore: () => run(addRowBeforeCommand.key),
+    rowAfter: () => run(addRowAfterCommand.key),
+    rowDelete: () => removeRows(view().state, view().dispatch),
+    colBefore: () => columnBefore(view().state, view().dispatch),
+    colAfter: () => columnAfter(view().state, view().dispatch),
+    colDelete: () => removeColumns(view().state, view().dispatch),
+    tableDelete: () => removeTable(view().state, view().dispatch),
+    alignLeft: () => align("left"),
+    alignCenter: () => align("center"),
+    alignRight: () => align("right"),
     link: () => openLinkBar(),
     undo: () => run(undoCommand.key),
     redo: () => run(redoCommand.key),
   };
+
+  function align(to: Align): void {
+    alignColumns(view().state, view().dispatch, to);
+  }
 
   function toggleList(type: "bullet_list" | "ordered_list"): void {
     const v = view();
@@ -294,9 +327,23 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
   blockSelect?.addEventListener("change", onBlockChange);
   linkBar.addEventListener("click", onLinkBarClick);
   linkInput?.addEventListener("keydown", onLinkKey);
+  // Tab in a table's last cell adds a row (Milkdown alone would move focus out of the editor). Capture phase, so
+  // this runs before ProseMirror's own Tab handling.
+  const onTableTab = (e: KeyboardEvent): void => {
+    if (e.key !== "Tab" || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+    const v = view();
+    if (!readTable(v.state)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    nextCellOrNewRow(v.state, v.dispatch, () => run(addRowAfterCommand.key), () => view().state);
+  };
+
   surface.addEventListener("keydown", onEditorKey);
+  surface.addEventListener("keydown", onTableTab, true);
   for (const b of buttons) b.disabled = false;
   if (blockSelect) blockSelect.disabled = false;
+  ready = true;
+  refresh(view());
 
   return {
     editor,
@@ -307,6 +354,7 @@ export async function create(root: HTMLElement, markdown: string, placeholder: s
       linkBar.removeEventListener("click", onLinkBarClick);
       linkInput?.removeEventListener("keydown", onLinkKey);
       surface.removeEventListener("keydown", onEditorKey);
+      surface.removeEventListener("keydown", onTableTab, true);
       void editor.destroy();
     },
   };

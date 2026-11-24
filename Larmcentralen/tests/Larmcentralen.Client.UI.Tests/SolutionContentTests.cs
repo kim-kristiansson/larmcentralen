@@ -124,6 +124,24 @@ public class SolutionContentTests
     }
 
     [Fact]
+    public void Table_column_alignment_from_the_editor_is_rendered()
+    {
+        // What the editor writes after "Centrera" and "Höger" on the second and third columns.
+        var html = SolutionContent.ToHtml("| Steg | Värde | Enhet |\n| :--- | :---: | ----: |\n| 1 | 20 | mA |");
+        Assert.Contains("<td style=\"text-align: center;\">20</td>", html);
+        Assert.Contains("<td style=\"text-align: right;\">mA</td>", html);
+    }
+
+    [Fact]
+    public void A_table_with_only_its_header_row_still_renders()
+    {
+        // Left when every body row is removed in the editor.
+        var html = SolutionContent.ToHtml("| Steg | Värde |\n| :- | :- |");
+        Assert.Contains("<th", html);
+        Assert.Contains("Steg", html);
+    }
+
+    [Fact]
     public void Raw_html_in_markdown_is_escaped_not_run()
     {
         var html = SolutionContent.ToHtml("Hej\n\n<script>alert('x')</script>\n\nText med <img src=x onerror=alert(1)> inuti");
