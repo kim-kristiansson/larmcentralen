@@ -64,7 +64,7 @@ else
 
         <div class="field">
             <span class="field-label">Åtgärd, steg för steg</span>
-            <QuillEditor @ref="_editor" InitialHtml="@_initialHtml" />
+            <MarkdownEditor @ref="_editor" InitialMarkdown="@_initialMarkdown" />
         </div>
 
         @if (Sharing)
@@ -167,8 +167,9 @@ else
     private bool _solutionFound;
     private int? _solutionId;
     private int _linkedAtLoad;
-    private QuillEditor? _editor;
-    private string? _initialHtml;
+    private MarkdownEditor? _editor;
+    /// <summary>The åtgärd as Markdown. Older ones (Quill HTML) are converted when opened and saved as Markdown.</summary>
+    private string? _initialMarkdown;
     private readonly SolutionForm _form = new();
     private (int AlarmId, int? Id)? _loadedFor;
     private bool _saving;
@@ -209,7 +210,7 @@ else
                 _form.Title = solution.Title;
                 _form.EstimatedTime = solution.EstimatedTime;
                 _form.SortOrder = solution.SortOrder;
-                _initialHtml = solution.Content;
+                _initialMarkdown = SolutionContent.ToEditorMarkdown(solution.Content);
                 var linked = Kb.Index.AlarmsForSolution(solution.Id);
                 _linkedAtLoad = linked.Count;
                 foreach (var a in linked) _selected.Add(a.Alarm.Id);
@@ -322,8 +323,8 @@ else
         _error = null;
         try
         {
-            var html = await _editor.GetHtmlAsync();
-            var content = Format.IsEmptyHtml(html) ? null : html;
+            var markdown = await _editor.GetMarkdownAsync();
+            var content = SolutionContent.IsEmpty(markdown) ? null : markdown;
             var title = _form.Title.Trim();
             var time = string.IsNullOrWhiteSpace(_form.EstimatedTime) ? null : _form.EstimatedTime.Trim();
             // Only send links to a server that knows about sharing; older ones keep their single AlarmId.

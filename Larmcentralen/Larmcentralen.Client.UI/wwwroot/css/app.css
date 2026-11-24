@@ -188,6 +188,14 @@ code { font-family: var(--font-mono); }
 .rich-content table { border-collapse: collapse; width: 100%; margin: 0.8em 0; }
 .rich-content td, .rich-content th { border: 1px solid var(--border); padding: 8px; text-align: left; }
 .rich-content th { background: var(--surface-2); }
+/* Markdown wraps text in <p> inside quotes, list items and cells; Quill did not. Keep the spacing the same. */
+.rich-content blockquote > :first-child, .rich-content li > p:first-child, .rich-content td > p, .rich-content th > p { margin-top: 0; }
+.rich-content blockquote > :last-child, .rich-content li > p:last-child, .rich-content td > p, .rich-content th > p { margin-bottom: 0; }
+.rich-content pre code { background: none; padding: 0; font-weight: 400; font-size: inherit; }
+.rich-content del, .rich-content s { text-decoration-thickness: 0.1em; }
+.rich-content img, .rich-content video { display: block; max-width: 100%; height: auto; margin: 0.8em 0; border-radius: 6px; }
+.rich-content .contains-task-list { list-style: none; padding-left: 0.5em; }
+.rich-content .task-list-item-checkbox { width: 1.1em; height: 1.1em; margin-right: 0.5em; vertical-align: -0.15em; }
 
 /* Forms. Global because EditForm and the Input* components render the elements. */
 .form { display: grid; gap: var(--space-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-1); padding: var(--space-5); }

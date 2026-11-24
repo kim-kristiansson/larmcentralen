@@ -19,12 +19,14 @@
 
   <ItemGroup Label="Client">
     <PackageVersion Include="CommunityToolkit.Maui" Version="17.0.0" />
+    <PackageVersion Include="Markdig" Version="1.6.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="$(DotNetPackageVersion)" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiPackageVersion)" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="$(DotNetPackageVersion)" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="$(DotNetPackageVersion)" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="$(DotNetPackageVersion)" />
     <PackageVersion Include="Microsoft.Maui.Controls" Version="$(MauiPackageVersion)" />
+    <PackageVersion Include="ReverseMarkdown" Version="6.3.0" />
   </ItemGroup>
 
   <ItemGroup Label="Tests">

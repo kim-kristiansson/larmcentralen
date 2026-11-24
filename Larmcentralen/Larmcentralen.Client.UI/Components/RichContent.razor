@@ -1,15 +1,28 @@
-@* Shows a solution exactly as written in the editor. Content is HTML from Quill, written by staff. *@
+@* Shows an åtgärd as written in the editor. Markdown is rendered with raw HTML off and only safe link
+   addresses (SolutionContent.ToHtml). Older åtgärder are HTML from Quill, written by staff, and are shown as stored. *@
 <div class="rich-content ql-editor-like">
-    @if (Format.IsEmptyHtml(Html))
+    @if (SolutionContent.IsEmpty(Html))
     {
         <p class="muted">Ingen beskrivning ännu.</p>
     }
     else
     {
-        @((MarkupString)Html!)
+        @((MarkupString)_html)
     }
 </div>
 
 @code {
+    private string? _rendered;
+    private string _html = "";
+
+    /// <summary>The stored content: Markdown, or legacy HTML from Quill.</summary>
     [Parameter] public string? Html { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        // Render only when the text changed, not on every re-render of the page.
+        if (_rendered == Html && _rendered is not null) return;
+        _rendered = Html;
+        _html = SolutionContent.ToHtml(Html);
+    }
 }
