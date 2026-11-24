@@ -14,6 +14,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AlarmCode> AlarmCodes => Set<AlarmCode>();
     public DbSet<TrashBatch> TrashBatches => Set<TrashBatch>();
     public DbSet<SmsSettings> SmsSettings => Set<SmsSettings>();
+    public DbSet<Contact> Contacts => Set<Contact>();
+    public DbSet<ContactRole> ContactRoles => Set<ContactRole>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -39,6 +41,23 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(s => s.AlertRecipient).HasMaxLength(20);
             // Stored as a JSON array.
             e.PrimitiveCollection(s => s.SenderNumbers);
+        });
+
+        // Contact people and their roles. Admin only and not part of the sync yet. A role in use can't be removed
+        // (Restrict); the service says who has it.
+        modelBuilder.Entity<ContactRole>(e =>
+        {
+            e.ToTable("ContactRoles");
+            e.Property(r => r.Name).HasMaxLength(100).UseCollation("NOCASE");
+            e.HasIndex(r => r.Name).IsUnique();
+        });
+        modelBuilder.Entity<Contact>(e =>
+        {
+            e.ToTable("Contacts");
+            e.Property(c => c.Name).HasMaxLength(100);
+            e.Property(c => c.Phone).HasMaxLength(20);
+            e.Property(c => c.Note).HasMaxLength(200);
+            e.HasOne(c => c.Role).WithMany(r => r.Contacts).HasForeignKey(c => c.RoleId).OnDelete(DeleteBehavior.Restrict);
         });
 
         // The bin (Papperskorg): rows marked with a TrashBatchId are hidden from every query, so the API, the sync

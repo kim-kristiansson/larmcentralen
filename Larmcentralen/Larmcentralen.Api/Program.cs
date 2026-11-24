@@ -34,6 +34,8 @@ builder.Services.AddScoped<ISolutionRepository, SolutionRepository>();
 builder.Services.AddScoped<IAlarmCodeRepository, AlarmCodeRepository>();
 builder.Services.AddScoped<ITrashRepository, TrashRepository>();
 builder.Services.AddScoped<ISmsSettingsRepository, SmsSettingsRepository>();
+builder.Services.AddScoped<IContactRepository, ContactRepository>();
+builder.Services.AddScoped<IContactRoleRepository, ContactRoleRepository>();
 
 // Services
 builder.Services.AddScoped<IAreaService, AreaService>();
@@ -44,6 +46,7 @@ builder.Services.AddScoped<IAlarmCodeService, AlarmCodeService>();
 builder.Services.AddScoped<ISyncService, SyncService>();
 builder.Services.AddScoped<ITrashService, TrashService>();
 builder.Services.AddScoped<ISmsSettingsService, SmsSettingsService>();
+builder.Services.AddScoped<IContactService, ContactService>();
 // Erases what has been in the bin (Papperskorg) longer than 30 days.
 builder.Services.AddHostedService<TrashEraseService>();
 builder.Services.AddScoped<ISharePointSyncService, SharePointSyncService>();

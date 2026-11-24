@@ -105,3 +105,20 @@ public interface ISecretProtector
     /// <summary>Null when it can't be decrypted (for example the server's keys were lost).</summary>
     string? Unprotect(string protectedSecret);
 }
+
+/// <summary>Contact people and their roles. Admin only.</summary>
+public interface IContactService
+{
+    Task<List<ContactRoleDto>> GetRolesAsync();
+    Task<WriteResult<ContactRoleDto>> CreateRoleAsync(SaveContactRoleDto dto);
+    Task<WriteResult<ContactRoleDto>> UpdateRoleAsync(int id, SaveContactRoleDto dto);
+
+    /// <summary>Conflict (value: the names of the people who have it) while any contact has the role.</summary>
+    Task<WriteResult<List<string>>> DeleteRoleAsync(int id);
+
+    Task<List<ContactDto>> GetContactsAsync();
+    Task<ContactDto?> GetContactAsync(int id);
+    Task<WriteResult<ContactDto>> CreateContactAsync(SaveContactDto dto);
+    Task<WriteResult<ContactDto>> UpdateContactAsync(int id, SaveContactDto dto);
+    Task<bool> DeleteContactAsync(int id);
+}

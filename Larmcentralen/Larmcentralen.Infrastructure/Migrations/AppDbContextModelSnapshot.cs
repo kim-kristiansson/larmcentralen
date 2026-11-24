@@ -15,7 +15,7 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261122234258_AddSmsAlertRecipient";
+    public override string LastMigrationId => "20261124105250_AddContacts";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -145,6 +145,68 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                 b.HasIndex("TrashBatchId");
 
                 b.ToTable("Areas");
+            });
+
+        modelBuilder.Entity("Larmcentralen.Domain.Entities.Contact", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
+
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasMaxLength(100)
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Note")
+                    .HasMaxLength(200)
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Phone")
+                    .IsRequired()
+                    .HasMaxLength(20)
+                    .HasColumnType("TEXT");
+
+                b.Property<int>("RoleId")
+                    .HasColumnType("INTEGER");
+
+                b.Property<DateTime?>("UpdatedAt")
+                    .HasColumnType("TEXT");
+
+                b.HasKey("Id");
+
+                b.HasIndex("RoleId");
+
+                b.ToTable("Contacts");
+            });
+
+        modelBuilder.Entity("Larmcentralen.Domain.Entities.ContactRole", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
+
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasMaxLength(100)
+                    .HasColumnType("TEXT")
+                    .UseCollation("NOCASE");
+
+                b.Property<DateTime?>("UpdatedAt")
+                    .HasColumnType("TEXT");
+
+                b.HasKey("Id");
+
+                b.HasIndex("Name")
+                    .IsUnique();
+
+                b.ToTable("ContactRoles");
             });
 
         modelBuilder.Entity("Larmcentralen.Domain.Entities.Equipment", b =>
@@ -377,6 +439,17 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
+        modelBuilder.Entity("Larmcentralen.Domain.Entities.Contact", b =>
+            {
+                b.HasOne("Larmcentralen.Domain.Entities.ContactRole", "Role")
+                    .WithMany("Contacts")
+                    .HasForeignKey("RoleId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
+
+                b.Navigation("Role");
+            });
+
         modelBuilder.Entity("Larmcentralen.Domain.Entities.Equipment", b =>
             {
                 b.HasOne("Larmcentralen.Domain.Entities.Area", "Area")
@@ -409,6 +482,11 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
         modelBuilder.Entity("Larmcentralen.Domain.Entities.Area", b =>
             {
                 b.Navigation("Equipment");
+            });
+
+        modelBuilder.Entity("Larmcentralen.Domain.Entities.ContactRole", b =>
+            {
+                b.Navigation("Contacts");
             });
 
         modelBuilder.Entity("Larmcentralen.Domain.Entities.Equipment", b =>
