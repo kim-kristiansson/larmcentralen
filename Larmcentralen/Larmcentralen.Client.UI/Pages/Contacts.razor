@@ -372,6 +372,14 @@ else
     private async Task SaveContactAsync()
     {
         if (_form is not { } form) return;
+        // Same name or number as someone else: say so at once, under the field (the server checks again).
+        if (_contacts is not null && _editContext is not null && _serverErrors is not null
+            && ContactDisplay.FindDuplicate(_contacts, form.Id, form.Name, form.Phone) is { } duplicate)
+        {
+            _serverErrors.Add(_editContext.Field(duplicate.Field), duplicate.Message);
+            _editContext.NotifyValidationStateChanged();
+            return;
+        }
         _busy = true;
         _formError = null;
         _message = null;
@@ -474,6 +482,11 @@ else
     {
         var name = _roleName.Trim();
         if (name.Length == 0) { _roleError = "Ange rollens namn."; return; }
+        if (_roles is not null && ContactDisplay.FindRole(_roles, _editingRoleId, name) is { } same)
+        {
+            _roleError = $"Det finns redan en roll som heter {ContactDisplay.CleanName(same.Name)}.";
+            return;
+        }
         _busy = true;
         _roleError = null;
         _message = null;

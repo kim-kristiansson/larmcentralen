@@ -51,6 +51,8 @@ public class ContactDisplayTests
     [InlineData("Välj en roll.", "RoleId")]
     [InlineData("Rollen finns inte längre. Välj en annan.", "RoleId")]
     [InlineData("Anmärkningen får vara högst 200 tecken.", "Note")]
+    [InlineData("Det finns redan en kontakt som heter Anna Exempel.", "Name")]
+    [InlineData("Numret används redan av Anna Exempel.", "Phone")]
     [InlineData("Någon annan ändrade samtidigt. Ladda om sidan och försök igen.", null)]
     [InlineData(null, null)]
     public void A_reason_from_the_api_goes_under_its_field(string? detail, string? field)
@@ -62,5 +64,42 @@ public class ContactDisplayTests
         Assert.Equal([3, 1], ContactDisplay.Filter(People, "", 2).Select(c => c.Id));
         Assert.Equal([1], ContactDisplay.Filter(People, "östen", 2).Select(c => c.Id));
         Assert.Empty(ContactDisplay.Filter(People, "anna", 2));
+    }
+
+    [Theory]
+    [InlineData("0700002222")]
+    [InlineData("+46700002222")]
+    [InlineData("070-000 22 22")]
+    [InlineData("+46 (0)70 000 22 22")]
+    [InlineData("0046700002222")]
+    public void Any_way_of_writing_a_number_is_the_same_number(string written)
+        => Assert.Equal("+46700002222", ContactDisplay.NormalisePhone(written));
+
+    [Theory]
+    [InlineData("12345")]
+    [InlineData("")]
+    [InlineData("070-000 22 22 22 22")]
+    public void Something_that_is_not_a_swedish_number_is_null(string written)
+        => Assert.Null(ContactDisplay.NormalisePhone(written));
+
+    [Theory]
+    [InlineData(null, "  anna   EXEMPEL ", "0709999999", "Name", "Det finns redan en kontakt som heter Anna Exempel.")]
+    [InlineData(null, "Ny Person", "070-000 22 22", "Phone", "Numret används redan av Anna Exempel.")]
+    [InlineData(3, "Anna Exempel", "0709999999", "Name", "Det finns redan en kontakt som heter Anna Exempel.")]
+    [InlineData(3, "Erik Prov", "+46700002222", "Phone", "Numret används redan av Anna Exempel.")]
+    public void A_name_or_number_someone_else_has_is_a_duplicate(int? id, string name, string phone, string field, string message)
+        => Assert.Equal((field, message), ContactDisplay.FindDuplicate(People, id, name, phone));
+
+    [Fact]
+    public void A_contact_keeping_its_own_name_and_number_is_not_a_duplicate()
+        => Assert.Null(ContactDisplay.FindDuplicate(People, 2, " anna exempel", "070-000 22 22"));
+
+    [Fact]
+    public void A_role_name_matches_ignoring_case_and_spacing_but_not_itself()
+    {
+        List<ContactRole> roles = [new(1, "Teamledare", 1), new(2, "Underhåll el", 2)];
+        Assert.Equal(2, ContactDisplay.FindRole(roles, null, "  UNDERHÅLL   el ")?.Id);
+        Assert.Null(ContactDisplay.FindRole(roles, 2, "underhåll el"));
+        Assert.Null(ContactDisplay.FindRole(roles, null, "Underhåll mek"));
     }
 }
