@@ -15,7 +15,7 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261128063915_RemoveSmsAlarmArea";
+    public override string LastMigrationId => "20261128064652_AddUnrecognisedSms";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -387,6 +387,31 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                 b.HasKey("Id");
 
                 b.ToTable("TrashBatches");
+            });
+
+        modelBuilder.Entity("Larmcentralen.Domain.Entities.UnrecognisedSms", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
+
+                b.Property<string>("From")
+                    .HasMaxLength(50)
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Message")
+                    .IsRequired()
+                    .HasMaxLength(2000)
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTime>("ReceivedAt")
+                    .HasColumnType("TEXT");
+
+                b.HasKey("Id");
+
+                b.HasIndex("ReceivedAt");
+
+                b.ToTable("UnrecognisedSms");
             });
 
         modelBuilder.Entity("Larmcentralen.Domain.Entities.Alarm", b =>

@@ -156,3 +156,6 @@ public record Contact(int Id, string Name, string Phone, int RoleId, string Role
 
 /// <summary>Create or change a contact. The number may be written any Swedish way.</summary>
 public record SaveContactRequest(string Name, string Phone, int RoleId, string? Note);
+
+/// <summary>An SMS from the alarm system that didn't match the alarm format, word for word (admin only).</summary>
+public record UnrecognisedSms(int Id, DateTime ReceivedAt, string? From, string Message);

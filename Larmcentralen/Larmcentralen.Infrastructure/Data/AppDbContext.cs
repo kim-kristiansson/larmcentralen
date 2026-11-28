@@ -14,6 +14,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AlarmCode> AlarmCodes => Set<AlarmCode>();
     public DbSet<TrashBatch> TrashBatches => Set<TrashBatch>();
     public DbSet<SmsSettings> SmsSettings => Set<SmsSettings>();
+    public DbSet<UnrecognisedSms> UnrecognisedSms => Set<UnrecognisedSms>();
     public DbSet<Contact> Contacts => Set<Contact>();
     public DbSet<ContactRole> ContactRoles => Set<ContactRole>();
 
@@ -58,6 +59,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(c => c.Phone).HasMaxLength(20);
             e.Property(c => c.Note).HasMaxLength(200);
             e.HasOne(c => c.Role).WithMany(r => r.Contacts).HasForeignKey(c => c.RoleId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // SMS that didn't match the alarm format, word for word. Admin only, not synced.
+        modelBuilder.Entity<UnrecognisedSms>(e =>
+        {
+            e.ToTable("UnrecognisedSms");
+            e.Property(s => s.From).HasMaxLength(50);
+            e.Property(s => s.Message).HasMaxLength(2000);
+            e.HasIndex(s => s.ReceivedAt);
         });
 
         // The bin (Papperskorg): rows marked with a TrashBatchId are hidden from every query, so the API, the sync

@@ -35,3 +35,6 @@ public record ElksLogin(string Username, string Password);
 
 /// <summary>Result of "Testa anslutningen": whether 46elks accepted the login and the number is on the account (Swedish).</summary>
 public record SmsConnectionTestDto(bool Ok, List<string> Messages);
+
+/// <summary>An SMS from the alarm system that didn't match the alarm format, word for word.</summary>
+public record UnrecognisedSmsDto(int Id, DateTime ReceivedAt, string? From, string Message);

@@ -30,6 +30,21 @@ public class SmsSettingsController(ISmsSettingsService service, ElksAccount acco
             : this.ToError(result.Status, result.Error);
     }
 
+    /// <summary>SMS from the alarm system that didn't match the alarm format, word for word, newest first.</summary>
+    [HttpGet("unrecognised")]
+    public async Task<ActionResult<List<UnrecognisedSmsDto>>> GetUnrecognised() => Ok(await service.GetUnrecognisedAsync());
+
+    [HttpDelete("unrecognised/{id:int}")]
+    public async Task<IActionResult> DeleteUnrecognised(int id)
+        => await service.DeleteUnrecognisedAsync(id) ? NoContent() : NotFound();
+
+    [HttpDelete("unrecognised")]
+    public async Task<IActionResult> DeleteAllUnrecognised()
+    {
+        await service.DeleteUnrecognisedAsync(null);
+        return NoContent();
+    }
+
     /// <summary>
     /// Logs in to 46elks with the saved login and checks that the 46elks number is on the account and can take SMS.
     /// Changes nothing, sends nothing.

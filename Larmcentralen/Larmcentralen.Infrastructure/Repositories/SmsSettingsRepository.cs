@@ -28,4 +28,23 @@ public class SmsSettingsRepository(AppDbContext db) : ISmsSettingsRepository
     }
 
     public async Task SaveChangesAsync() => await db.SaveChangesAsync();
+
+    public async Task AddUnrecognisedAsync(UnrecognisedSms sms)
+    {
+        db.UnrecognisedSms.Add(sms);
+        await db.SaveChangesAsync();
+        await db.UnrecognisedSms
+            .OrderByDescending(s => s.ReceivedAt).ThenByDescending(s => s.Id)
+            .Skip(UnrecognisedSms.MaxKept)
+            .ExecuteDeleteAsync();
+    }
+
+    public async Task<List<UnrecognisedSms>> GetUnrecognisedAsync()
+        => await db.UnrecognisedSms.AsNoTracking().OrderByDescending(s => s.ReceivedAt).ThenByDescending(s => s.Id).ToListAsync();
+
+    public async Task<bool> DeleteUnrecognisedAsync(int? id)
+    {
+        var query = id is null ? db.UnrecognisedSms : db.UnrecognisedSms.Where(s => s.Id == id);
+        return await query.ExecuteDeleteAsync() > 0 || id is null;
+    }
 }

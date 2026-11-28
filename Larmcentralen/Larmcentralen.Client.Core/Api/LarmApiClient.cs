@@ -182,6 +182,17 @@ public class LarmApiClient(HttpClient http)
                ?? throw new InvalidOperationException("The API returned empty SMS settings.");
     }
 
+    /// <summary>SMS from the alarm system that didn't match the alarm format, newest first (admin only).</summary>
+    public async Task<List<UnrecognisedSms>> GetUnrecognisedSmsAsync(CancellationToken ct = default)
+        => await http.GetFromJsonAsync<List<UnrecognisedSms>>("api/settings/sms/unrecognised", ct) ?? [];
+
+    /// <summary>Removes one kept SMS, or all of them when <paramref name="id"/> is null.</summary>
+    public async Task DeleteUnrecognisedSmsAsync(int? id, CancellationToken ct = default)
+    {
+        using var response = await http.DeleteAsync(id is null ? "api/settings/sms/unrecognised" : $"api/settings/sms/unrecognised/{id}", ct);
+        await EnsureSuccessAsync(response, ct);
+    }
+
     /// <summary>Logs in to 46elks with the saved login and checks the 46elks number. Sends nothing.</summary>
     public async Task<SmsConnectionTest> TestSmsConnectionAsync(CancellationToken ct = default)
     {

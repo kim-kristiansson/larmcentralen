@@ -154,6 +154,37 @@ else
             }
         </section>
 
+        <section class="card unknown" aria-labelledby="unknown-title">
+            <div class="last-head">
+                <h2 id="unknown-title">Okända SMS</h2>
+                @if (_unknown.Count > 0)
+                {
+                    <OnlineButton Class="btn btn-small btn-danger-outline" Disabled="_saving" OnClick="@(() => DeleteUnknownAsync(null))">Rensa alla</OnlineButton>
+                }
+            </div>
+            <p class="muted">
+                SMS från larmsystemet som inte ser ut som ett larm ("… Line : T102 : M206.6 …"), ord för ord, så att
+                ett nytt format kan läggas till. De senaste 200 sparas.
+            </p>
+            @if (_unknown.Count == 0)
+            {
+                <p class="muted">Inga okända SMS.</p>
+            }
+            else
+            {
+                <ul class="unknown-list">
+                    @foreach (var sms in _unknown)
+                    {
+                        <li class="unknown-item">
+                            <span class="muted">@Format.When(new DateTimeOffset(DateTime.SpecifyKind(sms.ReceivedAt, DateTimeKind.Utc))) från @(sms.From ?? "okänt nummer")</span>
+                            <pre class="sms-text">@sms.Message</pre>
+                            <OnlineButton Class="btn btn-small" Disabled="_saving" OnClick="@(() => DeleteUnknownAsync(sms.Id))">Ta bort</OnlineButton>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+
         <section class="card setup" aria-labelledby="setup-title">
             <h2 id="setup-title">Koppla 46elks</h2>
             <p class="muted">
@@ -182,6 +213,7 @@ else
     private string _elksUsername = "";
     private string _elksPassword = "";
     private SmsConnectionTest? _test;
+    private List<UnrecognisedSms> _unknown = [];
     private bool _testing;
     private bool _saving;
     private bool _loadedOnline;
@@ -212,12 +244,33 @@ else
             // Keep what the admin is typing: only fill the form the first time.
             if (_settings is null) Fill(settings);
             else _settings = _settings with { LastSms = settings.LastSms, LastFetch = settings.LastFetch };
+            _unknown = await Kb.CallApiAsync((api, ct) => api.GetUnrecognisedSmsAsync(ct));
             _loadedOnline = true;
             _error = null;
         }
         catch (Exception ex)
         {
             _error = $"SMS-inställningarna kunde inte hämtas. {Reason(ex)}";
+        }
+    }
+
+    /// <summary>Removes one kept SMS, or all of them when <paramref name="id"/> is null.</summary>
+    private async Task DeleteUnknownAsync(int? id)
+    {
+        _saving = true;
+        _message = _error = null;
+        try
+        {
+            await Kb.CallApiAsync(async (api, ct) => { await api.DeleteUnrecognisedSmsAsync(id, ct); return true; });
+            _unknown = id is null ? [] : _unknown.Where(s => s.Id != id).ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Det okända SMS:et kunde inte tas bort. {Reason(ex)}";
+        }
+        finally
+        {
+            _saving = false;
         }
     }
 

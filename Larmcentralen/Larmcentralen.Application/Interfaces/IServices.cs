@@ -95,6 +95,15 @@ public interface ISmsSettingsService
 
     /// <summary>Keeps when 46elks was last asked and how it went; moves the fetch mark forward (never back).</summary>
     Task RecordFetchAsync(DateTime at, DateTime? fetchedUntil, string? error);
+
+    /// <summary>Keeps an SMS that didn't match the alarm format, word for word.</summary>
+    Task AddUnrecognisedAsync(string? from, string message, DateTime? now = null);
+
+    /// <summary>The kept SMS that didn't match, newest first.</summary>
+    Task<List<UnrecognisedSmsDto>> GetUnrecognisedAsync();
+
+    /// <summary>Removes one or, when <paramref name="id"/> is null, all. False when the one wasn't there.</summary>
+    Task<bool> DeleteUnrecognisedAsync(int? id);
 }
 
 /// <summary>Encrypts secrets kept in the database (the 46elks password). Implemented by the API.</summary>

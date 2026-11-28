@@ -9,15 +9,14 @@ namespace Larmcentralen.Api.Services;
 /// <summary>
 /// Handles an alarm SMS from the plant's alarm system (OCSS), passed on by 46elks. Only SMS from a configured sender
 /// to the configured 46elks number count (Inställningar, SMS-larm). The alarm is looked up in the knowledge base by
-/// unit and code, in the avdelning the SMS's line belongs to (<see cref="Lines"/>). One that isn't documented yet
-/// is added, like the import adds alarms: the unit too if needed, the shared code, and the SMS text as the unit's
-/// own text, priority Låg. Nothing new is added when the line is unknown. For a Hög or Kritisk alarm an alert SMS goes to the alert number set under SMS-larm.
+/// unit and code. One that isn't documented yet is added, like the import adds alarms: the unit too if needed
+/// (beside the other OCSS units), the shared code, and the SMS text as the unit's own text, priority Låg. An SMS
+/// that doesn't look like an alarm is kept word for word under Okända SMS. For a Hög or Kritisk alarm an alert SMS goes to the alert number set under SMS-larm.
 /// What happened to the last SMS is kept for the admin page.
 /// </summary>
 public partial class SmsAlarmService(
     IAlarmRepository alarmRepo,
     IEquipmentRepository equipmentRepo,
-    IAreaRepository areaRepo,
     IEquipmentService equipmentService,
     IAlarmService alarmService,
     ISmsSettingsService settings,
@@ -43,44 +42,33 @@ public partial class SmsAlarmService(
         }
 
         logger.LogInformation("SMS received from {From}: {Message}", from, message);
-        await settings.RecordAsync(from, true, await HandleAsync(message));
+        await settings.RecordAsync(from, true, await HandleAsync(from, message));
     }
 
 
-    /// <summary>
-    /// The lines the alarm system names in its SMS ("06:56 / T10-T7 Line : …"), and the start of the name of the
-    /// avdelning each belongs to. "T10-T7 Line" is a legacy name, but it tells which line an alarm comes from if the
-    /// number one day carries alarms from other lines too. Add a line here when one turns up.
-    /// </summary>
-    public static readonly IReadOnlyDictionary<string, string> Lines = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-    {
-        ["T10-T7"] = "SQ", // SQ-linan (OCSS)
-    };
-
     /// <summary>What happened, in Swedish, for the admin page.</summary>
-    private async Task<string> HandleAsync(string? message)
+    private async Task<string> HandleAsync(string? from, string? message)
     {
-        if (ParseSms(message) is not var (line, equipment, alarmCode, description))
+        if (ParseSms(message) is not var (equipment, alarmCode, description))
         {
+            // Kept word for word, so a format we don't know yet can be added later.
             logger.LogWarning("Could not parse SMS: {Message}", message);
-            return "Texten känns inte igen som ett larm (väntade \"… T10-T7 Line : T102 : M206.6 …\").";
+            await settings.AddUnrecognisedAsync(from, message ?? "");
+            return "Texten känns inte igen som ett larm (väntade \"… Line : T102 : M206.6 …\"). SMS:et finns under Okända SMS.";
         }
 
-        // The line decides the avdelning. New units and alarms are only added when it is known.
-        var (areaId, noArea) = await AreaForLineAsync(line);
-        var units = await equipmentRepo.FindByTitleAsync(equipment, areaId);
+        var units = await equipmentRepo.FindByTitleAsync(equipment, null);
         if (units.Count > 1)
-            return $"Enheten {equipment} finns på flera avdelningar, och linjen i SMS:et pekar inte ut en av dem. {noArea}";
+            return $"Enheten {equipment} finns på flera avdelningar, så det går inte att veta vilken som menas.";
 
         string? added = null;
         var unitId = units.SingleOrDefault()?.Id;
         if (unitId is null)
         {
-            if (areaId is null)
-                return $"Enheten {equipment} finns inte i larmcentralen. {noArea}";
-
-            // Not documented yet: add the unit the way the import does.
-            var created = await equipmentService.CreateAsync(new CreateEquipmentDto(equipment, null, "OCSS", null, areaId.Value));
+            // Not documented yet: add the unit the way the import does, beside the alarm system's other units.
+            if (await OcssAreaAsync() is not { } areaId)
+                return $"Enheten {equipment} finns inte, och larmsystemets enheter (kategori OCSS) finns inte på en enda avdelning att lägga den på.";
+            var created = await equipmentService.CreateAsync(new CreateEquipmentDto(equipment, null, OcssCategory, null, areaId));
             if (created.Status != WriteStatus.Ok)
                 return $"Enheten {equipment} finns inte och kunde inte läggas till: {created.Error ?? created.Status.ToString()}";
             unitId = created.Value!.Id;
@@ -91,9 +79,6 @@ public partial class SmsAlarmService(
         var alarm = await alarmRepo.FindByCodeAsync(unitId.Value, alarmCode);
         if (alarm is null)
         {
-            if (areaId is null)
-                return $"{alarmCode} på {equipment} finns inte i larmcentralen. {noArea}";
-
             // Not documented yet: add it like the other alarms, with the unit's own text from the SMS and the shared
             // code (added to the code list if new). Priority Låg, as imported alarms start out.
             var title = description.Length > 0 ? description : alarmCode;
@@ -124,46 +109,37 @@ public partial class SmsAlarmService(
             : $"{code} på {unit} ({alarm.Severity}). Aviseringen kunde inte skickas, se serverns logg.";
     }
 
-    /// <summary>
-    /// The avdelning for the line in the SMS: the one whose name starts with the line's name (SQ for T10-T7), when
-    /// exactly one does. Otherwise null, with the reason (Swedish) why nothing new can be added.
-    /// </summary>
-    private async Task<(int? AreaId, string Reason)> AreaForLineAsync(string? line)
-    {
-        if (line is null)
-            return (null, "SMS:et anger ingen linje, så inget nytt läggs till.");
-        if (!Lines.TryGetValue(line, out var prefix))
-            return (null, $"Linjen \"{line}\" är okänd, så inget nytt läggs till.");
+    /// <summary>The category the import and SMS alarms give the alarm system's units.</summary>
+    public const string OcssCategory = "OCSS";
 
-        var matches = (await areaRepo.GetAllAsync())
-            .Where(a => Regex.IsMatch(a.Title, $@"^{Regex.Escape(prefix)}\b", RegexOptions.IgnoreCase))
+    /// <summary>
+    /// Where a new unit from an SMS goes: the avdelning the alarm system's units (category OCSS) are in, today
+    /// SQ-linan. Every alarm on the number comes from that line now. If another line ever shares the number, the
+    /// line in the SMS ("T10-T7 Line") is how to tell them apart. Null when they aren't all in one avdelning.
+    /// </summary>
+    private async Task<int?> OcssAreaAsync()
+    {
+        var areas = (await equipmentRepo.GetAllAsync())
+            .Where(e => string.Equals(e.Category, OcssCategory, StringComparison.OrdinalIgnoreCase))
+            .Select(e => e.AreaId)
+            .Distinct()
             .ToList();
-        return matches.Count switch
-        {
-            1 => (matches[0].Id, ""),
-            0 => (null, $"Ingen avdelning heter {prefix}… för linjen {line}, så inget nytt läggs till."),
-            _ => (null, $"Flera avdelningar heter {prefix}… för linjen {line}, så inget nytt läggs till."),
-        };
+        return areas.Count == 1 ? areas[0] : null;
     }
 
     /// <summary>
-    /// The line, the unit, the code and the rest of the text. OCSS writes them as
-    /// "06:56 / T10-T7 Line : T102 : M206.6 Ingen svarssignal tandbrännare ytterlucka". The line is null when the SMS
-    /// names none.
+    /// The unit, the code and the rest of the text. OCSS writes them as
+    /// "06:56 / T10-T7 Line : T102 : M206.6 Ingen svarssignal tandbrännare ytterlucka".
     /// </summary>
-    public static (string? Line, string Equipment, string AlarmCode, string Description)? ParseSms(string? message)
+    public static (string Equipment, string AlarmCode, string Description)? ParseSms(string? message)
     {
         if (string.IsNullOrWhiteSpace(message)) return null;
         var match = AlarmPattern().Match(message);
         if (!match.Success) return null;
 
-        var line = match.Groups["line"].Value.Trim();
-        return (line.Length > 0 ? line : null, match.Groups["unit"].Value.Trim(),
-            match.Groups["code"].Value.Trim(), match.Groups["text"].Value.Trim());
+        return (match.Groups[1].Value.Trim(), match.Groups[2].Value.Trim(), match.Groups[3].Value.Trim());
     }
 
-    // "<time> / <line> Line : <unit> : <code> <text>"; the line is what stands between the last "/" or ":" before
-    // "Line" and "Line".
-    [GeneratedRegex(@"(?:(?<line>[^/:\s][^/:]*?)\s+)?Line\s*:\s*(?<unit>\w+)\s*:\s*(?<code>\S+)\s*(?<text>.*)", RegexOptions.Singleline)]
+    [GeneratedRegex(@"Line\s*:\s*(\w+)\s*:\s*(\S+)\s*(.*)", RegexOptions.Singleline)]
     private static partial Regex AlarmPattern();
 }

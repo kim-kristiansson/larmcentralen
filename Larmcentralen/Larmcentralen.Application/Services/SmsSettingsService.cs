@@ -141,6 +141,19 @@ public class SmsSettingsService(ISmsSettingsRepository repo, ISecretProtector pr
         await repo.SaveChangesAsync();
     }
 
+    public async Task AddUnrecognisedAsync(string? from, string message, DateTime? now = null)
+        => await repo.AddUnrecognisedAsync(new UnrecognisedSms
+        {
+            ReceivedAt = now ?? DateTime.UtcNow,
+            From = Truncate(from, 50),
+            Message = Truncate(message, 2000)!,
+        });
+
+    public async Task<List<UnrecognisedSmsDto>> GetUnrecognisedAsync()
+        => (await repo.GetUnrecognisedAsync()).Select(s => new UnrecognisedSmsDto(s.Id, s.ReceivedAt, s.From, s.Message)).ToList();
+
+    public Task<bool> DeleteUnrecognisedAsync(int? id) => repo.DeleteUnrecognisedAsync(id);
+
     private static string Show(string? number) => string.IsNullOrWhiteSpace(number) ? "okänt nummer" : number.Trim();
 
     private static string? Truncate(string? value, int max)
