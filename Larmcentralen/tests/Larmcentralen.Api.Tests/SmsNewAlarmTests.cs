@@ -11,7 +11,8 @@ namespace Larmcentralen.Api.Tests;
 
 /// <summary>
 /// An alarm SMS for an alarm that isn't documented yet adds it, like the import adds alarms: the shared code, the
-/// SMS text as the unit's own text, priority Låg. A missing unit is added only in the avdelning set for SMS-larm.
+/// SMS text as the unit's own text, priority Låg. The line in the SMS ("T10-T7 Line") decides the avdelning
+/// (SQ…); nothing new is added for an unknown line.
 /// The test numbers are fictional.
 /// </summary>
 public sealed class SmsNewAlarmTests : IClassFixture<ApiFactory>
@@ -24,7 +25,7 @@ public sealed class SmsNewAlarmTests : IClassFixture<ApiFactory>
 
     private record Created(int Id);
     private record LastSms(DateTime ReceivedAt, string? From, bool Accepted, string Result);
-    private record Settings(LastSms? LastSms, int? AlarmAreaId);
+    private record Settings(LastSms? LastSms);
     private record AlarmRow(int Id, string Title, string? AlarmCode, string Severity, string EquipmentTitle, string AreaTitle);
     private record Unit(int Id, string Title, string? Category, int AreaId);
 
@@ -67,11 +68,20 @@ public sealed class SmsNewAlarmTests : IClassFixture<ApiFactory>
         return (await response.Content.ReadFromJsonAsync<Created>(Json, Ct))!.Id;
     }
 
-    private static async Task SetAreaAsync(HttpClient c, int? areaId)
+
+    private record Area(int Id, string Title);
+
+    /// <summary>
+    /// The numbers, and this class's one SQ avdelning (the line T10-T7 belongs to). Its database is its own, so no
+    /// other test adds an avdelning starting with SQ here.
+    /// </summary>
+    private static async Task<int> SetUpAsync(HttpClient c)
     {
-        using var put = await c.PutAsJsonAsync("api/settings/sms",
-            new { elksNumber = ElksNumber, senderNumbers = new[] { Sender }, alarmAreaId = areaId ?? 0 }, Ct);
-        Assert.True(put.IsSuccessStatusCode, await put.Content.ReadAsStringAsync(Ct));
+        using (var put = await c.PutAsJsonAsync("api/settings/sms", new { elksNumber = ElksNumber, senderNumbers = new[] { Sender } }, Ct))
+            Assert.True(put.IsSuccessStatusCode, await put.Content.ReadAsStringAsync(Ct));
+        var areas = (await c.GetFromJsonAsync<List<Area>>("api/areas", Json, Ct))!;
+        return areas.FirstOrDefault(a => a.Title == "SQ-linan (OCSS)")?.Id
+               ?? await PostAsync(c, "api/areas", new { title = "SQ-linan (OCSS)" });
     }
 
     private async Task SmsAsync(string message)
@@ -88,16 +98,27 @@ public sealed class SmsNewAlarmTests : IClassFixture<ApiFactory>
     private static async Task<List<AlarmRow>> AlarmsOnAsync(HttpClient c, int equipmentId)
         => (await c.GetFromJsonAsync<List<AlarmRow>>($"api/alarms?equipmentId={equipmentId}&take=100", Json, Ct))!;
 
+    private static async Task<List<Unit>> UnitsAsync(HttpClient c)
+        => (await c.GetFromJsonAsync<List<Unit>>("api/equipment", Json, Ct))!;
+
+    [Theory]
+    [InlineData("06:56 / T10-T7 Line : T102 : M206.6 Ingen svarssignal ytterlucka", "T10-T7", "T102", "M206.6", "Ingen svarssignal ytterlucka")]
+    [InlineData("T10-T7 Line : T102 : M206.6", "T10-T7", "T102", "M206.6", "")]
+    [InlineData("06:56 / Line : T102 : M206.6 Text", null, "T102", "M206.6", "Text")]
+    [InlineData("07:01 / T3-T1 Line: W1 : M200.0 Batteri", "T3-T1", "W1", "M200.0", "Batteri")]
+    public void The_line_unit_code_and_text_are_read(string sms, string? line, string unit, string code, string text)
+        => Assert.Equal((line, unit, code, text), SmsAlarmService.ParseSms(sms));
+
     [Fact]
     public async Task An_undocumented_alarm_on_a_known_unit_is_added_once()
     {
         using var c = Admin();
-        await SetAreaAsync(c, null);
-        var area = await PostAsync(c, "api/areas", new { title = Unique("SQ ") });
+        var area = await SetUpAsync(c);
         var title = Unique("Q");
         var unit = await PostAsync(c, "api/equipment", new { title, areaId = area });
 
         await SmsAsync($"06:56 / T10-T7 Line : {title} : m777.1 Ny givare saknar signal");
+        Assert.Contains("Larmet fanns inte och har lagts till", await LastResultAsync(c));
         await SmsAsync($"07:10 / T10-T7 Line : {title} : M777.1 Ny givare saknar signal");
 
         var alarm = Assert.Single(await AlarmsOnAsync(c, unit));
@@ -110,52 +131,55 @@ public sealed class SmsNewAlarmTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task An_unknown_unit_is_not_added_without_an_avdelning_for_SMS_larm()
+    public async Task An_unknown_unit_on_the_SQ_line_is_added_there_with_its_alarm()
     {
         using var c = Admin();
-        await SetAreaAsync(c, null);
+        var area = await SetUpAsync(c);
         var title = Unique("Q");
 
-        await SmsAsync($"06:56 / T10-T7 Line : {title} : M777.2 Okänd enhet");
+        await SmsAsync($"06:56 / T10-T7 Line : {title} : M777.3 Tändbrännare ur funktion");
 
-        Assert.Contains("Välj avdelning för SMS-larm", await LastResultAsync(c));
-        var units = (await c.GetFromJsonAsync<List<Unit>>("api/equipment", Json, Ct))!;
-        Assert.DoesNotContain(units, u => u.Title == title);
+        var unit = Assert.Single(await UnitsAsync(c), u => u.Title == title);
+        Assert.Equal(area, unit.AreaId);
+        Assert.Equal("OCSS", unit.Category);
+        var alarm = Assert.Single(await AlarmsOnAsync(c, unit.Id));
+        Assert.Equal("M777.3", alarm.AlarmCode);
+        Assert.Equal("Tändbrännare ur funktion", alarm.Title);
+        Assert.Contains($"Enheten {title} och larmet fanns inte och har lagts till", await LastResultAsync(c));
+    }
+
+    [Theory]
+    [InlineData("06:56 / X9-X1 Line", "Linjen \"X9-X1\" är okänd")]
+    [InlineData("06:56 / Line", "SMS:et anger ingen linje")]
+    public async Task Nothing_new_is_added_for_an_unknown_line(string start, string reason)
+    {
+        using var c = Admin();
+        var area = await SetUpAsync(c);
+        var known = Unique("Q");
+        var knownId = await PostAsync(c, "api/equipment", new { title = known, areaId = area });
+        var unknown = Unique("Q");
+
+        await SmsAsync($"{start} : {unknown} : M777.4 Okänd enhet");
+        Assert.Contains(reason, await LastResultAsync(c));
+        Assert.DoesNotContain(await UnitsAsync(c), u => u.Title == unknown);
+
+        await SmsAsync($"{start} : {known} : M777.5 Okänt larm");
+        Assert.Contains(reason, await LastResultAsync(c));
+        Assert.Empty(await AlarmsOnAsync(c, knownId));
     }
 
     [Fact]
-    public async Task An_unknown_unit_is_added_in_the_avdelning_for_SMS_larm_with_its_alarm()
+    public async Task A_documented_alarm_is_found_whatever_the_line()
     {
         using var c = Admin();
-        var area = await PostAsync(c, "api/areas", new { title = Unique("SQ-linjen ") });
-        await SetAreaAsync(c, area);
-        try
-        {
-            var title = Unique("Q");
+        var area = await SetUpAsync(c);
+        var title = Unique("Q");
+        var unit = await PostAsync(c, "api/equipment", new { title, areaId = area });
+        await PostAsync(c, "api/alarms", new { title = "Brännarfel", alarmCode = "M777.6", severity = "Kritisk", equipmentId = unit });
 
-            await SmsAsync($"06:56 / T10-T7 Line : {title} : M777.3 Tändbrännare ur funktion");
+        await SmsAsync($"06:56 / X9-X1 Line : {title} : M777.6 Brännarfel");
 
-            var unit = Assert.Single((await c.GetFromJsonAsync<List<Unit>>($"api/equipment?areaId={area}", Json, Ct))!);
-            Assert.Equal(title, unit.Title);
-            Assert.Equal("OCSS", unit.Category);
-            var alarm = Assert.Single(await AlarmsOnAsync(c, unit.Id));
-            Assert.Equal("M777.3", alarm.AlarmCode);
-            Assert.Equal("Tändbrännare ur funktion", alarm.Title);
-            Assert.Contains($"Enheten {title} och larmet fanns inte och har lagts till", await LastResultAsync(c));
-        }
-        finally
-        {
-            await SetAreaAsync(c, null);
-        }
-    }
-
-    [Fact]
-    public async Task An_avdelning_that_does_not_exist_is_refused()
-    {
-        using var c = Admin();
-
-        using var put = await c.PutAsJsonAsync("api/settings/sms", new { alarmAreaId = 987654 }, Ct);
-
-        Assert.Equal(HttpStatusCode.BadRequest, put.StatusCode);
+        Assert.Contains("Avisering skickad", await LastResultAsync(c));
+        Assert.Single(_alerts.Sent);
     }
 }

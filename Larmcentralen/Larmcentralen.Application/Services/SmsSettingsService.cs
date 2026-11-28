@@ -9,8 +9,7 @@ namespace Larmcentralen.Application.Services;
 /// Which SMS the alarm webhook acts on: only from a configured sender (the plant's alarm system, OCSS)
 /// to the configured 46elks number. Until both are set, every SMS is turned away.
 /// </summary>
-public class SmsSettingsService(ISmsSettingsRepository repo, ISecretProtector protector, IAreaRepository areas)
-    : ISmsSettingsService
+public class SmsSettingsService(ISmsSettingsRepository repo, ISecretProtector protector) : ISmsSettingsService
 {
     /// <summary>Plenty for one alarm system with a spare modem or two.</summary>
     public const int MaxSenders = 20;
@@ -58,12 +57,6 @@ public class SmsSettingsService(ISmsSettingsRepository repo, ISecretProtector pr
         if (dto.ElksNumber is not null) settings.ElksNumber = elksNumber;
         if (senders is not null) settings.SenderNumbers = senders;
         if (dto.AlertRecipient is not null) settings.AlertRecipient = recipient;
-        if (dto.AlarmAreaId is { } areaId)
-        {
-            if (areaId != 0 && (await areas.GetAllAsync()).All(a => a.Id != areaId))
-                return WriteResult<SmsSettingsDto>.Invalid("Avdelningen finns inte.");
-            settings.AlarmAreaId = areaId == 0 ? null : areaId;
-        }
 
         if (username is not null)
         {
@@ -161,6 +154,5 @@ public class SmsSettingsService(ISmsSettingsRepository repo, ISecretProtector pr
         s.LastFetchAt is { } fetched ? new LastFetchDto(fetched, s.LastFetchError) : null,
         s.ElksUsername,
         s.ElksPasswordProtected is not null,
-        s.AlertRecipient,
-        s.AlarmAreaId);
+        s.AlertRecipient);
 }

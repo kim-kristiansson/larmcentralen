@@ -34,13 +34,6 @@ public class SmsSettings
     /// <summary>Who gets an alert SMS for Hög and Kritisk alarms (+46…). Null: no alerts are sent.</summary>
     public string? AlertRecipient { get; set; }
 
-    /// <summary>
-    /// The avdelning the alarm system's units are in (SQ-linjen; its SMS say "T10-T7 Line"). Units in alarm SMS are
-    /// looked up here, and a unit or alarm that isn't documented yet is created here. Null: units are looked up in
-    /// every avdelning and nothing new is created for a unit that doesn't exist.
-    /// </summary>
-    public int? AlarmAreaId { get; set; }
-
     public DateTime? UpdatedAt { get; set; }
 
     /// <summary>When the last SMS came in.</summary>

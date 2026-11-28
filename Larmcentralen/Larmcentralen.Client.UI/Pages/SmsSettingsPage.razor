@@ -103,22 +103,6 @@ else
                 <span class="muted hint">Numret som får ett SMS när ett larm med prioritet Hög eller Kritisk kommer in. Tomt: inga aviseringar.</span>
             </label>
 
-            <label>
-                <span>Avdelning för SMS-larm</span>
-                <select @bind="_alarmAreaId">
-                    <option value="0">Ingen vald</option>
-                    @foreach (var area in Kb.Index.Areas)
-                    {
-                        <option value="@area.Id">@area.Name</option>
-                    }
-                </select>
-                <span class="muted hint">
-                    Avdelningen som larmsystemets enheter hör till (SQ-linjen, i SMS:en står det "T10-T7 Line").
-                    Ett larm som inte finns i larmcentralen ännu läggs till där, med texten från SMS:et och prioritet Låg,
-                    och enheten också om den saknas. Utan vald avdelning läggs inga nya enheter till.
-                </span>
-            </label>
-
             @if (_error is not null)
             {
                 <p class="error" role="alert">@_error</p>
@@ -194,7 +178,6 @@ else
     private SmsSettings? _settings;
     private string _elksNumber = "";
     private string _alertRecipient = "";
-    private int _alarmAreaId;
     private List<SenderRow> _senders = [];
     private string _elksUsername = "";
     private string _elksPassword = "";
@@ -243,7 +226,6 @@ else
         _settings = settings;
         _elksNumber = settings.ElksNumber ?? "";
         _alertRecipient = settings.AlertRecipient ?? "";
-        _alarmAreaId = settings.AlarmAreaId ?? 0;
         _senders = settings.SenderNumbers.Select(n => new SenderRow { Number = n }).ToList();
         _elksUsername = settings.ElksUsername ?? "";
         _elksPassword = "";
@@ -274,8 +256,7 @@ else
                 _senders.Select(s => s.Number.Trim()).Where(n => n.Length > 0).ToList(),
                 loginChanged ? username : null,
                 _elksPassword.Length > 0 ? _elksPassword : null,
-                _alertRecipient.Trim(),
-                _alarmAreaId);
+                _alertRecipient.Trim());
             Fill(await Kb.CallApiAsync((api, ct) => api.UpdateSmsSettingsAsync(request, ct)));
             _message = done;
         }
