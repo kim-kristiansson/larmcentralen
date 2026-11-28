@@ -126,7 +126,11 @@ nothing about 46elks goes in appsettings or user-secrets. Without it nothing is 
 **Testa anslutningen** logs in (`GET /a1/numbers`) and checks that the 46elks number is on the account,
 active and able to take SMS. It sends nothing.
 
-An accepted SMS is matched to an alarm by unit and code (`… Line : T102 : M206.6 …`); for a Hög or
+An accepted SMS is matched to an alarm by unit and code (`… Line : T102 : M206.6 …`), the unit looked up in
+the "Avdelning för SMS-larm" chosen on the page (SQ-linjen; the legacy "T10-T7 Line" in the SMS) or, if none
+is chosen, in every avdelning. An alarm that isn't documented yet is added like the import adds alarms: the
+shared code, the SMS text as the unit's own text, priority Låg, and a note that it has no åtgärder yet. A
+missing unit is added too (category OCSS), but only in the chosen avdelning. For a Hög or
 Kritisk alarm an alert SMS goes to the alert number set on the same page (none if empty), from the text sender `Larmcentral`
 (46elks allows at most 11 letters and digits). Sending is retried on 5xx or no answer, never on 4xx.
 After a failed fetch the API waits longer each time (up to 5 minutes). The page shows the last SMS,

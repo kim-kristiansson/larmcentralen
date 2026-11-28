@@ -31,6 +31,16 @@ public class EquipmentRepository(AppDbContext db) : Repository<Equipment>(db), I
             .FirstOrDefaultAsync(e => e.Title == title);
     }
     
+    public async Task<List<Equipment>> FindByTitleAsync(string title, int? areaId)
+    {
+        var lower = title.Trim().ToLowerInvariant();
+        if (lower.Length == 0) return [];
+        return await Db.Equipment
+            .Include(e => e.Area)
+            .Where(e => e.Title.ToLower() == lower && (areaId == null || e.AreaId == areaId))
+            .ToListAsync();
+    }
+
     public new async Task<List<Equipment>> GetAllAsync()
     {
         return await Db.Equipment

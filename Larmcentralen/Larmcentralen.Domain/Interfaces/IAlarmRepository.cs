@@ -10,6 +10,6 @@ public interface IAlarmRepository : IRepository<Alarm>
     Task<bool> ExistsAsync(int alarmCodeId, int equipmentId, int? exceptAlarmId = null);
     Task<List<Alarm>> GetByIdsAsync(List<int> ids);
 
-    /// <summary>The alarm with this code on the unit with this designation (both compared case-insensitively), or null.</summary>
-    Task<Alarm?> FindByCodeAsync(string equipmentTitle, string code);
+    /// <summary>The unit's alarm with this code (compared case-insensitively), or null.</summary>
+    Task<Alarm?> FindByCodeAsync(int equipmentId, string code);
 }

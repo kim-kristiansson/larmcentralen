@@ -5,9 +5,11 @@ namespace Larmcentralen.Application.DTOs;
 /// <see cref="LastSms"/> is null until the first SMS has come in.
 /// The 46elks password is write-only: only <see cref="HasElksPassword"/> says whether one is saved.
 /// <see cref="AlertRecipient"/> gets an alert SMS for Hög and Kritisk alarms; null sends none.
+/// <see cref="AlarmAreaId"/>: the avdelning alarm SMS units are looked up and created in.
 /// </summary>
 public record SmsSettingsDto(string? ElksNumber, List<string> SenderNumbers, LastSmsDto? LastSms, DateTime? UpdatedAt,
-    LastFetchDto? LastFetch = null, string? ElksUsername = null, bool HasElksPassword = false, string? AlertRecipient = null);
+    LastFetchDto? LastFetch = null, string? ElksUsername = null, bool HasElksPassword = false, string? AlertRecipient = null,
+    int? AlarmAreaId = null);
 
 /// <summary>The last SMS that came in, and what happened to it (Swedish).</summary>
 public record LastSmsDto(DateTime ReceivedAt, string? From, bool Accepted, string Result);
@@ -17,9 +19,10 @@ public record LastSmsDto(DateTime ReceivedAt, string? From, bool Accepted, strin
 /// A field left out (null) keeps its value; "" clears the 46elks number and [] removes every sender.
 /// <see cref="ElksUsername"/> and <see cref="ElksPassword"/> are the company's own 46elks API login (best a subaccount);
 /// "" as username removes the saved login (then nothing is fetched or sent). <see cref="AlertRecipient"/>: "" clears it.
+/// <see cref="AlarmAreaId"/>: the avdelning for alarm SMS (0 clears it).
 /// </summary>
 public record UpdateSmsSettingsDto(string? ElksNumber, List<string>? SenderNumbers, string? ElksUsername = null, string? ElksPassword = null,
-    string? AlertRecipient = null);
+    string? AlertRecipient = null, int? AlarmAreaId = null);
 
 /// <summary>Whether an incoming SMS may be acted on, and if not, why (Swedish).</summary>
 public record SmsCheck(bool Accepted, string? Reason);

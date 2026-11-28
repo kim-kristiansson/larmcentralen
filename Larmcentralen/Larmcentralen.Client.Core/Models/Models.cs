@@ -127,7 +127,8 @@ public record CreatedEntity(int Id);
 /// <see cref="AlertRecipient"/> gets an alert SMS for Hög and Kritisk alarms; null sends none.
 /// </summary>
 public record SmsSettings(string? ElksNumber, List<string> SenderNumbers, LastSms? LastSms, DateTime? UpdatedAt,
-    LastFetch? LastFetch = null, string? ElksUsername = null, bool HasElksPassword = false, string? AlertRecipient = null);
+    LastFetch? LastFetch = null, string? ElksUsername = null, bool HasElksPassword = false, string? AlertRecipient = null,
+    int? AlarmAreaId = null);
 
 /// <summary>Result of "Testa anslutningen" (messages in Swedish).</summary>
 public record SmsConnectionTest(bool Ok, List<string> Messages);
@@ -143,7 +144,7 @@ public record LastSms(DateTime ReceivedAt, string? From, bool Accepted, string R
 /// <see cref="ElksPassword"/> null keeps the saved password; <see cref="ElksUsername"/> "" removes the saved login.
 /// </summary>
 public record SmsSettingsRequest(string ElksNumber, List<string> SenderNumbers, string? ElksUsername = null, string? ElksPassword = null,
-    string? AlertRecipient = null);
+    string? AlertRecipient = null, int? AlarmAreaId = null);
 
 /// <summary>Response of GET /api/me: what this app's API key may do. Only admins can edit.</summary>
 public record AccessInfo(string Role, bool CanEdit);
